@@ -1,22 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useSportsbook } from "@/lib/hooks/use-sportsbook";
+import { useSportsbook, type SportEvent, type Selection } from "@/lib/hooks/use-sportsbook";
 import { useAuth } from "@/lib/hooks/use-auth";
 
-const SPORTS = ["⚽ Calcio", "🏀 Basket", "🎾 Tennis", "🏐 Volley", "🏒 Hockey", "🏈 Football"];
+const SPORT_ICONS: Record<string, string> = {
+  calcio: "⚽", basket: "🏀", tennis: "🎾", hockey: "🏒", pallavolo: "🏐", football: "🏈",
+};
 
 export default function SportPage() {
-  const { events, betslip, toggleBet, isSelected, clearBetslip, totalOdds, placeBet, placingBet } = useSportsbook();
+  const {
+    events: allEvents,
+    filteredEvents,
+    loading,
+    error,
+    isMockData,
+    activeSport,
+    setActiveSport,
+    betslip,
+    toggleBet,
+    isSelected,
+    clearBetslip,
+    totalOdds,
+    placeBet,
+    placingBet,
+  } = useSportsbook();
   const { wallet, refreshWallet } = useAuth();
-  const [activeSport, setActiveSport] = useState(0);
   const [stake, setStake] = useState("");
   const [showMobileBetslip, setShowMobileBetslip] = useState(false);
   const [betResult, setBetResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [activeFilter, setActiveFilter] = useState<"all" | "live" | "prematch">("all");
 
-  const filteredEvents = events.filter((e) => {
+  // Derive unique sports from all events
+  const sports = useMemo(() => {
+    const map = new Map<string, { name: string; slug: string; icon: string }>();
+    allEvents.forEach((e) => {
+      if (e.sportSlug && !map.has(e.sportSlug)) {
+        map.set(e.sportSlug, {
+          name: e.sportName || e.sportSlug,
+          slug: e.sportSlug,
+          icon: SPORT_ICONS[e.sportSlug] || "⚽",
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [allEvents]);
+
+  // Apply live/prematch filter on top of sport filter
+  const displayEvents = filteredEvents.filter((e) => {
     if (activeFilter === "live") return e.live;
     if (activeFilter === "prematch") return !e.live;
     return true;
@@ -29,7 +62,10 @@ export default function SportPage() {
     setBetResult(null);
     const result = await placeBet(parseFloat(stake));
     if (result.success) {
-      setBetResult({ type: "success", msg: "Scommessa piazzata!" });
+      setBetResult({
+        type: "success",
+        msg: result.flagged ? "Scommessa piazzata (in verifica)" : "Scommessa piazzata!",
+      });
       setStake("");
       refreshWallet();
       setTimeout(() => setBetResult(null), 4000);
@@ -38,11 +74,11 @@ export default function SportPage() {
     }
   };
 
-  const OddsBtn = ({ eventId, marketName, label, odds }: { eventId: string; marketName: string; label: string; odds: number }) => {
-    const event = events.find(e => e.id === eventId)!;
-    const market = event.markets.find(m => m.name === marketName)!;
-    const sel = market.selections.find(s => s.label === label)!;
-    const active = isSelected(eventId, marketName, label);
+  // Market lookup by name (robust for DB data with any order)
+  const getMarket = (e: SportEvent, name: string) => e.markets.find((m) => m.name === name);
+
+  const OddsCell = ({ event, marketName, sel }: { event: SportEvent; marketName: string; sel: Selection }) => {
+    const active = isSelected(event.id, marketName, sel.label);
     return (
       <button
         onClick={() => toggleBet(event, marketName, sel)}
@@ -53,13 +89,20 @@ export default function SportPage() {
             : "border-gray-200 bg-gray-50 text-gray-800 hover:border-brand/50 hover:bg-orange-50"
         )}
       >
-        {odds.toFixed(2)}
+        {sel.odds.toFixed(2)}
       </button>
     );
   };
 
   return (
     <div className="p-4 lg:p-0">
+      {/* Mock data banner */}
+      {isMockData && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs font-semibold text-center">
+          ⚠️ Dati demo — Connetti Supabase per dati reali
+        </div>
+      )}
+
       <div className="lg:flex lg:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
@@ -74,123 +117,212 @@ export default function SportPage() {
 
           {/* Sport pills */}
           <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 pb-1">
-            {SPORTS.map((s, i) => (
-              <button key={s} onClick={() => setActiveSport(i)}
-                className={cn("flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
-                  activeSport === i ? "bg-brand text-white border-brand" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
-                )}>{s}</button>
+            <button
+              onClick={() => setActiveSport(null)}
+              className={cn(
+                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
+                !activeSport
+                  ? "bg-brand text-white border-brand"
+                  : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+              )}
+            >
+              Tutti
+            </button>
+            {sports.map((s) => (
+              <button
+                key={s.slug}
+                onClick={() => setActiveSport(s.slug)}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
+                  activeSport === s.slug
+                    ? "bg-brand text-white border-brand"
+                    : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                )}
+              >
+                {s.icon} {s.name}
+              </button>
             ))}
           </div>
 
-          {/* Filter */}
+          {/* Live/Prematch filter */}
           <div className="flex gap-1 mb-3">
             {([
-              { id: "all", label: "Tutti", count: events.length },
-              { id: "live", label: "🔴 Live", count: events.filter(e => e.live).length },
-              { id: "prematch", label: "Prematch", count: events.filter(e => !e.live).length },
-            ] as const).map((f) => (
-              <button key={f.id} onClick={() => setActiveFilter(f.id)}
-                className={cn("px-3 py-1 rounded-lg text-xs font-semibold transition-all",
-                  activeFilter === f.id ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                )}>{f.label} ({f.count})</button>
+              { id: "all" as const, label: "Tutti", count: filteredEvents.length },
+              { id: "live" as const, label: "🔴 Live", count: filteredEvents.filter((e) => e.live).length },
+              { id: "prematch" as const, label: "Prematch", count: filteredEvents.filter((e) => !e.live).length },
+            ]).map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setActiveFilter(f.id)}
+                className={cn(
+                  "px-3 py-1 rounded-lg text-xs font-semibold transition-all",
+                  activeFilter === f.id
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                )}
+              >
+                {f.label} ({f.count})
+              </button>
             ))}
           </div>
 
-          {/* ═══ DESKTOP TABLE ═══ */}
-          <div className="hidden lg:block">
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_repeat(7,52px)] gap-1 px-3 py-2 text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-200">
-              <span>Evento</span>
-              <span className="text-center">1</span>
-              <span className="text-center">X</span>
-              <span className="text-center">2</span>
-              <span className="text-center">O</span>
-              <span className="text-center">U</span>
-              <span className="text-center">GG</span>
-              <span className="text-center">NG</span>
+          {/* ═══ LOADING SKELETONS ═══ */}
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 animate-pulse">
+                  <div className="flex justify-between mb-2">
+                    <div className="h-3 bg-gray-200 rounded w-24" />
+                    <div className="h-3 bg-gray-200 rounded w-12" />
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="h-4 bg-gray-200 rounded w-20" />
+                    <div className="h-4 bg-gray-200 rounded w-8" />
+                    <div className="h-4 bg-gray-200 rounded w-20" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 lg:hidden">
+                    {[1, 2, 3].map((j) => (
+                      <div key={j} className="h-10 bg-gray-200 rounded-lg" />
+                    ))}
+                  </div>
+                  <div className="hidden lg:flex gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                      <div key={j} className="h-8 bg-gray-200 rounded w-[52px]" />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
+          ) : displayEvents.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+              <span className="text-3xl block mb-2">🏟️</span>
+              <p className="text-sm text-gray-400">Nessun evento disponibile</p>
+            </div>
+          ) : (
+            <>
+              {/* ═══ DESKTOP TABLE ═══ */}
+              <div className="hidden lg:block">
+                <div className="grid grid-cols-[1fr_repeat(7,52px)_40px] gap-1 px-3 py-2 text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-200">
+                  <span>Evento</span>
+                  <span className="text-center">1</span>
+                  <span className="text-center">X</span>
+                  <span className="text-center">2</span>
+                  <span className="text-center">O</span>
+                  <span className="text-center">U</span>
+                  <span className="text-center">GG</span>
+                  <span className="text-center">NG</span>
+                  <span />
+                </div>
 
-            {/* Rows */}
-            {filteredEvents.map((e) => (
-              <div key={e.id} className={cn(
-                "grid grid-cols-[1fr_repeat(7,52px)] gap-1 items-center px-3 py-2 border-b border-gray-100 hover:bg-gray-50/50 transition-colors",
-                e.live && "bg-red-50/40"
-              )}>
-                {/* Event info */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex-shrink-0 w-10 text-center">
-                    {e.live ? (
-                      <div>
-                        <span className="text-[10px] font-black text-red-500 block">{e.minute}'</span>
-                        <span className="text-[7px] bg-red-500 text-white px-1 rounded font-bold">LIVE</span>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-gray-400 font-medium">{e.time}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[9px] text-gray-400 flex items-center gap-0.5">{e.leagueIcon} {e.league}</div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-gray-900 truncate">{e.home}</span>
-                      {e.live ? (
-                        <span className="text-[10px] font-black bg-gray-200 px-1 rounded">{e.scoreH}-{e.scoreA}</span>
-                      ) : (
-                        <span className="text-[9px] text-gray-300">-</span>
+                {displayEvents.map((e) => {
+                  const m1x2 = getMarket(e, "1X2");
+                  const mOU = getMarket(e, "O/U 2.5");
+                  const mGG = getMarket(e, "GG/NG");
+
+                  return (
+                    <div
+                      key={e.id}
+                      className={cn(
+                        "grid grid-cols-[1fr_repeat(7,52px)_40px] gap-1 items-center px-3 py-2 border-b border-gray-100 hover:bg-gray-50/50 transition-colors",
+                        e.live && "bg-red-50/40"
                       )}
-                      <span className="text-xs font-bold text-gray-900 truncate">{e.away}</span>
-                    </div>
-                  </div>
-                </div>
+                    >
+                      {/* Event info — clickable */}
+                      <Link href={`/sport/${e.id}`} className="flex items-center gap-2 min-w-0 hover:opacity-80">
+                        <div className="flex-shrink-0 w-10 text-center">
+                          {e.live ? (
+                            <div>
+                              <span className="text-[10px] font-black text-red-500 block">{e.minute}&apos;</span>
+                              <span className="text-[7px] bg-red-500 text-white px-1 rounded font-bold">LIVE</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 font-medium">{e.time}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[9px] text-gray-400 flex items-center gap-0.5">{e.leagueIcon} {e.league}</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-gray-900 truncate">{e.home}</span>
+                            {e.live ? (
+                              <span className="text-[10px] font-black bg-gray-200 px-1 rounded">{e.scoreH}-{e.scoreA}</span>
+                            ) : (
+                              <span className="text-[9px] text-gray-300">-</span>
+                            )}
+                            <span className="text-xs font-bold text-gray-900 truncate">{e.away}</span>
+                          </div>
+                        </div>
+                      </Link>
 
-                {/* 1X2 */}
-                <OddsBtn eventId={e.id} marketName="1X2" label="1" odds={e.markets[0].selections[0].odds} />
-                <OddsBtn eventId={e.id} marketName="1X2" label="X" odds={e.markets[0].selections[1].odds} />
-                <OddsBtn eventId={e.id} marketName="1X2" label="2" odds={e.markets[0].selections[2].odds} />
-                {/* O/U */}
-                <OddsBtn eventId={e.id} marketName="O/U 2.5" label="Over" odds={e.markets[1].selections[0].odds} />
-                <OddsBtn eventId={e.id} marketName="O/U 2.5" label="Under" odds={e.markets[1].selections[1].odds} />
-                {/* GG/NG */}
-                <OddsBtn eventId={e.id} marketName="GG/NG" label="GG" odds={e.markets[2].selections[0].odds} />
-                <OddsBtn eventId={e.id} marketName="GG/NG" label="NG" odds={e.markets[2].selections[1].odds} />
+                      {/* 1X2 */}
+                      {m1x2?.selections[0] ? <OddsCell event={e} marketName="1X2" sel={m1x2.selections[0]} /> : <span />}
+                      {m1x2?.selections[1] ? <OddsCell event={e} marketName="1X2" sel={m1x2.selections[1]} /> : <span />}
+                      {m1x2?.selections[2] ? <OddsCell event={e} marketName="1X2" sel={m1x2.selections[2]} /> : <span />}
+                      {/* O/U */}
+                      {mOU?.selections[0] ? <OddsCell event={e} marketName="O/U 2.5" sel={mOU.selections[0]} /> : <span />}
+                      {mOU?.selections[1] ? <OddsCell event={e} marketName="O/U 2.5" sel={mOU.selections[1]} /> : <span />}
+                      {/* GG/NG */}
+                      {mGG?.selections[0] ? <OddsCell event={e} marketName="GG/NG" sel={mGG.selections[0]} /> : <span />}
+                      {mGG?.selections[1] ? <OddsCell event={e} marketName="GG/NG" sel={mGG.selections[1]} /> : <span />}
+
+                      {/* Detail link */}
+                      <Link
+                        href={`/sport/${e.id}`}
+                        className="text-center text-gray-400 hover:text-brand text-xs font-bold"
+                        title="Tutti i mercati"
+                      >
+                        +
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
 
-          {/* ═══ MOBILE CARDS ═══ */}
-          <div className="lg:hidden space-y-2.5">
-            {filteredEvents.map((e) => (
-              <div key={e.id} className={cn("bg-white rounded-xl border p-3", e.live ? "border-red-200 bg-red-50/30" : "border-gray-200")}>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-semibold text-gray-400">{e.leagueIcon} {e.league}</span>
-                  <span className={cn("text-[10px] font-bold flex items-center gap-1", e.live ? "text-red-500" : "text-gray-400")}>
-                    {e.live && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
-                    {e.time}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-gray-900">{e.home}</span>
-                  {e.live ? <span className="text-sm font-black bg-gray-100 px-2 py-0.5 rounded">{e.scoreH}-{e.scoreA}</span> : <span className="text-xs text-gray-400">vs</span>}
-                  <span className="text-sm font-bold text-gray-900">{e.away}</span>
-                </div>
-                {e.markets.map((m) => (
-                  <div key={m.name} className="mb-2 last:mb-0">
-                    <div className="text-[9px] text-gray-400 font-semibold mb-1">{m.name}</div>
-                    <div className={cn("grid gap-1.5", m.selections.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
-                      {m.selections.map((s) => (
-                        <button key={s.label} onClick={() => toggleBet(e, m.name, s)}
-                          className={cn("py-1.5 rounded-lg text-center border transition-all",
-                            isSelected(e.id, m.name, s.label) ? "border-brand bg-brand/10 ring-1 ring-brand" : "border-gray-200 bg-gray-50 hover:border-brand/50"
-                          )}>
-                          <span className="text-[9px] text-gray-400 block">{s.label}</span>
-                          <span className={cn("text-xs font-bold", isSelected(e.id, m.name, s.label) ? "text-brand" : "text-gray-900")}>{s.odds.toFixed(2)}</span>
-                        </button>
-                      ))}
-                    </div>
+              {/* ═══ MOBILE CARDS ═══ */}
+              <div className="lg:hidden space-y-2.5">
+                {displayEvents.map((e) => (
+                  <div key={e.id} className={cn("bg-white rounded-xl border p-3", e.live ? "border-red-200 bg-red-50/30" : "border-gray-200")}>
+                    <Link href={`/sport/${e.id}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-semibold text-gray-400">{e.leagueIcon} {e.league}</span>
+                        <span className={cn("text-[10px] font-bold flex items-center gap-1", e.live ? "text-red-500" : "text-gray-400")}>
+                          {e.live && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
+                          {e.time}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-bold text-gray-900">{e.home}</span>
+                        {e.live ? (
+                          <span className="text-sm font-black bg-gray-100 px-2 py-0.5 rounded">{e.scoreH}-{e.scoreA}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">vs</span>
+                        )}
+                        <span className="text-sm font-bold text-gray-900">{e.away}</span>
+                      </div>
+                    </Link>
+                    {e.markets.map((m) => (
+                      <div key={m.name} className="mb-2 last:mb-0">
+                        <div className="text-[9px] text-gray-400 font-semibold mb-1">{m.name}</div>
+                        <div className={cn("grid gap-1.5", m.selections.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+                          {m.selections.map((s) => (
+                            <button key={s.label} onClick={() => toggleBet(e, m.name, s)}
+                              className={cn("py-1.5 rounded-lg text-center border transition-all",
+                                isSelected(e.id, m.name, s.label) ? "border-brand bg-brand/10 ring-1 ring-brand" : "border-gray-200 bg-gray-50 hover:border-brand/50"
+                              )}>
+                              <span className="text-[9px] text-gray-400 block">{s.label}</span>
+                              <span className={cn("text-xs font-bold", isSelected(e.id, m.name, s.label) ? "text-brand" : "text-gray-900")}>{s.odds.toFixed(2)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <Link href={`/sport/${e.id}`} className="block mt-2 text-center text-[10px] text-brand font-semibold hover:underline">
+                      Tutti i mercati →
+                    </Link>
                   </div>
                 ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
 
         {/* ═══ DESKTOP BETSLIP ═══ */}
@@ -222,8 +354,8 @@ export default function SportPage() {
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <span className="text-xs font-bold text-brand font-mono">{b.odds.toFixed(2)}</span>
                         <button onClick={() => {
-                          const ev = events.find(e => e.id === b.eventId)!;
-                          toggleBet(ev, b.marketName, { label: b.selection, odds: b.odds });
+                          const ev = allEvents.find((e) => e.id === b.eventId);
+                          if (ev) toggleBet(ev, b.marketName, { label: b.selection, odds: b.odds });
                         }} className="text-gray-300 hover:text-red-400 text-[10px]">✕</button>
                       </div>
                     </div>
