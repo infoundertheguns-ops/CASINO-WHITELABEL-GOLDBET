@@ -6,7 +6,7 @@ export default async function HomePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
-    redirect("/sport");
+    redirect("/home");
   }
 
   // Landing page for non-authenticated users

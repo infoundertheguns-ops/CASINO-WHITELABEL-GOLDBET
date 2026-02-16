@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/hooks/use-auth";
 
 const NAV_ITEMS = [
+  { href: "/home", icon: "🏠", label: "Home" },
   { href: "/sport", icon: "⚽", label: "Sport" },
   { href: "/casino", icon: "🎰", label: "Casino" },
   { href: "/promo", icon: "🎁", label: "Promo" },
   { href: "/wallet", icon: "💰", label: "Wallet" },
-  { href: "/account", icon: "👤", label: "Account" },
 ];
 
 export function PlayerNavbar({ desktop = false }: { desktop?: boolean }) {
@@ -29,7 +29,7 @@ export function PlayerNavbar({ desktop = false }: { desktop?: boolean }) {
         {!desktop && <button className="text-xl text-gray-400">☰</button>}
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-1">
+        <Link href="/home" className="flex items-center gap-1">
           <span className="text-brand text-xl">♦</span>
           <span className="text-lg font-light text-gray-800 tracking-wider">
             vinc<span className="text-brand font-normal">i</span>tu
@@ -100,7 +100,7 @@ export function PlayerDesktopSidebar() {
     <aside className="w-56 bg-white border-r border-gray-200 min-h-screen flex-shrink-0 sticky top-0 h-screen overflow-y-auto">
       {/* Logo */}
       <div className="px-5 py-4 border-b border-gray-100">
-        <Link href="/" className="flex items-center gap-1.5">
+        <Link href="/home" className="flex items-center gap-1.5">
           <span className="text-brand text-2xl">♦</span>
           <span className="text-xl font-light text-gray-800 tracking-wider">
             vinc<span className="text-brand font-normal">i</span>tu
@@ -131,7 +131,13 @@ export function PlayerDesktopSidebar() {
       </nav>
 
       {/* Quick Links */}
-      <div className="mt-auto px-3 py-4 border-t border-gray-100">
+      <div className="mt-auto px-3 py-4 border-t border-gray-100 space-y-1">
+        <Link href="/account" className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50">
+          <span>👤</span> Account
+        </Link>
+        <Link href="/bets" className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50">
+          <span>🎫</span> Le Mie Scommesse
+        </Link>
         <Link href="/admin/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50">
           <span>🔧</span> Back Office
         </Link>
