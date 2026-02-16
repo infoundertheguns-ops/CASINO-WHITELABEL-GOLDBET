@@ -64,7 +64,7 @@ function formatKickoffTime(startsAt: string): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function mapDbToSportEvent(row: any): SportEvent {
+export function mapDbToSportEvent(row: any): SportEvent {
   return {
     id: row.id,
     league: row.league?.name || "",

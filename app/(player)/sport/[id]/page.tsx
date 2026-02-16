@@ -1,19 +1,97 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { useSportsbook } from "@/lib/hooks/use-sportsbook";
-// Types are used via the hook's return values
+import {
+  useSportsbook,
+  mapDbToSportEvent,
+  type SportEvent,
+  type Market,
+  type Selection,
+} from "@/lib/hooks/use-sportsbook";
+import { createClient } from "@/lib/supabase/client";
+
+// ═══ MARKET GROUP DEFINITIONS ═══
+
+interface MarketGroup {
+  id: string;
+  label: string;
+  markets: Market[];
+}
+
+const GROUP_ORDER = ["risultato", "gol", "handicap", "combo", "esatti", "altro"] as const;
+
+const GROUP_LABELS: Record<string, string> = {
+  risultato: "Risultato",
+  gol: "Gol",
+  handicap: "Handicap",
+  combo: "Combo",
+  esatti: "Esatti",
+  altro: "Altro",
+};
+
+// Default-open groups
+const DEFAULT_OPEN = new Set(["risultato", "gol"]);
+
+function getMarketGroupId(market: Market): string {
+  const type = (market.marketType || "").toLowerCase();
+  const name = (market.name || "").toLowerCase();
+
+  // Risultato
+  if (type === "1x2" || name === "1x2") return "risultato";
+  if (type === "double_chance" || name.includes("doppia chance")) return "risultato";
+  if (type === "draw_no_bet" || name === "dnb" || name.includes("draw no bet")) return "risultato";
+
+  // Gol
+  if (type.startsWith("over_under") || name.startsWith("o/u")) return "gol";
+  if (type === "both_teams_score" || name === "gg/ng") return "gol";
+
+  // Handicap
+  if (type === "handicap" || type === "asian_handicap" || name.includes("handicap")) return "handicap";
+
+  // Combo
+  if (type === "ht_ft" || name.includes("ht/ft")) return "combo";
+  if (type === "first_goal" || name.includes("primo gol") || name.includes("first goal")) return "combo";
+
+  // Esatti
+  if (type === "exact_score" || name.includes("esatto") || name.includes("exact score")) return "esatti";
+
+  return "altro";
+}
+
+function groupMarkets(markets: Market[]): MarketGroup[] {
+  const map = new Map<string, Market[]>();
+
+  for (const m of markets) {
+    if (m.selections.length === 0) continue; // skip markets with no outcomes
+    const gid = getMarketGroupId(m);
+    const arr = map.get(gid) || [];
+    arr.push(m);
+    map.set(gid, arr);
+  }
+
+  const groups: MarketGroup[] = [];
+  for (const id of GROUP_ORDER) {
+    const mkts = map.get(id);
+    if (mkts && mkts.length > 0) {
+      groups.push({ id, label: GROUP_LABELS[id], markets: mkts });
+    }
+  }
+  return groups;
+}
+
+// ═══ PAGE COMPONENT ═══
 
 export default function EventDetail() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, wallet } = useAuth();
   const {
     allEvents,
-    loading,
+    loading: hookLoading,
     isMockData,
     betslip,
     placingBet,
@@ -24,29 +102,127 @@ export default function EventDetail() {
     placeBet,
   } = useSportsbook();
 
-  const [stake, setStake] = useState(10);
+  const [stake, setStake] = useState("");
   const [msg, setMsg] = useState("");
+  const [showMobileBetslip, setShowMobileBetslip] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(DEFAULT_OPEN));
 
-  // ── Find event by ID ──
-  const ev = useMemo(
-    () => allEvents.find((e) => e.id === params?.id),
-    [allEvents, params?.id]
+  // Direct-fetch state for when event isn't in the hook's list
+  const [directEvent, setDirectEvent] = useState<SportEvent | null>(null);
+  const [directLoading, setDirectLoading] = useState(false);
+  const [directError, setDirectError] = useState<string | null>(null);
+
+  const eventId = typeof params?.id === "string" ? params.id : "";
+
+  // Try to find event from hook first
+  const hookEvent = useMemo(
+    () => allEvents.find((e) => e.id === eventId),
+    [allEvents, eventId]
   );
+
+  // Direct fetch from Supabase if hook doesn't have it
+  useEffect(() => {
+    if (hookLoading || hookEvent || !eventId) return;
+
+    let cancelled = false;
+    const fetchSingle = async () => {
+      setDirectLoading(true);
+      setDirectError(null);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("events")
+          .select(`
+            *,
+            sport:sports(name, slug, icon),
+            league:leagues(name, slug, country, logo_url),
+            markets(
+              id, name, slug, market_type, line, sort_order, is_active, is_suspended,
+              outcomes(id, name, odds, previous_odds, is_active, is_suspended)
+            )
+          `)
+          .eq("id", eventId)
+          .single();
+
+        if (cancelled) return;
+        if (error) throw error;
+        if (data) {
+          setDirectEvent(mapDbToSportEvent(data));
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : "Errore nel caricamento";
+          setDirectError(message);
+        }
+      } finally {
+        if (!cancelled) setDirectLoading(false);
+      }
+    };
+
+    fetchSingle();
+    return () => { cancelled = true; };
+  }, [hookLoading, hookEvent, eventId]);
+
+  // Resolved event (hook or direct)
+  const ev = hookEvent || directEvent;
+  const loading = hookLoading || directLoading;
+
+  // Market groups
+  const groups = useMemo(() => (ev ? groupMarkets(ev.markets) : []), [ev]);
+
+  const totalMarketsCount = useMemo(
+    () => groups.reduce((sum, g) => sum + g.markets.length, 0),
+    [groups]
+  );
+
+  // Accordion toggle
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Potential win
+  const potentialWin = stake ? parseFloat(stake) * totalOdds : 0;
+
+  // Place bet handler
+  const handlePlaceBet = async () => {
+    if (!stake || parseFloat(stake) <= 0) return;
+    setMsg("");
+    const result = await placeBet(parseFloat(stake));
+    if (result.success) {
+      if (result.flagged) {
+        setMsg("warn:Scommessa piazzata — in verifica dal sistema di sicurezza");
+      } else {
+        setMsg("ok:Scommessa piazzata!");
+      }
+      setStake("");
+      setTimeout(() => setMsg(""), 4000);
+    } else {
+      setMsg(`err:${result.error}`);
+    }
+  };
+
+  const msgType = msg.split(":")[0];
+  const msgText = msg.slice(msg.indexOf(":") + 1);
 
   // ── Loading skeleton ──
   if (loading) {
     return (
       <div className="p-4 lg:p-0 animate-pulse">
-        <div className="h-4 w-32 bg-gray-200 rounded mb-3" />
-        <div className="h-40 bg-gray-200 rounded-2xl mb-5" />
+        <div className="h-3 w-48 bg-gray-200 rounded mb-3" />
+        <div className="h-44 bg-gray-200 rounded-2xl mb-5" />
         <div className="lg:flex lg:gap-5">
           <div className="flex-1 space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-28 bg-gray-200 rounded-xl" />
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-gray-200 rounded-xl h-32" />
             ))}
           </div>
-          <div className="lg:w-72 mt-5 lg:mt-0">
-            <div className="h-64 bg-gray-200 rounded-xl" />
+          <div className="hidden lg:block w-72">
+            <div className="h-72 bg-gray-200 rounded-xl" />
           </div>
         </div>
       </div>
@@ -57,6 +233,9 @@ export default function EventDetail() {
   if (!ev) {
     return (
       <div className="p-6 text-center">
+        {directError && (
+          <p className="text-red-500 text-xs mb-3">{directError}</p>
+        )}
         <p className="text-gray-400 mb-3">Evento non trovato</p>
         <button
           onClick={() => router.push("/sport")}
@@ -68,48 +247,29 @@ export default function EventDetail() {
     );
   }
 
-  // ── Place bet handler ──
-  const handlePlaceBet = async () => {
-    if (betslip.length === 0 || stake <= 0) return;
-    setMsg("");
-    const result = await placeBet(stake);
-    if (result.success) {
-      if (result.flagged) {
-        setMsg("⚠️ Scommessa piazzata — in verifica dal sistema di sicurezza");
-      } else {
-        setMsg("✅ Scommessa piazzata!");
-      }
-      setTimeout(() => setMsg(""), 4000);
-    } else {
-      setMsg(`❌ ${result.error}`);
-    }
-  };
-
-  // ── Market grouping helpers ──
-  // Group markets that share a marketType (e.g. multiple O/U lines) under one header
-  const marketGroups = ev.markets.map((m) => ({
-    market: m,
-    displayName: m.name || m.marketType || "Mercato",
-  }));
-
   return (
     <div className="p-4 lg:p-0">
       {/* Mock data banner */}
       {isMockData && (
         <div className="mb-4 px-4 py-2 rounded-xl bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs font-medium text-center">
-          ⚠️ Dati demo — Connetti Supabase per dati reali
+          Dati demo — Connetti Supabase per dati reali
         </div>
       )}
 
-      {/* Back link */}
-      <button
-        onClick={() => router.push("/sport")}
-        className="text-xs text-gray-400 hover:text-brand mb-3 flex items-center gap-1"
-      >
-        ← Tutti gli eventi
-      </button>
+      {/* ── Breadcrumb ── */}
+      <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-4">
+        <Link href="/sport" className="hover:text-brand transition-colors">
+          Sport
+        </Link>
+        <span>/</span>
+        <span className="text-gray-500">{ev.league}</span>
+        <span>/</span>
+        <span className="text-gray-600 font-medium truncate">
+          {ev.home} vs {ev.away}
+        </span>
+      </nav>
 
-      {/* Event header */}
+      {/* ── Event header ── */}
       <div
         className={cn(
           "rounded-2xl p-6 mb-5 relative overflow-hidden",
@@ -118,42 +278,52 @@ export default function EventDetail() {
             : "bg-gradient-to-r from-gray-800 to-gray-700"
         )}
       >
+        {/* Live badge */}
         {ev.live && (
-          <div className="absolute top-3 right-3 flex items-center gap-1.5">
-            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/20 rounded-full px-2.5 py-1">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
             <span className="text-white text-[10px] font-bold">
-              {ev.minute}&apos;
+              LIVE {ev.minute}&apos;
             </span>
           </div>
         )}
-        <div className="text-[10px] text-white/60 mb-3">{ev.league}</div>
-        <div className="flex items-center justify-center gap-6">
-          <div className="text-lg font-black text-white">{ev.home}</div>
+
+        <div className="text-[10px] text-white/60 mb-4">
+          {ev.leagueIcon} {ev.league}
+        </div>
+
+        <div className="flex items-center justify-center gap-8">
+          <div className="text-center flex-1">
+            <div className="text-xl font-black text-white">{ev.home}</div>
+          </div>
+
           {ev.live ? (
-            <div className="text-center">
-              <div className="text-3xl font-black text-white">
+            <div className="text-center flex-shrink-0">
+              <div className="text-4xl font-black text-white tabular-nums">
                 {ev.scoreH} - {ev.scoreA}
               </div>
-              <div className="text-[10px] text-white/60">LIVE</div>
             </div>
           ) : (
-            <div className="text-center">
+            <div className="text-center flex-shrink-0">
               <div className="text-sm font-bold text-white/60">VS</div>
-              <div className="text-[10px] text-white/40">{ev.time}</div>
+              <div className="text-[10px] text-white/40 mt-0.5">{ev.time}</div>
             </div>
           )}
-          <div className="text-lg font-black text-white">{ev.away}</div>
+
+          <div className="text-center flex-1">
+            <div className="text-xl font-black text-white">{ev.away}</div>
+          </div>
         </div>
       </div>
 
       <div className="lg:flex lg:gap-5">
-        {/* ── Markets column ── */}
-        <div className="flex-1">
+        {/* ═══ MARKETS COLUMN ═══ */}
+        <div className="flex-1 min-w-0">
           <h2 className="text-sm font-bold text-gray-900 mb-3">
-            Mercati ({marketGroups.length})
+            Mercati ({totalMarketsCount})
           </h2>
 
-          {marketGroups.length === 0 ? (
+          {groups.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
               <p className="text-gray-400 text-sm">
                 Nessun mercato disponibile
@@ -161,123 +331,158 @@ export default function EventDetail() {
             </div>
           ) : (
             <div className="space-y-3">
-              {marketGroups.map(({ market, displayName }) => (
-                <div
-                  key={market.id || market.name}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden"
-                >
-                  <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-                    <span className="text-xs font-bold text-gray-700">
-                      {displayName}
-                    </span>
-                  </div>
+              {groups.map((group) => {
+                const isOpen = openGroups.has(group.id);
+                return (
                   <div
-                    className={cn(
-                      "p-3 gap-2",
-                      market.selections.length <= 3
-                        ? "flex"
-                        : "grid grid-cols-3 lg:grid-cols-4"
-                    )}
+                    key={group.id}
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden"
                   >
-                    {market.selections.map((sel) => {
-                      const selected = isSelected(
-                        ev.id,
-                        market.name,
-                        sel.label
-                      );
-                      const oddsUp =
-                        sel.previousOdds !== undefined &&
-                        sel.odds > sel.previousOdds;
-                      const oddsDown =
-                        sel.previousOdds !== undefined &&
-                        sel.odds < sel.previousOdds;
+                    {/* Accordion header */}
+                    <button
+                      onClick={() => toggleGroup(group.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+                    >
+                      <span className="text-xs font-bold text-gray-700">
+                        {group.label}
+                        <span className="ml-1.5 text-gray-400 font-normal">
+                          ({group.markets.length})
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          "text-gray-400 text-xs transition-transform",
+                          isOpen ? "rotate-180" : ""
+                        )}
+                      >
+                        ▼
+                      </span>
+                    </button>
 
-                      return (
-                        <button
-                          key={sel.id || sel.label}
-                          onClick={() => toggleBet(ev, market.name, sel)}
-                          className={cn(
-                            "flex-1 py-2.5 px-2 rounded-lg text-center border-2 transition-all min-w-0",
-                            selected
-                              ? "border-brand bg-brand/10 ring-1 ring-brand"
-                              : "border-gray-200 hover:border-gray-300"
-                          )}
-                        >
-                          <div className="text-[10px] text-gray-500 truncate">
-                            {sel.label}
-                          </div>
-                          <div
-                            className={cn(
-                              "text-sm font-bold font-mono",
-                              selected
-                                ? "text-brand"
-                                : oddsUp
-                                  ? "text-emerald-500"
-                                  : oddsDown
-                                    ? "text-red-500"
-                                    : "text-gray-900"
+                    {/* Accordion content */}
+                    {isOpen && (
+                      <div className="divide-y divide-gray-100">
+                        {group.markets.map((market) => (
+                          <div key={market.id || market.name} className="px-4 py-3">
+                            {/* Market name (only if group has multiple markets) */}
+                            {group.markets.length > 1 && (
+                              <div className="text-[10px] text-gray-400 font-semibold mb-2">
+                                {market.name}
+                              </div>
                             )}
-                          >
-                            {sel.odds.toFixed(2)}
+                            <div
+                              className={cn(
+                                "gap-2",
+                                market.selections.length <= 3
+                                  ? "flex"
+                                  : "grid grid-cols-3 lg:grid-cols-4"
+                              )}
+                            >
+                              {market.selections.map((sel) => {
+                                const selected = isSelected(
+                                  ev.id,
+                                  market.name,
+                                  sel.label
+                                );
+                                const oddsUp =
+                                  sel.previousOdds !== undefined &&
+                                  sel.odds > sel.previousOdds;
+                                const oddsDown =
+                                  sel.previousOdds !== undefined &&
+                                  sel.odds < sel.previousOdds;
+
+                                return (
+                                  <button
+                                    key={sel.id || sel.label}
+                                    onClick={() =>
+                                      toggleBet(ev, market.name, sel)
+                                    }
+                                    className={cn(
+                                      "flex-1 py-2.5 px-2 rounded-lg text-center border-2 transition-all min-w-0",
+                                      selected
+                                        ? "border-brand bg-brand/10 ring-1 ring-brand"
+                                        : "border-gray-200 hover:border-gray-300"
+                                    )}
+                                  >
+                                    <div className="text-[10px] text-gray-500 truncate">
+                                      {sel.label}
+                                    </div>
+                                    <div
+                                      className={cn(
+                                        "text-sm font-bold font-mono",
+                                        selected
+                                          ? "text-brand"
+                                          : oddsUp
+                                            ? "text-emerald-500"
+                                            : oddsDown
+                                              ? "text-red-500"
+                                              : "text-gray-900"
+                                      )}
+                                    >
+                                      {sel.odds.toFixed(2)}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </button>
-                      );
-                    })}
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* ── Betslip sidebar ── */}
-        <div className="lg:w-72 mt-5 lg:mt-0">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 lg:sticky lg:top-20">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold text-gray-900">
-                🎫 Schedina
-              </span>
+        {/* ═══ DESKTOP BETSLIP ═══ */}
+        <div className="hidden lg:block w-72 flex-shrink-0">
+          <div className="sticky top-20 bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-gray-900 text-white px-4 py-3 flex justify-between items-center">
+              <span className="text-sm font-bold">🎫 Schedina</span>
               {betslip.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="bg-brand text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  <span className="bg-brand text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                     {betslip.length}
                   </span>
                   <button
                     onClick={clearBetslip}
-                    className="text-[10px] text-gray-400 hover:text-red-400"
+                    className="text-gray-400 hover:text-white text-xs"
                   >
-                    Svuota
+                    ✕
                   </button>
                 </div>
               )}
             </div>
 
             {betslip.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">
-                Clicca una quota per aggiungerla
-              </p>
+              <div className="p-6 text-center">
+                <span className="text-2xl block mb-1">🎯</span>
+                <p className="text-xs text-gray-400">Clicca sulle quote</p>
+              </div>
             ) : (
-              <>
-                {betslip.map((b, i) => {
-                  const bEvent = allEvents.find((e) => e.id === b.eventId);
-                  return (
-                    <div
-                      key={i}
-                      className="flex justify-between items-start py-2 border-b border-gray-100 last:border-0"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[10px] text-gray-800 font-medium truncate">
-                          {b.match}
+              <div className="p-3">
+                <div className="max-h-[280px] overflow-y-auto">
+                  {betslip.map((b, i) => {
+                    const bEvent = allEvents.find((e) => e.id === b.eventId) || ev;
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                      >
+                        <div className="min-w-0 flex-1 mr-2">
+                          <div className="text-[11px] font-semibold text-gray-800 truncate">
+                            {b.match}
+                          </div>
+                          <div className="text-[9px] text-gray-400">
+                            {b.marketName}: {b.selection}
+                          </div>
                         </div>
-                        <div className="text-[9px] text-gray-400">
-                          {b.marketName}: {b.selection}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-brand">
-                          {b.odds.toFixed(2)}
-                        </span>
-                        {bEvent && (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="text-xs font-bold text-brand font-mono">
+                            {b.odds.toFixed(2)}
+                          </span>
                           <button
                             onClick={() => {
                               const market = bEvent.markets.find(
@@ -288,98 +493,221 @@ export default function EventDetail() {
                               );
                               if (sel) toggleBet(bEvent, b.marketName, sel);
                             }}
-                            className="text-gray-400 hover:text-red-400 text-xs"
+                            className="text-gray-300 hover:text-red-400 text-[10px]"
                           >
                             ✕
                           </button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
 
                 {betslip.length > 1 && (
-                  <div className="flex justify-between py-2 border-t border-gray-200 mt-1">
-                    <span className="text-[10px] text-gray-400">
-                      Multipla ({betslip.length})
+                  <div className="flex justify-between text-xs mt-2 pt-2 border-t border-gray-200">
+                    <span className="text-gray-500">
+                      {betslip.length === 2
+                        ? "Doppia"
+                        : betslip.length === 3
+                          ? "Tripla"
+                          : `Multipla (${betslip.length})`}
                     </span>
-                    <span className="text-xs font-bold text-gray-900">
+                    <span className="font-bold font-mono">
                       {totalOdds.toFixed(2)}
                     </span>
                   </div>
                 )}
 
-                {/* Stake input */}
-                <div className="mt-3 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    value={stake}
-                    onChange={(e) => setStake(+e.target.value || 0)}
-                    className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <div className="flex gap-1 mt-1.5">
-                  {[5, 10, 25, 50, 100].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setStake(v)}
-                      className="flex-1 py-1 rounded bg-gray-100 text-[10px] font-bold text-gray-500 hover:bg-gray-200"
-                    >
-                      ${v}
-                    </button>
-                  ))}
+                {/* Stake */}
+                <div className="mt-3">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      value={stake}
+                      onChange={(e) => setStake(e.target.value)}
+                      placeholder="Importo"
+                      className="w-full pl-6 pr-3 py-2 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                    />
+                  </div>
+                  <div className="flex gap-1 mt-1.5">
+                    {[5, 10, 25, 50, 100].map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setStake(String(v))}
+                        className="flex-1 py-1 rounded bg-gray-100 text-[9px] font-bold text-gray-500 hover:bg-gray-200"
+                      >
+                        ${v}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Potential win */}
-                <div className="flex justify-between items-center mt-3 mb-2">
-                  <span className="text-xs text-gray-400">Vincita</span>
-                  <span className="text-lg font-black text-emerald-500 font-mono">
-                    ${(stake * totalOdds).toFixed(2)}
-                  </span>
-                </div>
+                {stake && parseFloat(stake) > 0 && (
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                    <span className="text-[10px] text-gray-500">Vincita</span>
+                    <span className="text-base font-black text-emerald-500 font-mono">
+                      ${potentialWin.toFixed(2)}
+                    </span>
+                  </div>
+                )}
 
                 {/* Messages */}
                 {msg && (
                   <div
                     className={cn(
-                      "mb-2 px-3 py-1.5 rounded-lg text-xs text-center font-semibold",
-                      msg.startsWith("✅")
+                      "mt-2 px-2 py-1.5 rounded text-[10px] font-semibold text-center",
+                      msgType === "ok"
                         ? "bg-emerald-50 text-emerald-600"
-                        : msg.startsWith("⚠️")
+                        : msgType === "warn"
                           ? "bg-yellow-50 text-yellow-700"
                           : "bg-red-50 text-red-600"
                     )}
                   >
-                    {msg}
+                    {msgText}
                   </div>
                 )}
 
                 {!user && (
-                  <p className="text-[10px] text-red-500 text-center mb-2">
+                  <p className="text-[10px] text-red-500 text-center mt-2">
                     Accedi per scommettere
                   </p>
                 )}
 
                 <button
                   onClick={handlePlaceBet}
-                  disabled={placingBet || !user || stake <= 0}
+                  disabled={
+                    placingBet || !user || !stake || parseFloat(stake) <= 0
+                  }
                   className={cn(
-                    "w-full py-2.5 rounded-xl text-white text-sm font-bold",
-                    placingBet || !user
+                    "w-full mt-2 py-2.5 rounded-xl text-white text-sm font-bold transition-all",
+                    placingBet
                       ? "bg-gray-400"
-                      : "bg-brand hover:bg-brand-dark"
+                      : "bg-brand hover:bg-brand-dark",
+                    (!stake || parseFloat(stake) <= 0) && "opacity-50"
                   )}
                 >
-                  {placingBet ? "⏳..." : "Piazza Scommessa"}
+                  {placingBet ? "Piazzando..." : "Piazza Scommessa"}
                 </button>
-              </>
+              </div>
             )}
           </div>
+
+          {/* Wallet balance */}
+          {wallet && (
+            <div className="mt-2 text-center text-[10px] text-gray-400">
+              Saldo:{" "}
+              <span className="font-bold text-emerald-500">
+                ${wallet.balance?.toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ═══ MOBILE FLOATING BETSLIP BUTTON ═══ */}
+      {betslip.length > 0 && (
+        <div className="lg:hidden fixed bottom-20 left-1/2 -translate-x-1/2 max-w-[400px] w-[calc(100%-2rem)] z-40">
+          <button
+            onClick={() => setShowMobileBetslip(true)}
+            className="w-full py-3 rounded-xl bg-brand text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2"
+          >
+            🎫 ({betslip.length}) · {totalOdds.toFixed(2)}
+          </button>
+        </div>
+      )}
+
+      {/* ═══ MOBILE BOTTOM SHEET ═══ */}
+      {showMobileBetslip && (
+        <div
+          className="lg:hidden fixed inset-0 z-50 bg-black/50"
+          onClick={() => setShowMobileBetslip(false)}
+        >
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-bold">
+                🎫 Schedina ({betslip.length})
+              </span>
+              <button
+                onClick={() => setShowMobileBetslip(false)}
+                className="text-gray-400"
+              >
+                ✕
+              </button>
+            </div>
+
+            {betslip.map((b, i) => (
+              <div
+                key={i}
+                className="flex justify-between py-2 border-b border-gray-100"
+              >
+                <div>
+                  <div className="text-xs font-semibold">{b.match}</div>
+                  <div className="text-[10px] text-gray-400">
+                    {b.marketName}: {b.selection}
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-brand">
+                  {b.odds.toFixed(2)}
+                </span>
+              </div>
+            ))}
+
+            <div className="flex justify-between text-xs mt-2">
+              <span>Quota</span>
+              <span className="font-bold font-mono">
+                {totalOdds.toFixed(2)}
+              </span>
+            </div>
+
+            <input
+              type="number"
+              value={stake}
+              onChange={(e) => setStake(e.target.value)}
+              placeholder="$ Importo"
+              className="w-full mt-3 px-3 py-2.5 rounded-lg border border-gray-200 text-sm font-mono"
+            />
+
+            {stake && parseFloat(stake) > 0 && (
+              <div className="flex justify-between text-xs mt-2">
+                <span className="text-gray-500">Vincita</span>
+                <span className="font-bold text-emerald-500">
+                  ${potentialWin.toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            {msg && (
+              <div
+                className={cn(
+                  "mt-2 px-2 py-1.5 rounded text-[10px] font-semibold text-center",
+                  msgType === "ok"
+                    ? "bg-emerald-50 text-emerald-600"
+                    : msgType === "warn"
+                      ? "bg-yellow-50 text-yellow-700"
+                      : "bg-red-50 text-red-600"
+                )}
+              >
+                {msgText}
+              </div>
+            )}
+
+            <button
+              onClick={handlePlaceBet}
+              disabled={placingBet || !user || !stake || parseFloat(stake) <= 0}
+              className="w-full mt-3 py-3 rounded-xl bg-brand text-white font-bold text-sm"
+            >
+              {placingBet ? "Piazzando..." : "Piazza Scommessa"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
