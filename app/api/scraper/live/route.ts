@@ -31,6 +31,16 @@ interface LiveEvent {
   period_code?: number;
   half_score_home?: number[];
   half_score_away?: number[];
+  // API-Football statistics
+  stats?: Record<string, [number, number]>;
+  match_events?: Array<{
+    minute: number;
+    type: string;
+    team: 'home' | 'away';
+    player: string;
+    assist?: string;
+    detail?: string;
+  }>;
 }
 
 // ═══ HELPERS ═══
@@ -200,6 +210,8 @@ export async function POST(req: NextRequest) {
       if (ev.period_code != null) liveData.periodCode = ev.period_code;
       if (ev.half_score_home) liveData.halfScoreHome = ev.half_score_home;
       if (ev.half_score_away) liveData.halfScoreAway = ev.half_score_away;
+      if (ev.stats) liveData.stats = ev.stats;
+      if (ev.match_events) liveData.matchEvents = ev.match_events;
 
       const { error: updateErr } = await supabase
         .from("events")

@@ -4,6 +4,29 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "./use-auth";
 
+// ═══ API-FOOTBALL STATS TYPES ═══
+
+export interface MatchStats {
+  possession: [number, number];
+  shots: [number, number];
+  shotsOnTarget: [number, number];
+  corners: [number, number];
+  fouls: [number, number];
+  yellowCards: [number, number];
+  redCards: [number, number];
+  offsides?: [number, number];
+  saves?: [number, number];
+}
+
+export interface MatchEvent {
+  minute: number;
+  type: string;
+  team: 'home' | 'away';
+  player: string;
+  assist?: string;
+  detail?: string;
+}
+
 // ═══ INTERFACES (extended with optional DB fields) ═══
 
 export interface SportEvent {
@@ -25,6 +48,8 @@ export interface SportEvent {
   periodCode?: number;
   halfScoreHome?: number[];
   halfScoreAway?: number[];
+  stats?: MatchStats;
+  matchEvents?: MatchEvent[];
 }
 
 export interface Market {
@@ -92,6 +117,8 @@ export function mapDbToSportEvent(row: any): SportEvent {
     periodCode: liveData.periodCode ?? undefined,
     halfScoreHome: Array.isArray(liveData.halfScoreHome) ? liveData.halfScoreHome : undefined,
     halfScoreAway: Array.isArray(liveData.halfScoreAway) ? liveData.halfScoreAway : undefined,
+    stats: liveData.stats || undefined,
+    matchEvents: Array.isArray(liveData.matchEvents) ? liveData.matchEvents : undefined,
     markets: (row.markets || [])
       .filter((m: any) => m.is_active && !m.is_suspended)
       .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
@@ -321,6 +348,8 @@ export function useSportsbook() {
                     periodCode: updatedLiveData.periodCode ?? undefined,
                     halfScoreHome: Array.isArray(updatedLiveData.halfScoreHome) ? updatedLiveData.halfScoreHome : undefined,
                     halfScoreAway: Array.isArray(updatedLiveData.halfScoreAway) ? updatedLiveData.halfScoreAway : undefined,
+                    stats: updatedLiveData.stats || undefined,
+                    matchEvents: Array.isArray(updatedLiveData.matchEvents) ? updatedLiveData.matchEvents : undefined,
                     time: updated.is_live
                       ? `LIVE ${updated.minute || 0}'`
                       : formatKickoffTime(updated.starts_at),

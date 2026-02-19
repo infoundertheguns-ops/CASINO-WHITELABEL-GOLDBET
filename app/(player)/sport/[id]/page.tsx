@@ -11,6 +11,8 @@ import {
   type SportEvent,
   type Market,
   type Selection,
+  type MatchStats,
+  type MatchEvent,
 } from "@/lib/hooks/use-sportsbook";
 import { createClient } from "@/lib/supabase/client";
 
@@ -125,6 +127,157 @@ function FootballPitch() {
         fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
       />
     </svg>
+  );
+}
+
+// ═══ STAT BAR COMPONENT ═══
+
+const STAT_LABELS: Record<string, string> = {
+  possession: "Possesso",
+  shots: "Tiri",
+  shotsOnTarget: "Tiri in porta",
+  corners: "Calci d'angolo",
+  fouls: "Falli",
+  yellowCards: "Cartellini gialli",
+  redCards: "Cartellini rossi",
+  offsides: "Fuorigioco",
+  saves: "Parate",
+};
+
+function StatBar({ label, home, away }: { label: string; home: number; away: number }) {
+  const total = home + away || 1;
+  const homePct = (home / total) * 100;
+  const awayPct = (away / total) * 100;
+
+  return (
+    <div className="py-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-sm font-bold text-gray-800 tabular-nums w-10 text-left">{home}</span>
+        <span className="text-[11px] text-gray-500 font-medium flex-1 text-center">{label}</span>
+        <span className="text-sm font-bold text-gray-800 tabular-nums w-10 text-right">{away}</span>
+      </div>
+      <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-gray-100">
+        <div
+          className="h-full rounded-l-full transition-all duration-500"
+          style={{
+            width: `${homePct}%`,
+            backgroundColor: "#22c55e",
+          }}
+        />
+        <div
+          className="h-full rounded-r-full transition-all duration-500"
+          style={{
+            width: `${awayPct}%`,
+            backgroundColor: "#ef4444",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StatsPanel({ stats, home, away }: { stats: MatchStats; home: string; away: string }) {
+  const statKeys: (keyof MatchStats)[] = [
+    "possession", "shots", "shotsOnTarget", "corners",
+    "fouls", "yellowCards", "redCards", "offsides", "saves",
+  ];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Team names header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+        <span className="text-xs font-bold text-emerald-600 truncate max-w-[40%]">{home}</span>
+        <span className="text-xs font-bold text-red-500 truncate max-w-[40%]">{away}</span>
+      </div>
+      <div className="px-4 py-2 divide-y divide-gray-100">
+        {statKeys.map((key) => {
+          const val = stats[key];
+          if (!val) return null;
+          return (
+            <StatBar
+              key={key}
+              label={STAT_LABELS[key] || key}
+              home={val[0]}
+              away={val[1]}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══ EVENT TIMELINE COMPONENT ═══
+
+const EVENT_ICONS: Record<string, string> = {
+  goal: "\u26BD",
+  yellow_card: "\uD83D\uDFE8",
+  red_card: "\uD83D\uDFE5",
+  substitution: "\uD83D\uDD04",
+  var: "\uD83D\uDCFA",
+};
+
+function EventTimeline({ events, home, away }: { events: MatchEvent[]; home: string; away: string }) {
+  if (events.length === 0) return null;
+
+  // Sort by minute descending (most recent first)
+  const sorted = [...events].sort((a, b) => b.minute - a.minute);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-3">
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+        <span className="text-xs font-bold text-gray-700">Timeline</span>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {sorted.map((evt, i) => {
+          const isHome = evt.team === "home";
+          const icon = EVENT_ICONS[evt.type] || "\u25CF";
+
+          return (
+            <div
+              key={`${evt.minute}-${evt.type}-${i}`}
+              className={cn(
+                "flex items-center gap-3 px-4 py-2.5",
+                isHome ? "flex-row" : "flex-row-reverse"
+              )}
+            >
+              {/* Minute badge */}
+              <span className="text-[10px] font-bold text-gray-400 w-8 text-center flex-shrink-0 tabular-nums">
+                {evt.minute}&apos;
+              </span>
+
+              {/* Icon */}
+              <span className="text-sm flex-shrink-0">{icon}</span>
+
+              {/* Info */}
+              <div className={cn("flex-1 min-w-0", isHome ? "text-left" : "text-right")}>
+                <span className="text-xs font-semibold text-gray-800 truncate block">
+                  {evt.player}
+                </span>
+                {evt.assist && (
+                  <span className="text-[10px] text-gray-400 truncate block">
+                    Assist: {evt.assist}
+                  </span>
+                )}
+                {evt.detail && evt.type !== "goal" && (
+                  <span className="text-[10px] text-gray-400 truncate block">
+                    {evt.detail}
+                  </span>
+                )}
+              </div>
+
+              {/* Team color indicator */}
+              <div
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                  isHome ? "bg-emerald-400" : "bg-red-400"
+                )}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -288,12 +441,19 @@ export default function EventDetail() {
   // Market groups
   const groups = useMemo(() => (ev ? groupMarkets(ev.markets) : []), [ev]);
 
-  // Set default active tab to first group with markets
+  // Whether we have stats to show
+  const hasStats = !!(ev?.live && ev?.stats);
+
+  // Set default active tab to "statistiche" if live with stats, otherwise first market group
   useEffect(() => {
-    if (groups.length > 0 && activeTab === null) {
-      setActiveTab(groups[0].id);
+    if (activeTab === null) {
+      if (hasStats) {
+        setActiveTab("statistiche");
+      } else if (groups.length > 0) {
+        setActiveTab(groups[0].id);
+      }
     }
-  }, [groups, activeTab]);
+  }, [groups, activeTab, hasStats]);
 
   const activeGroup = useMemo(
     () => groups.find((g) => g.id === activeTab) || groups[0] || null,
@@ -477,7 +637,7 @@ export default function EventDetail() {
             Mercati ({totalMarketsCount})
           </h2>
 
-          {groups.length === 0 ? (
+          {groups.length === 0 && !hasStats ? (
             <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
               <p className="text-gray-400 text-sm">
                 Nessun mercato disponibile
@@ -485,9 +645,22 @@ export default function EventDetail() {
             </div>
           ) : (
             <>
-              {/* ── Horizontal category tabs ── */}
+              {/* ── Horizontal category tabs (with optional Statistiche tab) ── */}
               <div className="mb-4 overflow-x-auto no-scrollbar">
                 <div className="flex gap-0 border-b border-gray-200 min-w-max">
+                  {hasStats && (
+                    <button
+                      onClick={() => setActiveTab("statistiche")}
+                      className={cn(
+                        "px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px",
+                        activeTab === "statistiche"
+                          ? "border-brand text-brand"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
+                      )}
+                    >
+                      Statistiche
+                    </button>
+                  )}
                   {groups.map((group) => (
                     <button
                       key={group.id}
@@ -508,8 +681,18 @@ export default function EventDetail() {
                 </div>
               </div>
 
+              {/* ── Statistiche panel ── */}
+              {activeTab === "statistiche" && ev.stats && (
+                <div className="space-y-3">
+                  <StatsPanel stats={ev.stats} home={ev.home} away={ev.away} />
+                  {ev.matchEvents && ev.matchEvents.length > 0 && (
+                    <EventTimeline events={ev.matchEvents} home={ev.home} away={ev.away} />
+                  )}
+                </div>
+              )}
+
               {/* ── Markets grid for active tab ── */}
-              {activeGroup && (
+              {activeTab !== "statistiche" && activeGroup && (
                 <div className="space-y-3">
                   {activeGroup.markets.map((market) => (
                     <div
