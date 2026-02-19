@@ -1,10 +1,34 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useSportsbook, type SportEvent, type Selection } from "@/lib/hooks/use-sportsbook";
 import { useAuth } from "@/lib/hooks/use-auth";
+
+// ═══ LIVE TIMER — auto-increments minute between server pushes ═══
+function LiveTimer({ minute, receivedAt }: { minute: number; receivedAt: number }) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsed = Math.floor((Date.now() - receivedAt) / 60000);
+  const displayMinute = minute + elapsed;
+
+  return <>{displayMinute}&apos;</>;
+}
+
+// ═══ ODDS DIRECTION HELPER ═══
+function getOddsDirection(sel: Selection): "up" | "down" | null {
+  if (!sel.changedAt || sel.previousOdds == null) return null;
+  if (Date.now() - sel.changedAt > 3000) return null;
+  if (sel.odds > sel.previousOdds) return "up";
+  if (sel.odds < sel.previousOdds) return "down";
+  return null;
+}
 
 const SPORT_ICONS: Record<string, string> = {
   calcio: "⚽", basket: "🏀", tennis: "🎾", hockey: "🏒", pallavolo: "🏐", football: "🏈",
@@ -79,14 +103,18 @@ export default function SportPage() {
 
   const OddsCell = ({ event, marketName, sel }: { event: SportEvent; marketName: string; sel: Selection }) => {
     const active = isSelected(event.id, marketName, sel.label);
+    const dir = getOddsDirection(sel);
     return (
       <button
+        key={sel.changedAt || 0}
         onClick={() => toggleBet(event, marketName, sel)}
         className={cn(
           "px-2 py-1.5 rounded text-center border text-xs font-bold transition-all min-w-[52px]",
           active
             ? "border-brand bg-brand/10 text-brand ring-1 ring-brand"
-            : "border-gray-200 bg-gray-50 text-gray-800 hover:border-brand/50 hover:bg-orange-50"
+            : "border-gray-200 bg-gray-50 text-gray-800 hover:border-brand/50 hover:bg-orange-50",
+          dir === "up" && "odds-up",
+          dir === "down" && "odds-down"
         )}
       >
         {sel.odds.toFixed(2)}
@@ -232,7 +260,11 @@ export default function SportPage() {
                         <div className="flex-shrink-0 w-10 text-center">
                           {e.live ? (
                             <div>
-                              <span className="text-[10px] font-black text-red-500 block">{e.minute}&apos;</span>
+                              <span className="text-[10px] font-black text-red-500 block">
+                                {e.minute != null && e.minuteReceivedAt
+                                  ? <LiveTimer minute={e.minute} receivedAt={e.minuteReceivedAt} />
+                                  : <>{e.minute || 0}&apos;</>}
+                              </span>
                               <span className="text-[7px] bg-red-500 text-white px-1 rounded font-bold">LIVE</span>
                             </div>
                           ) : (
@@ -286,7 +318,14 @@ export default function SportPage() {
                         <span className="text-[10px] font-semibold text-gray-400">{e.leagueIcon} {e.league}</span>
                         <span className={cn("text-[10px] font-bold flex items-center gap-1", e.live ? "text-red-500" : "text-gray-400")}>
                           {e.live && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
-                          {e.time}
+                          {e.live ? (
+                            <>
+                              LIVE{" "}
+                              {e.minute != null && e.minuteReceivedAt
+                                ? <LiveTimer minute={e.minute} receivedAt={e.minuteReceivedAt} />
+                                : <>{e.minute || 0}&apos;</>}
+                            </>
+                          ) : e.time}
                         </span>
                       </div>
                       <div className="flex items-center justify-between mb-3">
@@ -303,15 +342,20 @@ export default function SportPage() {
                       <div key={m.name} className="mb-2 last:mb-0">
                         <div className="text-[9px] text-gray-400 font-semibold mb-1">{m.name}</div>
                         <div className={cn("grid gap-1.5", m.selections.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
-                          {m.selections.map((s) => (
-                            <button key={s.label} onClick={() => toggleBet(e, m.name, s)}
-                              className={cn("py-1.5 rounded-lg text-center border transition-all",
-                                isSelected(e.id, m.name, s.label) ? "border-brand bg-brand/10 ring-1 ring-brand" : "border-gray-200 bg-gray-50 hover:border-brand/50"
-                              )}>
-                              <span className="text-[9px] text-gray-400 block">{s.label}</span>
-                              <span className={cn("text-xs font-bold", isSelected(e.id, m.name, s.label) ? "text-brand" : "text-gray-900")}>{s.odds.toFixed(2)}</span>
-                            </button>
-                          ))}
+                          {m.selections.map((s) => {
+                            const dir = getOddsDirection(s);
+                            return (
+                              <button key={`${s.label}-${s.changedAt || 0}`} onClick={() => toggleBet(e, m.name, s)}
+                                className={cn("py-1.5 rounded-lg text-center border transition-all",
+                                  isSelected(e.id, m.name, s.label) ? "border-brand bg-brand/10 ring-1 ring-brand" : "border-gray-200 bg-gray-50 hover:border-brand/50",
+                                  dir === "up" && "odds-up",
+                                  dir === "down" && "odds-down"
+                                )}>
+                                <span className="text-[9px] text-gray-400 block">{s.label}</span>
+                                <span className={cn("text-xs font-bold", isSelected(e.id, m.name, s.label) ? "text-brand" : "text-gray-900")}>{s.odds.toFixed(2)}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}

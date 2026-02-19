@@ -14,6 +14,30 @@ import {
 } from "@/lib/hooks/use-sportsbook";
 import { createClient } from "@/lib/supabase/client";
 
+// ═══ LIVE TIMER — auto-increments minute between server pushes ═══
+function LiveTimer({ minute, receivedAt }: { minute: number; receivedAt: number }) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsed = Math.floor((Date.now() - receivedAt) / 60000);
+  const displayMinute = minute + elapsed;
+
+  return <>{displayMinute}&apos;</>;
+}
+
+// ═══ ODDS DIRECTION HELPER ═══
+function getOddsDirection(sel: Selection): "up" | "down" | null {
+  if (!sel.changedAt || sel.previousOdds == null) return null;
+  if (Date.now() - sel.changedAt > 3000) return null;
+  if (sel.odds > sel.previousOdds) return "up";
+  if (sel.odds < sel.previousOdds) return "down";
+  return null;
+}
+
 // ═══ MARKET GROUP DEFINITIONS ═══
 
 interface MarketGroup {
@@ -283,7 +307,10 @@ export default function EventDetail() {
           <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/20 rounded-full px-2.5 py-1">
             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
             <span className="text-white text-[10px] font-bold">
-              LIVE {ev.minute}&apos;
+              LIVE{" "}
+              {ev.minute != null && ev.minuteReceivedAt
+                ? <LiveTimer minute={ev.minute} receivedAt={ev.minuteReceivedAt} />
+                : <>{ev.minute || 0}&apos;</>}
             </span>
           </div>
         )}
@@ -384,16 +411,11 @@ export default function EventDetail() {
                                   market.name,
                                   sel.label
                                 );
-                                const oddsUp =
-                                  sel.previousOdds !== undefined &&
-                                  sel.odds > sel.previousOdds;
-                                const oddsDown =
-                                  sel.previousOdds !== undefined &&
-                                  sel.odds < sel.previousOdds;
+                                const dir = getOddsDirection(sel);
 
                                 return (
                                   <button
-                                    key={sel.id || sel.label}
+                                    key={`${sel.id || sel.label}-${sel.changedAt || 0}`}
                                     onClick={() =>
                                       toggleBet(ev, market.name, sel)
                                     }
@@ -401,7 +423,9 @@ export default function EventDetail() {
                                       "flex-1 py-2.5 px-2 rounded-lg text-center border-2 transition-all min-w-0",
                                       selected
                                         ? "border-brand bg-brand/10 ring-1 ring-brand"
-                                        : "border-gray-200 hover:border-gray-300"
+                                        : "border-gray-200 hover:border-gray-300",
+                                      dir === "up" && "odds-up",
+                                      dir === "down" && "odds-down"
                                     )}
                                   >
                                     <div className="text-[10px] text-gray-500 truncate">
@@ -412,9 +436,9 @@ export default function EventDetail() {
                                         "text-sm font-bold font-mono",
                                         selected
                                           ? "text-brand"
-                                          : oddsUp
+                                          : dir === "up"
                                             ? "text-emerald-500"
-                                            : oddsDown
+                                            : dir === "down"
                                               ? "text-red-500"
                                               : "text-gray-900"
                                       )}

@@ -15,6 +15,7 @@ export interface SportEvent {
   time: string;
   live: boolean;
   minute?: number;
+  minuteReceivedAt?: number;
   scoreH?: number;
   scoreA?: number;
   markets: Market[];
@@ -35,6 +36,7 @@ export interface Selection {
   odds: number;
   id?: string;
   previousOdds?: number;
+  changedAt?: number;
 }
 
 export interface BetslipItem {
@@ -78,6 +80,7 @@ export function mapDbToSportEvent(row: any): SportEvent {
       : formatKickoffTime(row.starts_at),
     live: row.is_live || false,
     minute: row.minute,
+    minuteReceivedAt: row.is_live ? Date.now() : undefined,
     scoreH: row.score_home,
     scoreA: row.score_away,
     markets: (row.markets || [])
@@ -271,7 +274,7 @@ export function useSportsbook() {
                 ...market,
                 selections: market.selections.map((sel) =>
                   sel.id === updated.id
-                    ? { ...sel, previousOdds: sel.odds, odds: newOdds }
+                    ? { ...sel, previousOdds: sel.odds, odds: newOdds, changedAt: Date.now() }
                     : sel
                 ),
               })),
@@ -301,6 +304,7 @@ export function useSportsbook() {
                     ...event,
                     live: updated.is_live || false,
                     minute: updated.minute,
+                    minuteReceivedAt: updated.is_live ? Date.now() : undefined,
                     scoreH: updated.score_home,
                     scoreA: updated.score_away,
                     time: updated.is_live

@@ -115,6 +115,22 @@
   }
 }
 
+/* ═══ ODDS FLASH ANIMATIONS ═══ */
+@keyframes odds-flash-green {
+  0%, 15% { background-color: rgba(16, 185, 129, 0.3); }
+  100% { background-color: transparent; }
+}
+@keyframes odds-flash-red {
+  0%, 15% { background-color: rgba(239, 68, 68, 0.3); }
+  100% { background-color: transparent; }
+}
+.odds-up {
+  animation: odds-flash-green 2.5s ease-out forwards;
+}
+.odds-down {
+  animation: odds-flash-red 2.5s ease-out forwards;
+}
+
 /* ═══ UTILITIES ═══ */
 @layer utilities {
   .font-mono {
