@@ -26,6 +26,11 @@ interface LiveEvent {
   sport?: string;
   league?: string;
   starts_at?: string;
+  // Extra live data
+  period?: string;
+  period_code?: number;
+  half_score_home?: number[];
+  half_score_away?: number[];
 }
 
 // ═══ HELPERS ═══
@@ -191,6 +196,11 @@ export async function POST(req: NextRequest) {
       }
 
       // ── 2. Update event status, scores, minute ──
+      const liveData: Record<string, unknown> = {};
+      if (ev.period_code != null) liveData.periodCode = ev.period_code;
+      if (ev.half_score_home) liveData.halfScoreHome = ev.half_score_home;
+      if (ev.half_score_away) liveData.halfScoreAway = ev.half_score_away;
+
       const { error: updateErr } = await supabase
         .from("events")
         .update({
@@ -199,6 +209,8 @@ export async function POST(req: NextRequest) {
           minute: ev.minute ?? null,
           score_home: ev.home_score ?? null,
           score_away: ev.away_score ?? null,
+          period: ev.period || null,
+          live_data: Object.keys(liveData).length > 0 ? liveData : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", event.id);

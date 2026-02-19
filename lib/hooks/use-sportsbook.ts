@@ -21,6 +21,10 @@ export interface SportEvent {
   markets: Market[];
   sportName?: string;
   sportSlug?: string;
+  period?: string;
+  periodCode?: number;
+  halfScoreHome?: number[];
+  halfScoreAway?: number[];
 }
 
 export interface Market {
@@ -67,6 +71,7 @@ function formatKickoffTime(startsAt: string): string {
 }
 
 export function mapDbToSportEvent(row: any): SportEvent {
+  const liveData = row.live_data || {};
   return {
     id: row.id,
     league: row.league?.name || "",
@@ -83,6 +88,10 @@ export function mapDbToSportEvent(row: any): SportEvent {
     minuteReceivedAt: row.is_live ? Date.now() : undefined,
     scoreH: row.score_home,
     scoreA: row.score_away,
+    period: row.period || undefined,
+    periodCode: liveData.periodCode ?? undefined,
+    halfScoreHome: Array.isArray(liveData.halfScoreHome) ? liveData.halfScoreHome : undefined,
+    halfScoreAway: Array.isArray(liveData.halfScoreAway) ? liveData.halfScoreAway : undefined,
     markets: (row.markets || [])
       .filter((m: any) => m.is_active && !m.is_suspended)
       .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
@@ -297,6 +306,7 @@ export function useSportsbook() {
         (payload) => {
           const updated = payload.new as Record<string, any>;
 
+          const updatedLiveData = updated.live_data || {};
           setEvents((prev) =>
             prev.map((event) =>
               event.id === updated.id
@@ -307,6 +317,10 @@ export function useSportsbook() {
                     minuteReceivedAt: updated.is_live ? Date.now() : undefined,
                     scoreH: updated.score_home,
                     scoreA: updated.score_away,
+                    period: updated.period || undefined,
+                    periodCode: updatedLiveData.periodCode ?? undefined,
+                    halfScoreHome: Array.isArray(updatedLiveData.halfScoreHome) ? updatedLiveData.halfScoreHome : undefined,
+                    halfScoreAway: Array.isArray(updatedLiveData.halfScoreAway) ? updatedLiveData.halfScoreAway : undefined,
                     time: updated.is_live
                       ? `LIVE ${updated.minute || 0}'`
                       : formatKickoffTime(updated.starts_at),

@@ -98,8 +98,16 @@ export default function SportPage() {
     }
   };
 
-  // Market lookup by name (robust for DB data with any order)
-  const getMarket = (e: SportEvent, name: string) => e.markets.find((m) => m.name === name);
+  // Market lookup by name — supports Italian aliases from Goldbet scraper
+  const MARKET_ALIASES: Record<string, string[]> = {
+    "1X2": ["1X2"],
+    "O/U 2.5": ["O/U 2.5", "Under/Over 2.5"],
+    "GG/NG": ["GG/NG", "Gol/NoGol"],
+  };
+  const getMarket = (e: SportEvent, name: string) => {
+    const aliases = MARKET_ALIASES[name] || [name];
+    return e.markets.find((m) => aliases.includes(m.name));
+  };
 
   const OddsCell = ({ event, marketName, sel }: { event: SportEvent; marketName: string; sel: Selection }) => {
     const active = isSelected(event.id, marketName, sel.label);

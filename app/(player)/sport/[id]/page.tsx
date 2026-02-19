@@ -38,6 +38,96 @@ function getOddsDirection(sel: Selection): "up" | "down" | null {
   return null;
 }
 
+// ═══ PERIOD LABELS ═══
+const PERIOD_LABELS: Record<string, string> = {
+  FIRST_HALF: "1T",
+  HALF_TIME: "Intervallo",
+  SECOND_HALF: "2T",
+  EXTRA_FIRST_HALF: "1T Suppl.",
+  EXTRA_SECOND_HALF: "2T Suppl.",
+  PENALTY: "Rigori",
+};
+
+function getPeriodBadge(period?: string) {
+  if (!period) return null;
+  const label = PERIOD_LABELS[period] || period;
+  const isInterval = period === "HALF_TIME";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold",
+        isInterval
+          ? "bg-yellow-400/20 text-yellow-300"
+          : "bg-emerald-400/20 text-emerald-300"
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ═══ FOOTBALL PITCH SVG (decorative) ═══
+function FootballPitch() {
+  return (
+    <svg
+      viewBox="0 0 600 180"
+      className="absolute inset-0 w-full h-full"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      {/* Field background */}
+      <rect width="600" height="180" fill="transparent" />
+      {/* Outer boundary */}
+      <rect
+        x="30" y="10" width="540" height="160"
+        fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5"
+        rx="2"
+      />
+      {/* Half-way line */}
+      <line
+        x1="300" y1="10" x2="300" y2="170"
+        stroke="white" strokeOpacity="0.12" strokeWidth="1.5"
+      />
+      {/* Center circle */}
+      <circle
+        cx="300" cy="90" r="35"
+        fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5"
+      />
+      {/* Center dot */}
+      <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.15" />
+      {/* Left penalty area */}
+      <rect
+        x="30" y="35" width="70" height="110"
+        fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2"
+      />
+      {/* Left goal area */}
+      <rect
+        x="30" y="60" width="30" height="60"
+        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
+      />
+      {/* Right penalty area */}
+      <rect
+        x="500" y="35" width="70" height="110"
+        fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2"
+      />
+      {/* Right goal area */}
+      <rect
+        x="540" y="60" width="30" height="60"
+        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
+      />
+      {/* Left penalty arc */}
+      <path
+        d="M 100 65 A 20 20 0 0 1 100 115"
+        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
+      />
+      {/* Right penalty arc */}
+      <path
+        d="M 500 65 A 20 20 0 0 0 500 115"
+        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
+      />
+    </svg>
+  );
+}
+
 // ═══ MARKET GROUP DEFINITIONS ═══
 
 interface MarketGroup {
@@ -57,31 +147,35 @@ const GROUP_LABELS: Record<string, string> = {
   altro: "Altro",
 };
 
-// Default-open groups
-const DEFAULT_OPEN = new Set(["risultato", "gol"]);
-
 function getMarketGroupId(market: Market): string {
   const type = (market.marketType || "").toLowerCase();
   const name = (market.name || "").toLowerCase();
 
   // Risultato
-  if (type === "1x2" || name === "1x2") return "risultato";
-  if (type === "double_chance" || name.includes("doppia chance")) return "risultato";
-  if (type === "draw_no_bet" || name === "dnb" || name.includes("draw no bet")) return "risultato";
+  if (name === "1x2" || name === "1x2 primo tempo") return "risultato";
+  if (name.includes("doppia chance") || type === "double_chance") return "risultato";
+  if (name.includes("draw no bet") || type === "draw_no_bet") return "risultato";
+  if (name.includes("resto del match")) return "risultato";
+  if (name.includes("pari/dispari") && !name.includes("angoli")) return "risultato";
 
   // Gol
-  if (type.startsWith("over_under") || name.startsWith("o/u")) return "gol";
-  if (type === "both_teams_score" || name === "gg/ng") return "gol";
+  if (name.includes("under/over") || name.startsWith("o/u") || name.startsWith("u/o")) return "gol";
+  if (name.includes("gol/nogol") || name === "gg/ng") return "gol";
+  if (name.includes("somma gol")) return "gol";
+  if (name.includes("prossimo gol") && !name.includes("+")) return "gol";
+  if (name.includes("rete inviolata") || name.includes("vincente a 0") || name.includes("clean sheet")) return "gol";
 
   // Handicap
-  if (type === "handicap" || type === "asian_handicap" || name.includes("handicap")) return "handicap";
+  if (name.includes("handicap") || name.includes("1x2 hand")) return "handicap";
 
   // Combo
-  if (type === "ht_ft" || name.includes("ht/ft")) return "combo";
-  if (type === "first_goal" || name.includes("primo gol") || name.includes("first goal")) return "combo";
+  if (name.includes("1x2 +") || name.includes("dc +")) return "combo";
+  if (name.includes("esito") && name.includes("tempo/finale")) return "combo";
+  if (name.includes("ht/ft") || type === "ht_ft") return "combo";
+  if (name.includes("metodo prossimo gol") || name.includes("pros marc +") || name.includes("marc +")) return "combo";
 
   // Esatti
-  if (type === "exact_score" || name.includes("esatto") || name.includes("exact score")) return "esatti";
+  if (name.includes("risultato esatto") || name.includes("exact score")) return "esatti";
 
   return "altro";
 }
@@ -90,7 +184,7 @@ function groupMarkets(markets: Market[]): MarketGroup[] {
   const map = new Map<string, Market[]>();
 
   for (const m of markets) {
-    if (m.selections.length === 0) continue; // skip markets with no outcomes
+    if (m.selections.length === 0) continue;
     const gid = getMarketGroupId(m);
     const arr = map.get(gid) || [];
     arr.push(m);
@@ -129,7 +223,7 @@ export default function EventDetail() {
   const [stake, setStake] = useState("");
   const [msg, setMsg] = useState("");
   const [showMobileBetslip, setShowMobileBetslip] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(DEFAULT_OPEN));
+  const [activeTab, setActiveTab] = useState<string | null>(null);
 
   // Direct-fetch state for when event isn't in the hook's list
   const [directEvent, setDirectEvent] = useState<SportEvent | null>(null);
@@ -194,20 +288,28 @@ export default function EventDetail() {
   // Market groups
   const groups = useMemo(() => (ev ? groupMarkets(ev.markets) : []), [ev]);
 
+  // Set default active tab to first group with markets
+  useEffect(() => {
+    if (groups.length > 0 && activeTab === null) {
+      setActiveTab(groups[0].id);
+    }
+  }, [groups, activeTab]);
+
+  const activeGroup = useMemo(
+    () => groups.find((g) => g.id === activeTab) || groups[0] || null,
+    [groups, activeTab]
+  );
+
   const totalMarketsCount = useMemo(
     () => groups.reduce((sum, g) => sum + g.markets.length, 0),
     [groups]
   );
 
-  // Accordion toggle
-  const toggleGroup = (id: string) => {
-    setOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  // Half-time scores display
+  const halfScoreDisplay = useMemo(() => {
+    if (!ev?.halfScoreHome?.length || !ev?.halfScoreAway?.length) return null;
+    return ev.halfScoreHome.map((h, i) => `${h}-${ev.halfScoreAway?.[i] ?? "?"}`).join(", ");
+  }, [ev]);
 
   // Potential win
   const potentialWin = stake ? parseFloat(stake) * totalOdds : 0;
@@ -293,55 +395,80 @@ export default function EventDetail() {
         </span>
       </nav>
 
-      {/* ── Event header ── */}
-      <div
-        className={cn(
-          "rounded-2xl p-6 mb-5 relative overflow-hidden",
-          ev.live
-            ? "bg-gradient-to-r from-red-600 to-red-500"
-            : "bg-gradient-to-r from-gray-800 to-gray-700"
-        )}
-      >
-        {/* Live badge */}
-        {ev.live && (
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/20 rounded-full px-2.5 py-1">
-            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-            <span className="text-white text-[10px] font-bold">
-              LIVE{" "}
-              {ev.minute != null && ev.minuteReceivedAt
-                ? <LiveTimer minute={ev.minute} receivedAt={ev.minuteReceivedAt} />
-                : <>{ev.minute || 0}&apos;</>}
-            </span>
-          </div>
-        )}
+      {/* ── Event Header ── */}
+      {ev.live ? (
+        /* LIVE header — football pitch SVG background */
+        <div
+          className="rounded-2xl mb-5 relative overflow-hidden"
+          style={{ backgroundColor: "#1a472a", minHeight: "180px" }}
+        >
+          <FootballPitch />
 
-        <div className="text-[10px] text-white/60 mb-4">
-          {ev.leagueIcon} {ev.league}
-        </div>
+          {/* Content overlay */}
+          <div className="relative z-10 px-6 py-5 flex flex-col items-center justify-center min-h-[180px]">
+            {/* League + Live badge row */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] text-white/50">
+                {ev.leagueIcon} {ev.league}
+              </span>
+              <div className="flex items-center gap-1.5 bg-black/30 rounded-full px-2.5 py-0.5">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                <span className="text-white text-[10px] font-bold">
+                  LIVE{" "}
+                  {ev.minute != null && ev.minuteReceivedAt
+                    ? <LiveTimer minute={ev.minute} receivedAt={ev.minuteReceivedAt} />
+                    : <>{ev.minute || 0}&apos;</>}
+                </span>
+              </div>
+              {ev.period && getPeriodBadge(ev.period)}
+            </div>
 
-        <div className="flex items-center justify-center gap-8">
-          <div className="text-center flex-1">
-            <div className="text-xl font-black text-white">{ev.home}</div>
-          </div>
+            {/* Score row */}
+            <div className="flex items-center justify-center gap-6 sm:gap-10">
+              <div className="text-center flex-1 min-w-0">
+                <div className="text-lg sm:text-xl font-black text-white truncate">{ev.home}</div>
+              </div>
 
-          {ev.live ? (
-            <div className="text-center flex-shrink-0">
-              <div className="text-4xl font-black text-white tabular-nums">
-                {ev.scoreH} - {ev.scoreA}
+              <div className="text-center flex-shrink-0">
+                <div className="text-4xl sm:text-5xl font-black text-white tabular-nums tracking-wider">
+                  {ev.scoreH ?? 0} - {ev.scoreA ?? 0}
+                </div>
+                {halfScoreDisplay && (
+                  <div className="text-[11px] text-white/50 mt-1">
+                    (PT: {halfScoreDisplay})
+                  </div>
+                )}
+              </div>
+
+              <div className="text-center flex-1 min-w-0">
+                <div className="text-lg sm:text-xl font-black text-white truncate">{ev.away}</div>
               </div>
             </div>
-          ) : (
+          </div>
+        </div>
+      ) : (
+        /* PREMATCH header — dark gradient */
+        <div className="rounded-2xl p-6 mb-5 relative overflow-hidden bg-gradient-to-r from-gray-800 to-gray-700">
+          <div className="text-[10px] text-white/60 mb-4">
+            {ev.leagueIcon} {ev.league}
+          </div>
+
+          <div className="flex items-center justify-center gap-8">
+            <div className="text-center flex-1">
+              <div className="text-xl font-black text-white">{ev.home}</div>
+            </div>
+
             <div className="text-center flex-shrink-0">
               <div className="text-sm font-bold text-white/60">VS</div>
               <div className="text-[10px] text-white/40 mt-0.5">{ev.time}</div>
             </div>
-          )}
 
-          <div className="text-center flex-1">
-            <div className="text-xl font-black text-white">{ev.away}</div>
+            <div className="text-center flex-1">
+              <div className="text-xl font-black text-white">{ev.away}</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="lg:flex lg:gap-5">
         {/* ═══ MARKETS COLUMN ═══ */}
@@ -357,106 +484,105 @@ export default function EventDetail() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {groups.map((group) => {
-                const isOpen = openGroups.has(group.id);
-                return (
-                  <div
-                    key={group.id}
-                    className="bg-white rounded-xl border border-gray-200 overflow-hidden"
-                  >
-                    {/* Accordion header */}
+            <>
+              {/* ── Horizontal category tabs ── */}
+              <div className="mb-4 overflow-x-auto no-scrollbar">
+                <div className="flex gap-0 border-b border-gray-200 min-w-max">
+                  {groups.map((group) => (
                     <button
-                      onClick={() => toggleGroup(group.id)}
-                      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+                      key={group.id}
+                      onClick={() => setActiveTab(group.id)}
+                      className={cn(
+                        "px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px",
+                        activeTab === group.id
+                          ? "border-brand text-brand"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
+                      )}
                     >
-                      <span className="text-xs font-bold text-gray-700">
-                        {group.label}
-                        <span className="ml-1.5 text-gray-400 font-normal">
-                          ({group.markets.length})
-                        </span>
-                      </span>
-                      <span
-                        className={cn(
-                          "text-gray-400 text-xs transition-transform",
-                          isOpen ? "rotate-180" : ""
-                        )}
-                      >
-                        ▼
+                      {group.label}
+                      <span className="ml-1 text-gray-400 font-normal">
+                        ({group.markets.length})
                       </span>
                     </button>
+                  ))}
+                </div>
+              </div>
 
-                    {/* Accordion content */}
-                    {isOpen && (
-                      <div className="divide-y divide-gray-100">
-                        {group.markets.map((market) => (
-                          <div key={market.id || market.name} className="px-4 py-3">
-                            {/* Market name (only if group has multiple markets) */}
-                            {group.markets.length > 1 && (
-                              <div className="text-[10px] text-gray-400 font-semibold mb-2">
-                                {market.name}
-                              </div>
-                            )}
-                            <div
-                              className={cn(
-                                "gap-2",
-                                market.selections.length <= 3
-                                  ? "flex"
-                                  : "grid grid-cols-3 lg:grid-cols-4"
-                              )}
-                            >
-                              {market.selections.map((sel) => {
-                                const selected = isSelected(
-                                  ev.id,
-                                  market.name,
-                                  sel.label
-                                );
-                                const dir = getOddsDirection(sel);
+              {/* ── Markets grid for active tab ── */}
+              {activeGroup && (
+                <div className="space-y-3">
+                  {activeGroup.markets.map((market) => (
+                    <div
+                      key={market.id || market.name}
+                      className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+                    >
+                      {/* Market name header (only if group has multiple markets) */}
+                      {activeGroup.markets.length > 1 && (
+                        <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                          <span className="text-[11px] text-gray-500 font-semibold">
+                            {market.name}
+                          </span>
+                        </div>
+                      )}
+                      <div className="px-4 py-3">
+                        <div
+                          className={cn(
+                            "gap-2",
+                            market.selections.length <= 3
+                              ? "flex"
+                              : "grid grid-cols-3 lg:grid-cols-4"
+                          )}
+                        >
+                          {market.selections.map((sel) => {
+                            const selected = isSelected(
+                              ev.id,
+                              market.name,
+                              sel.label
+                            );
+                            const dir = getOddsDirection(sel);
 
-                                return (
-                                  <button
-                                    key={`${sel.id || sel.label}-${sel.changedAt || 0}`}
-                                    onClick={() =>
-                                      toggleBet(ev, market.name, sel)
-                                    }
-                                    className={cn(
-                                      "flex-1 py-2.5 px-2 rounded-lg text-center border-2 transition-all min-w-0",
-                                      selected
-                                        ? "border-brand bg-brand/10 ring-1 ring-brand"
-                                        : "border-gray-200 hover:border-gray-300",
-                                      dir === "up" && "odds-up",
-                                      dir === "down" && "odds-down"
-                                    )}
-                                  >
-                                    <div className="text-[10px] text-gray-500 truncate">
-                                      {sel.label}
-                                    </div>
-                                    <div
-                                      className={cn(
-                                        "text-sm font-bold font-mono",
-                                        selected
-                                          ? "text-brand"
-                                          : dir === "up"
-                                            ? "text-emerald-500"
-                                            : dir === "down"
-                                              ? "text-red-500"
-                                              : "text-gray-900"
-                                      )}
-                                    >
-                                      {sel.odds.toFixed(2)}
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                            return (
+                              <button
+                                key={`${sel.id || sel.label}-${sel.changedAt || 0}`}
+                                onClick={() =>
+                                  toggleBet(ev, market.name, sel)
+                                }
+                                className={cn(
+                                  "flex-1 py-2.5 px-2 rounded-lg text-center border-2 transition-all min-w-0",
+                                  selected
+                                    ? "border-brand bg-brand/10 ring-1 ring-brand"
+                                    : "border-gray-200 hover:border-gray-300",
+                                  dir === "up" && "odds-up",
+                                  dir === "down" && "odds-down"
+                                )}
+                              >
+                                <div className="text-[10px] text-gray-500 truncate">
+                                  {sel.label}
+                                </div>
+                                <div
+                                  className={cn(
+                                    "text-sm font-bold font-mono",
+                                    selected
+                                      ? "text-brand"
+                                      : dir === "up"
+                                        ? "text-emerald-500"
+                                        : dir === "down"
+                                          ? "text-red-500"
+                                          : "text-gray-900"
+                                  )}
+                                >
+                                  {sel.odds.toFixed(2)}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -464,7 +590,7 @@ export default function EventDetail() {
         <div className="hidden lg:block w-72 flex-shrink-0">
           <div className="sticky top-20 bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="bg-gray-900 text-white px-4 py-3 flex justify-between items-center">
-              <span className="text-sm font-bold">🎫 Schedina</span>
+              <span className="text-sm font-bold">Schedina</span>
               {betslip.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="bg-brand text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
@@ -482,7 +608,6 @@ export default function EventDetail() {
 
             {betslip.length === 0 ? (
               <div className="p-6 text-center">
-                <span className="text-2xl block mb-1">🎯</span>
                 <p className="text-xs text-gray-400">Clicca sulle quote</p>
               </div>
             ) : (
@@ -639,7 +764,7 @@ export default function EventDetail() {
             onClick={() => setShowMobileBetslip(true)}
             className="w-full py-3 rounded-xl bg-brand text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2"
           >
-            🎫 ({betslip.length}) · {totalOdds.toFixed(2)}
+            Schedina ({betslip.length}) · {totalOdds.toFixed(2)}
           </button>
         </div>
       )}
@@ -656,7 +781,7 @@ export default function EventDetail() {
           >
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-bold">
-                🎫 Schedina ({betslip.length})
+                Schedina ({betslip.length})
               </span>
               <button
                 onClick={() => setShowMobileBetslip(false)}
