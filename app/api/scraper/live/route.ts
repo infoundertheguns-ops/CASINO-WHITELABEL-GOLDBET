@@ -20,6 +20,12 @@ interface LiveEvent {
   home_score?: number;
   away_score?: number;
   markets?: ScraperMarket[];
+  // Optional fields for auto-creation of events not yet in DB
+  home_team?: string;
+  away_team?: string;
+  sport?: string;
+  league?: string;
+  starts_at?: string;
 }
 
 // ═══ HELPERS ═══
@@ -79,7 +85,17 @@ export async function POST(req: NextRequest) {
   );
 
   let updated = 0;
+  let inserted = 0;
   const errors: string[] = [];
+
+  // Cache sport/league IDs for auto-creation
+  const sportCache = new Map<string, string>();
+  const leagueCache = new Map<string, string>();
+
+  const SPORT_ICONS: Record<string, string> = {
+    calcio: "⚽", basket: "🏀", tennis: "🎾", hockey: "🏒",
+    pallavolo: "🏐", football: "🏈", baseball: "⚾", rugby: "🏉",
+  };
 
   for (const ev of events) {
     try {
@@ -88,16 +104,90 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // ── 1. Find event by external_id ──
-      const { data: event, error: findErr } = await supabase
+      // ── 1. Find or auto-create event by external_id ──
+      let { data: event, error: findErr } = await supabase
         .from("events")
         .select("id")
         .eq("external_id", ev.external_id)
         .maybeSingle();
 
-      if (findErr || !event) {
-        errors.push(`${ev.external_id}: event not found`);
+      if (findErr && !event) {
+        errors.push(`${ev.external_id}: lookup failed — ${findErr.message}`);
         continue;
+      }
+
+      // Auto-create event if not found and creation fields are present
+      if (!event) {
+        if (!ev.home_team || !ev.away_team || !ev.sport) {
+          errors.push(`${ev.external_id}: event not found and missing creation fields`);
+          continue;
+        }
+
+        // Upsert sport
+        const sportSlug = slugify(ev.sport);
+        let sportId = sportCache.get(sportSlug);
+        if (!sportId) {
+          const { data: sport, error: sportErr } = await supabase
+            .from("sports")
+            .upsert(
+              { name: ev.sport, slug: sportSlug, icon: SPORT_ICONS[sportSlug] || "⚽", is_active: true },
+              { onConflict: "slug" }
+            )
+            .select("id")
+            .single();
+          if (sportErr || !sport) {
+            errors.push(`${ev.external_id}: sport upsert failed — ${sportErr?.message}`);
+            continue;
+          }
+          sportId = sport.id as string;
+          sportCache.set(sportSlug, sportId);
+        }
+
+        // Upsert league
+        const leagueName = ev.league || "Sconosciuto";
+        const leagueSlug = `${sportSlug}-${slugify(leagueName)}`;
+        let leagueId = leagueCache.get(leagueSlug);
+        if (!leagueId) {
+          const { data: league, error: leagueErr } = await supabase
+            .from("leagues")
+            .upsert(
+              { sport_id: sportId, name: leagueName, slug: leagueSlug, is_active: true },
+              { onConflict: "slug" }
+            )
+            .select("id")
+            .single();
+          if (leagueErr || !league) {
+            errors.push(`${ev.external_id}: league upsert failed — ${leagueErr?.message}`);
+            continue;
+          }
+          leagueId = league.id as string;
+          leagueCache.set(leagueSlug, leagueId);
+        }
+
+        // Insert new event
+        const { data: newEvent, error: insertErr } = await supabase
+          .from("events")
+          .insert({
+            external_id: ev.external_id,
+            sport_id: sportId,
+            league_id: leagueId,
+            home_team: ev.home_team,
+            away_team: ev.away_team,
+            starts_at: ev.starts_at || new Date().toISOString(),
+            status: "live",
+            is_live: true,
+            updated_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (insertErr || !newEvent) {
+          errors.push(`${ev.external_id}: auto-create failed — ${insertErr?.message}`);
+          continue;
+        }
+
+        event = newEvent;
+        inserted++;
       }
 
       // ── 2. Update event status, scores, minute ──
@@ -123,10 +213,35 @@ export async function POST(req: NextRequest) {
         const marketSlug = slugify(mkt.type);
         const line = extractLine(mkt.type);
 
-        const { data: market, error: marketErr } = await supabase
+        // Find existing market by event_id + market_type
+        const { data: existingMarket } = await supabase
           .from("markets")
-          .upsert(
-            {
+          .select("id")
+          .eq("event_id", event.id)
+          .eq("market_type", mkt.type)
+          .maybeSingle();
+
+        let market: { id: string } | null = null;
+
+        if (existingMarket) {
+          // Update existing market
+          await supabase
+            .from("markets")
+            .update({
+              name: MARKET_NAMES[mkt.type] || mkt.type,
+              slug: marketSlug,
+              line,
+              is_active: true,
+              is_suspended: false,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingMarket.id);
+          market = existingMarket;
+        } else {
+          // Insert new market
+          const { data: newMarket, error: insertErr } = await supabase
+            .from("markets")
+            .insert({
               event_id: event.id,
               name: MARKET_NAMES[mkt.type] || mkt.type,
               slug: marketSlug,
@@ -134,17 +249,17 @@ export async function POST(req: NextRequest) {
               line,
               is_active: true,
               is_suspended: false,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "event_id,market_type" }
-          )
-          .select("id")
-          .single();
-
-        if (marketErr || !market) {
-          errors.push(`${ev.external_id}/${mkt.type}: market upsert failed — ${marketErr?.message}`);
-          continue;
+            })
+            .select("id")
+            .single();
+          if (insertErr || !newMarket) {
+            errors.push(`${ev.external_id}/${mkt.type}: market insert failed — ${insertErr?.message}`);
+            continue;
+          }
+          market = newMarket;
         }
+
+        if (!market) continue;
 
         // Fetch existing outcomes for this market
         const { data: existingOutcomes } = await supabase
@@ -192,5 +307,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ updated, errors });
+  return NextResponse.json({ updated, inserted, errors });
 }

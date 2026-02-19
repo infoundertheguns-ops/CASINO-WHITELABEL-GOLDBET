@@ -158,19 +158,20 @@ export async function POST(req: NextRequest) {
         leagueCache.set(leagueSlug, leagueId);
       }
 
-      // ── 3. Check if event exists (for inserted vs updated count) ──
+      // ── 3. Find or create event ──
       const { data: existingEvent } = await supabase
         .from("events")
         .select("id")
         .eq("external_id", ev.external_id)
         .maybeSingle();
 
-      // ── 4. Upsert event ──
-      const { data: event, error: eventErr } = await supabase
-        .from("events")
-        .upsert(
-          {
-            external_id: ev.external_id,
+      let event: { id: string } | null = null;
+
+      if (existingEvent) {
+        // Update existing event
+        await supabase
+          .from("events")
+          .update({
             sport_id: sportId,
             league_id: leagueId,
             home_team: ev.home_team,
@@ -179,32 +180,69 @@ export async function POST(req: NextRequest) {
             status: ev.status || "prematch",
             is_live: false,
             updated_at: new Date().toISOString(),
-          },
-          { onConflict: "external_id" }
-        )
-        .select("id")
-        .single();
-
-      if (eventErr || !event) {
-        errors.push(`${ev.external_id}: event upsert failed — ${eventErr?.message}`);
-        continue;
-      }
-
-      if (existingEvent) {
+          })
+          .eq("id", existingEvent.id);
+        event = existingEvent;
         updated++;
       } else {
+        // Insert new event
+        const { data: newEvent, error: insertErr } = await supabase
+          .from("events")
+          .insert({
+            external_id: ev.external_id,
+            sport_id: sportId,
+            league_id: leagueId,
+            home_team: ev.home_team,
+            away_team: ev.away_team,
+            starts_at: ev.starts_at,
+            status: ev.status || "prematch",
+            is_live: false,
+          })
+          .select("id")
+          .single();
+
+        if (insertErr || !newEvent) {
+          errors.push(`${ev.external_id}: event insert failed — ${insertErr?.message}`);
+          continue;
+        }
+        event = newEvent;
         inserted++;
       }
+
+      if (!event) continue;
 
       // ── 5. Markets + Outcomes ──
       for (const mkt of ev.markets || []) {
         const marketSlug = slugify(mkt.type);
         const line = extractLine(mkt.type);
 
-        const { data: market, error: marketErr } = await supabase
+        // Find existing market by event_id + market_type
+        const { data: existingMarket } = await supabase
           .from("markets")
-          .upsert(
-            {
+          .select("id")
+          .eq("event_id", event.id)
+          .eq("market_type", mkt.type)
+          .maybeSingle();
+
+        let market: { id: string } | null = null;
+
+        if (existingMarket) {
+          await supabase
+            .from("markets")
+            .update({
+              name: MARKET_NAMES[mkt.type] || mkt.type,
+              slug: marketSlug,
+              line,
+              is_active: true,
+              is_suspended: false,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingMarket.id);
+          market = existingMarket;
+        } else {
+          const { data: newMarket, error: insertErr } = await supabase
+            .from("markets")
+            .insert({
               event_id: event.id,
               name: MARKET_NAMES[mkt.type] || mkt.type,
               slug: marketSlug,
@@ -212,17 +250,17 @@ export async function POST(req: NextRequest) {
               line,
               is_active: true,
               is_suspended: false,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "event_id,market_type" }
-          )
-          .select("id")
-          .single();
-
-        if (marketErr || !market) {
-          errors.push(`${ev.external_id}/${mkt.type}: market upsert failed — ${marketErr?.message}`);
-          continue;
+            })
+            .select("id")
+            .single();
+          if (insertErr || !newMarket) {
+            errors.push(`${ev.external_id}/${mkt.type}: market insert failed — ${insertErr?.message}`);
+            continue;
+          }
+          market = newMarket;
         }
+
+        if (!market) continue;
 
         // Fetch existing outcomes for this market (batch per market)
         const { data: existingOutcomes } = await supabase
