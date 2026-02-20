@@ -117,18 +117,18 @@
 
 /* ═══ ODDS FLASH ANIMATIONS ═══ */
 @keyframes odds-flash-green {
-  0%, 15% { background-color: rgba(16, 185, 129, 0.3); }
-  100% { background-color: transparent; }
+  0%, 20% { background-color: rgba(16, 185, 129, 0.55); border-color: rgba(16, 185, 129, 0.7); }
+  100% { background-color: transparent; border-color: #e5e7eb; }
 }
 @keyframes odds-flash-red {
-  0%, 15% { background-color: rgba(239, 68, 68, 0.3); }
-  100% { background-color: transparent; }
+  0%, 20% { background-color: rgba(239, 68, 68, 0.5); border-color: rgba(239, 68, 68, 0.7); }
+  100% { background-color: transparent; border-color: #e5e7eb; }
 }
 .odds-up {
-  animation: odds-flash-green 2.5s ease-out forwards;
+  animation: odds-flash-green 3s ease-out forwards;
 }
 .odds-down {
-  animation: odds-flash-red 2.5s ease-out forwards;
+  animation: odds-flash-red 3s ease-out forwards;
 }
 
 /* ═══ UTILITIES ═══ */

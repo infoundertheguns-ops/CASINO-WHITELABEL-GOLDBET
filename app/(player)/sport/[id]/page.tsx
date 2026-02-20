@@ -34,7 +34,7 @@ function LiveTimer({ minute, receivedAt }: { minute: number; receivedAt: number 
 // ═══ ODDS DIRECTION HELPER ═══
 function getOddsDirection(sel: Selection): "up" | "down" | null {
   if (!sel.changedAt || sel.previousOdds == null) return null;
-  if (Date.now() - sel.changedAt > 3000) return null;
+  if (Date.now() - sel.changedAt > 5000) return null;
   if (sel.odds > sel.previousOdds) return "up";
   if (sel.odds < sel.previousOdds) return "down";
   return null;
@@ -400,7 +400,55 @@ export default function EventDetail() {
         .single();
 
       if (error) throw error;
-      if (data) setDirectEvent(mapDbToSportEvent(data, true));
+      if (!data) return;
+
+      const mapped = mapDbToSportEvent(data, true);
+
+      if (isInitial) {
+        setDirectEvent(mapped);
+      } else {
+        // Compare with previous state to detect odds changes + preserve timer
+        setDirectEvent((prev) => {
+          if (!prev) return mapped;
+
+          // Keep timer stable if minute hasn't changed
+          if (prev.minute === mapped.minute && prev.minuteReceivedAt) {
+            mapped.minuteReceivedAt = prev.minuteReceivedAt;
+          }
+
+          // Build map of previous selection state
+          const prevSels = new Map<string, Selection>();
+          for (const m of prev.markets) {
+            for (const s of m.selections) {
+              if (s.id) prevSels.set(s.id, s);
+            }
+          }
+
+          return {
+            ...mapped,
+            markets: mapped.markets.map((m) => ({
+              ...m,
+              selections: m.selections.map((s) => {
+                if (!s.id) return s;
+                const old = prevSels.get(s.id);
+                if (!old) return s;
+
+                // Odds actually changed → new flash
+                if (old.odds !== s.odds) {
+                  return { ...s, previousOdds: old.odds, changedAt: Date.now() };
+                }
+
+                // Preserve ongoing flash from previous state
+                if (old.changedAt && Date.now() - old.changedAt < 5000) {
+                  return { ...s, changedAt: old.changedAt, previousOdds: old.previousOdds };
+                }
+
+                return s;
+              }),
+            })),
+          };
+        });
+      }
     } catch (err: unknown) {
       if (isInitial) {
         const message = err instanceof Error ? err.message : "Errore nel caricamento";
@@ -424,7 +472,7 @@ export default function EventDetail() {
       return;
     }
 
-    intervalRef.current = setInterval(() => fetchFullEvent(false), 30_000);
+    intervalRef.current = setInterval(() => fetchFullEvent(false), 15_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [directEvent?.live, hookEvent?.live, eventId, fetchFullEvent]);
 
@@ -484,10 +532,37 @@ export default function EventDetail() {
         { event: "UPDATE", schema: "public", table: "outcomes" },
         (payload) => {
           const updated = payload.new as Record<string, any>;
-          // Only refetch if this outcome belongs to our event's markets
-          if (marketIdsRef.current.has(updated.market_id)) {
-            debouncedRefetch();
-          }
+          if (!marketIdsRef.current.has(updated.market_id)) return;
+
+          // Inline update: instant odds flash + suspended status
+          const newOdds = parseFloat(updated.odds);
+          setDirectEvent((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              markets: prev.markets.map((m) =>
+                m.id === updated.market_id
+                  ? {
+                      ...m,
+                      selections: m.selections.map((sel) => {
+                        if (sel.id !== updated.id) return sel;
+                        const oddsChanged = sel.odds !== newOdds;
+                        return {
+                          ...sel,
+                          previousOdds: oddsChanged ? sel.odds : sel.previousOdds,
+                          odds: newOdds,
+                          changedAt: oddsChanged ? Date.now() : sel.changedAt,
+                          suspended: updated.is_suspended || undefined,
+                        };
+                      }),
+                    }
+                  : m
+              ),
+            };
+          });
+
+          // Debounced full refetch for structural changes (new/removed outcomes)
+          debouncedRefetch();
         }
       )
       .subscribe();
