@@ -250,7 +250,18 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ── 4. Upsert outcomes (deduplicate by market_id+name) ──
+      // ── 4. Suspend all existing outcomes for these markets ──
+      const marketIds = [...marketMap.values()];
+      if (marketIds.length > 0) {
+        for (const idBatch of chunk(marketIds, 500)) {
+          await supabase
+            .from("outcomes")
+            .update({ is_suspended: true })
+            .in("market_id", idBatch);
+        }
+      }
+
+      // ── 5. Upsert outcomes (deduplicate by market_id+name) ──
       const dedupOutcomes = new Map<string, Record<string, unknown>>();
 
       for (const m of ev.markets) {

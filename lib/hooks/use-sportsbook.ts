@@ -66,6 +66,7 @@ export interface Selection {
   id?: string;
   previousOdds?: number;
   changedAt?: number;
+  suspended?: boolean;
 }
 
 export interface BetslipItem {
@@ -95,7 +96,7 @@ function formatKickoffTime(startsAt: string): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-export function mapDbToSportEvent(row: any): SportEvent {
+export function mapDbToSportEvent(row: any, includeSuspended = false): SportEvent {
   const liveData = row.live_data || {};
   return {
     id: row.id,
@@ -128,12 +129,13 @@ export function mapDbToSportEvent(row: any): SportEvent {
         marketType: m.market_type,
         line: m.line,
         selections: (m.outcomes || [])
-          .filter((o: any) => o.is_active && !o.is_suspended)
+          .filter((o: any) => o.is_active && (includeSuspended || !o.is_suspended))
           .map((o: any) => ({
             id: o.id,
             label: o.name,
             odds: parseFloat(o.odds),
             previousOdds: o.previous_odds ? parseFloat(o.previous_odds) : undefined,
+            suspended: o.is_suspended ? true : undefined,
           })),
       })),
   };
@@ -277,7 +279,7 @@ export function useSportsbook() {
         setEvents(SEED_EVENTS);
         setIsMockData(true);
       } else {
-        setEvents(data.map(mapDbToSportEvent));
+        setEvents(data.map((row) => mapDbToSportEvent(row)));
         setIsMockData(false);
       }
     } catch (err: any) {

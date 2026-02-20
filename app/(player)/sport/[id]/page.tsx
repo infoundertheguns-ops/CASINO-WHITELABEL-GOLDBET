@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -377,49 +377,94 @@ export default function EventDetail() {
     [allEvents, eventId]
   );
 
-  // Always fetch full event with ALL markets from Supabase
-  // (the hook only has 3 main market types for listing page performance)
+  const supabaseDetail = useMemo(() => createClient(), []);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Reusable fetch for full event with ALL markets
+  const fetchFullEvent = useCallback(async (isInitial = false) => {
+    if (!eventId) return;
+    if (isInitial) { setDirectLoading(true); setDirectError(null); }
+    try {
+      const { data, error } = await supabaseDetail
+        .from("events")
+        .select(`
+          *,
+          sport:sports(name, slug, icon),
+          league:leagues(name, slug, country, logo_url),
+          markets(
+            id, name, slug, market_type, line, sort_order, is_active, is_suspended,
+            outcomes(id, name, odds, previous_odds, is_active, is_suspended)
+          )
+        `)
+        .eq("id", eventId)
+        .single();
+
+      if (error) throw error;
+      if (data) setDirectEvent(mapDbToSportEvent(data, true));
+    } catch (err: unknown) {
+      if (isInitial) {
+        const message = err instanceof Error ? err.message : "Errore nel caricamento";
+        setDirectError(message);
+      }
+    } finally {
+      if (isInitial) setDirectLoading(false);
+    }
+  }, [eventId, supabaseDetail]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchFullEvent(true);
+  }, [fetchFullEvent]);
+
+  // Auto-refresh every 30s for live events
+  useEffect(() => {
+    const isLive = directEvent?.live || hookEvent?.live;
+    if (!isLive || !eventId) {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      return;
+    }
+
+    intervalRef.current = setInterval(() => fetchFullEvent(false), 30_000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [directEvent?.live, hookEvent?.live, eventId, fetchFullEvent]);
+
+  // Realtime: instant score/status updates + trigger odds refresh
   useEffect(() => {
     if (!eventId) return;
 
-    let cancelled = false;
-    const fetchSingle = async () => {
-      setDirectLoading(true);
-      setDirectError(null);
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("events")
-          .select(`
-            *,
-            sport:sports(name, slug, icon),
-            league:leagues(name, slug, country, logo_url),
-            markets(
-              id, name, slug, market_type, line, sort_order, is_active, is_suspended,
-              outcomes(id, name, odds, previous_odds, is_active, is_suspended)
-            )
-          `)
-          .eq("id", eventId)
-          .single();
+    const channel = supabaseDetail
+      .channel(`detail-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "events", filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new as Record<string, any>;
+          const updatedLiveData = updated.live_data || {};
 
-        if (cancelled) return;
-        if (error) throw error;
-        if (data) {
-          setDirectEvent(mapDbToSportEvent(data));
+          // Instant update for scores/status (no re-fetch needed)
+          setDirectEvent((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              live: updated.is_live || false,
+              minute: updated.minute,
+              minuteReceivedAt: updated.is_live ? Date.now() : undefined,
+              scoreH: updated.score_home,
+              scoreA: updated.score_away,
+              period: updated.period || undefined,
+              periodCode: updatedLiveData.periodCode ?? undefined,
+              halfScoreHome: Array.isArray(updatedLiveData.halfScoreHome) ? updatedLiveData.halfScoreHome : undefined,
+              halfScoreAway: Array.isArray(updatedLiveData.halfScoreAway) ? updatedLiveData.halfScoreAway : undefined,
+              stats: updatedLiveData.stats || undefined,
+              matchEvents: Array.isArray(updatedLiveData.matchEvents) ? updatedLiveData.matchEvents : undefined,
+            };
+          });
         }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : "Errore nel caricamento";
-          setDirectError(message);
-        }
-      } finally {
-        if (!cancelled) setDirectLoading(false);
-      }
-    };
+      )
+      .subscribe();
 
-    fetchSingle();
-    return () => { cancelled = true; };
-  }, [eventId]);
+    return () => { supabaseDetail.removeChannel(channel); };
+  }, [eventId, supabaseDetail]);
 
   // Use direct fetch (full markets) when available, fallback to hook
   const ev = directEvent || hookEvent;
@@ -714,6 +759,22 @@ export default function EventDetail() {
                           )}
                         >
                           {market.selections.map((sel) => {
+                            if (sel.suspended) {
+                              return (
+                                <div
+                                  key={`${sel.id || sel.label}-suspended`}
+                                  className="flex-1 py-2.5 px-2 rounded-lg text-center border-2 border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed min-w-0"
+                                >
+                                  <div className="text-[10px] text-gray-400 truncate">
+                                    {sel.label}
+                                  </div>
+                                  <div className="text-sm text-gray-400">
+                                    &#x1f512;
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             const selected = isSelected(
                               ev.id,
                               market.name,
