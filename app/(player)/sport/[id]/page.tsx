@@ -68,129 +68,121 @@ function getPeriodBadge(period?: string) {
   );
 }
 
-// ═══ FOOTBALL PITCH SVG (decorative) ═══
-function FootballPitch() {
+// ═══ BETRADAR-STYLE STATS ═══
+
+const STAT_LABELS: Record<string, string> = {
+  possession: "POSSESSO PALLA",
+  shots: "TIRI TOTALI",
+  shotsOnTarget: "TIRI IN PORTA",
+  corners: "CORNER",
+  fouls: "FALLI",
+  yellowCards: "CARTELLINI GIALLI",
+  redCards: "CARTELLINI ROSSI",
+  offsides: "FUORIGIOCO",
+  saves: "PARATE",
+};
+
+function StatBar({ label, home, away, isPct }: { label: string; home: number; away: number; isPct?: boolean }) {
+  const total = home + away;
+  const homePct = total > 0 ? (home / total) * 100 : 50;
+  const homeWins = home > away;
+  const awayWins = away > home;
+  const suffix = isPct ? "%" : "";
+
   return (
-    <svg
-      viewBox="0 0 600 180"
-      className="absolute inset-0 w-full h-full"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      {/* Field background */}
-      <rect width="600" height="180" fill="transparent" />
-      {/* Outer boundary */}
-      <rect
-        x="30" y="10" width="540" height="160"
-        fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5"
-        rx="2"
-      />
-      {/* Half-way line */}
-      <line
-        x1="300" y1="10" x2="300" y2="170"
-        stroke="white" strokeOpacity="0.12" strokeWidth="1.5"
-      />
-      {/* Center circle */}
-      <circle
-        cx="300" cy="90" r="35"
-        fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5"
-      />
-      {/* Center dot */}
-      <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.15" />
-      {/* Left penalty area */}
-      <rect
-        x="30" y="35" width="70" height="110"
-        fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2"
-      />
-      {/* Left goal area */}
-      <rect
-        x="30" y="60" width="30" height="60"
-        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
-      />
-      {/* Right penalty area */}
-      <rect
-        x="500" y="35" width="70" height="110"
-        fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2"
-      />
-      {/* Right goal area */}
-      <rect
-        x="540" y="60" width="30" height="60"
-        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
-      />
-      {/* Left penalty arc */}
-      <path
-        d="M 100 65 A 20 20 0 0 1 100 115"
-        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
-      />
-      {/* Right penalty arc */}
-      <path
-        d="M 500 65 A 20 20 0 0 0 500 115"
-        fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1"
-      />
-    </svg>
+    <div className="py-[7px]">
+      <div className="flex items-center">
+        {/* Home value */}
+        <span className={cn(
+          "text-[13px] tabular-nums w-10 text-left font-mono",
+          homeWins ? "font-bold text-white" : "text-white/60"
+        )}>
+          {home}{suffix}
+        </span>
+        {/* Bar + label */}
+        <div className="flex-1 relative">
+          {/* Label above bar */}
+          <div className="text-[10px] text-white/50 font-semibold text-center mb-1 tracking-wide">
+            {label}
+          </div>
+          {/* Bar track */}
+          <div className="h-[3px] bg-white/10 relative">
+            {/* Home bar — grows from left */}
+            <div
+              className="absolute left-0 top-0 h-full transition-all duration-700 ease-out"
+              style={{
+                width: `${total > 0 ? homePct : 50}%`,
+                backgroundColor: homeWins ? "#3b82f6" : "rgba(255,255,255,0.25)",
+              }}
+            />
+            {/* Away bar — grows from right */}
+            <div
+              className="absolute right-0 top-0 h-full transition-all duration-700 ease-out"
+              style={{
+                width: `${total > 0 ? (100 - homePct) : 50}%`,
+                backgroundColor: awayWins ? "#ef4444" : "rgba(255,255,255,0.25)",
+              }}
+            />
+          </div>
+        </div>
+        {/* Away value */}
+        <span className={cn(
+          "text-[13px] tabular-nums w-10 text-right font-mono",
+          awayWins ? "font-bold text-white" : "text-white/60"
+        )}>
+          {away}{suffix}
+        </span>
+      </div>
+    </div>
   );
 }
 
-// ═══ STAT BAR COMPONENT ═══
-
-const STAT_LABELS: Record<string, string> = {
-  possession: "Possesso",
-  shots: "Tiri",
-  shotsOnTarget: "Tiri in porta",
-  corners: "Calci d'angolo",
-  fouls: "Falli",
-  yellowCards: "Cartellini gialli",
-  redCards: "Cartellini rossi",
-  offsides: "Fuorigioco",
-  saves: "Parate",
-};
-
-function StatBar({ label, home, away }: { label: string; home: number; away: number }) {
-  const total = home + away || 1;
-  const homePct = (home / total) * 100;
-  const awayPct = (away / total) * 100;
+function CardsRow({ stats }: { stats: MatchStats }) {
+  const yHome = stats.yellowCards[0];
+  const yAway = stats.yellowCards[1];
+  const rHome = stats.redCards[0];
+  const rAway = stats.redCards[1];
+  if (yHome + yAway + rHome + rAway === 0) return null;
 
   return (
-    <div className="py-2">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-bold text-gray-800 tabular-nums w-10 text-left">{home}</span>
-        <span className="text-[11px] text-gray-500 font-medium flex-1 text-center">{label}</span>
-        <span className="text-sm font-bold text-gray-800 tabular-nums w-10 text-right">{away}</span>
+    <div className="flex items-center justify-center gap-6 py-3 border-b border-white/10">
+      {/* Home cards */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-white/80 text-[13px] font-mono font-bold">{yHome}</span>
+        <div className="w-3 h-4 rounded-[1px] bg-yellow-400" />
+        <div className="w-3 h-4 rounded-[1px] bg-red-500 ml-0.5" />
+        <span className="text-white/80 text-[13px] font-mono font-bold">{rHome}</span>
       </div>
-      <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-gray-100">
-        <div
-          className="h-full rounded-l-full transition-all duration-500"
-          style={{
-            width: `${homePct}%`,
-            backgroundColor: "#22c55e",
-          }}
-        />
-        <div
-          className="h-full rounded-r-full transition-all duration-500"
-          style={{
-            width: `${awayPct}%`,
-            backgroundColor: "#ef4444",
-          }}
-        />
+      <span className="text-[10px] text-white/40 font-semibold tracking-wider">CARTELLINI</span>
+      {/* Away cards */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-white/80 text-[13px] font-mono font-bold">{yAway}</span>
+        <div className="w-3 h-4 rounded-[1px] bg-yellow-400" />
+        <div className="w-3 h-4 rounded-[1px] bg-red-500 ml-0.5" />
+        <span className="text-white/80 text-[13px] font-mono font-bold">{rAway}</span>
       </div>
     </div>
   );
 }
 
 function StatsPanel({ stats, home, away }: { stats: MatchStats; home: string; away: string }) {
-  const statKeys: (keyof MatchStats)[] = [
-    "possession", "shots", "shotsOnTarget", "corners",
-    "fouls", "yellowCards", "redCards", "offsides", "saves",
+  const mainStats: (keyof MatchStats)[] = [
+    "possession", "shots", "shotsOnTarget", "corners", "fouls", "offsides", "saves",
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      {/* Team names header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
-        <span className="text-xs font-bold text-emerald-600 truncate max-w-[40%]">{home}</span>
-        <span className="text-xs font-bold text-red-500 truncate max-w-[40%]">{away}</span>
+    <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "#0a1929" }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <span className="text-[11px] font-bold text-white/90 truncate max-w-[40%]">{home}</span>
+        <span className="text-[10px] font-semibold text-white/40 tracking-wider">STATISTICHE</span>
+        <span className="text-[11px] font-bold text-white/90 truncate max-w-[40%] text-right">{away}</span>
       </div>
-      <div className="px-4 py-2 divide-y divide-gray-100">
-        {statKeys.map((key) => {
+      {/* Cards summary */}
+      <CardsRow stats={stats} />
+      {/* Stat bars */}
+      <div className="px-4 py-1">
+        {mainStats.map((key) => {
           const val = stats[key];
           if (!val) return null;
           return (
@@ -199,6 +191,7 @@ function StatsPanel({ stats, home, away }: { stats: MatchStats; home: string; aw
               label={STAT_LABELS[key] || key}
               home={val[0]}
               away={val[1]}
+              isPct={key === "possession"}
             />
           );
         })}
@@ -207,7 +200,7 @@ function StatsPanel({ stats, home, away }: { stats: MatchStats; home: string; aw
   );
 }
 
-// ═══ EVENT TIMELINE COMPONENT ═══
+// ═══ EVENT TIMELINE (BetRadar style) ═══
 
 const EVENT_ICONS: Record<string, string> = {
   goal: "\u26BD",
@@ -220,59 +213,52 @@ const EVENT_ICONS: Record<string, string> = {
 function EventTimeline({ events, home, away }: { events: MatchEvent[]; home: string; away: string }) {
   if (events.length === 0) return null;
 
-  // Sort by minute descending (most recent first)
   const sorted = [...events].sort((a, b) => b.minute - a.minute);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-3">
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-        <span className="text-xs font-bold text-gray-700">Timeline</span>
+    <div className="rounded-xl overflow-hidden mt-3" style={{ backgroundColor: "#0a1929" }}>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-white/10">
+        <span className="text-[10px] font-semibold text-white/40 tracking-wider">CRONACA</span>
       </div>
-      <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-white/5">
         {sorted.map((evt, i) => {
           const isHome = evt.team === "home";
           const icon = EVENT_ICONS[evt.type] || "\u25CF";
+          const playerName = evt.player || evt.detail || evt.type;
 
           return (
-            <div
-              key={`${evt.minute}-${evt.type}-${i}`}
-              className={cn(
-                "flex items-center gap-3 px-4 py-2.5",
-                isHome ? "flex-row" : "flex-row-reverse"
-              )}
-            >
-              {/* Minute badge */}
-              <span className="text-[10px] font-bold text-gray-400 w-8 text-center flex-shrink-0 tabular-nums">
-                {evt.minute}&apos;
-              </span>
-
-              {/* Icon */}
-              <span className="text-sm flex-shrink-0">{icon}</span>
-
-              {/* Info */}
-              <div className={cn("flex-1 min-w-0", isHome ? "text-left" : "text-right")}>
-                <span className="text-xs font-semibold text-gray-800 truncate block">
-                  {evt.player}
-                </span>
-                {evt.assist && (
-                  <span className="text-[10px] text-gray-400 truncate block">
-                    Assist: {evt.assist}
-                  </span>
-                )}
-                {evt.detail && evt.type !== "goal" && (
-                  <span className="text-[10px] text-gray-400 truncate block">
-                    {evt.detail}
-                  </span>
+            <div key={`${evt.minute}-${evt.type}-${i}`} className="flex items-center px-4 py-2">
+              {/* Home side */}
+              <div className="flex-1 min-w-0">
+                {isHome && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-white/90 truncate">{playerName}</span>
+                    {evt.assist && (
+                      <span className="text-[10px] text-white/40 truncate hidden sm:inline">({evt.assist})</span>
+                    )}
+                  </div>
                 )}
               </div>
-
-              {/* Team color indicator */}
-              <div
-                className={cn(
-                  "w-1.5 h-1.5 rounded-full flex-shrink-0",
-                  isHome ? "bg-emerald-400" : "bg-red-400"
+              {/* Center — icon + minute */}
+              <div className="flex items-center gap-1.5 flex-shrink-0 mx-3">
+                {isHome && <span className="text-sm">{icon}</span>}
+                <span className="text-[11px] font-bold text-white/50 tabular-nums font-mono w-7 text-center">
+                  {evt.minute}&apos;
+                </span>
+                {!isHome && <span className="text-sm">{icon}</span>}
+              </div>
+              {/* Away side */}
+              <div className="flex-1 min-w-0 text-right">
+                {!isHome && (
+                  <div className="flex items-center justify-end gap-2">
+                    {evt.assist && (
+                      <span className="text-[10px] text-white/40 truncate hidden sm:inline">({evt.assist})</span>
+                    )}
+                    <span className="text-[11px] font-semibold text-white/90 truncate">{playerName}</span>
+                  </div>
                 )}
-              />
+              </div>
             </div>
           );
         })}
@@ -391,9 +377,10 @@ export default function EventDetail() {
     [allEvents, eventId]
   );
 
-  // Direct fetch from Supabase if hook doesn't have it
+  // Always fetch full event with ALL markets from Supabase
+  // (the hook only has 3 main market types for listing page performance)
   useEffect(() => {
-    if (hookLoading || hookEvent || !eventId) return;
+    if (!eventId) return;
 
     let cancelled = false;
     const fetchSingle = async () => {
@@ -432,11 +419,11 @@ export default function EventDetail() {
 
     fetchSingle();
     return () => { cancelled = true; };
-  }, [hookLoading, hookEvent, eventId]);
+  }, [eventId]);
 
-  // Resolved event (hook or direct)
-  const ev = hookEvent || directEvent;
-  const loading = hookLoading || directLoading;
+  // Use direct fetch (full markets) when available, fallback to hook
+  const ev = directEvent || hookEvent;
+  const loading = !directEvent && (hookLoading || directLoading);
 
   // Market groups
   const groups = useMemo(() => (ev ? groupMarkets(ev.markets) : []), [ev]);
@@ -557,16 +544,31 @@ export default function EventDetail() {
 
       {/* ── Event Header ── */}
       {ev.live ? (
-        /* LIVE header — football pitch SVG background */
+        /* LIVE header — simple pitch SVG background */
         <div
           className="rounded-2xl mb-5 relative overflow-hidden"
           style={{ backgroundColor: "#1a472a", minHeight: "180px" }}
         >
-          <FootballPitch />
+          <svg
+            viewBox="0 0 600 180"
+            className="absolute inset-0 w-full h-full"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <rect width="600" height="180" fill="transparent" />
+            <rect x="30" y="10" width="540" height="160" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" rx="2" />
+            <line x1="300" y1="10" x2="300" y2="170" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+            <circle cx="300" cy="90" r="35" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+            <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.15" />
+            <rect x="30" y="35" width="70" height="110" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+            <rect x="30" y="60" width="30" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+            <rect x="500" y="35" width="70" height="110" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+            <rect x="540" y="60" width="30" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+            <path d="M 100 65 A 20 20 0 0 1 100 115" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+            <path d="M 500 65 A 20 20 0 0 0 500 115" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+          </svg>
 
           {/* Content overlay */}
           <div className="relative z-10 px-6 py-5 flex flex-col items-center justify-center min-h-[180px]">
-            {/* League + Live badge row */}
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[10px] text-white/50">
                 {ev.leagueIcon} {ev.league}
@@ -583,23 +585,18 @@ export default function EventDetail() {
               {ev.period && getPeriodBadge(ev.period)}
             </div>
 
-            {/* Score row */}
             <div className="flex items-center justify-center gap-6 sm:gap-10">
               <div className="text-center flex-1 min-w-0">
                 <div className="text-lg sm:text-xl font-black text-white truncate">{ev.home}</div>
               </div>
-
               <div className="text-center flex-shrink-0">
                 <div className="text-4xl sm:text-5xl font-black text-white tabular-nums tracking-wider">
                   {ev.scoreH ?? 0} - {ev.scoreA ?? 0}
                 </div>
                 {halfScoreDisplay && (
-                  <div className="text-[11px] text-white/50 mt-1">
-                    (PT: {halfScoreDisplay})
-                  </div>
+                  <div className="text-[11px] text-white/50 mt-1">(PT: {halfScoreDisplay})</div>
                 )}
               </div>
-
               <div className="text-center flex-1 min-w-0">
                 <div className="text-lg sm:text-xl font-black text-white truncate">{ev.away}</div>
               </div>

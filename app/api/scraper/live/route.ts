@@ -20,23 +20,20 @@ interface LiveEvent {
   home_score?: number;
   away_score?: number;
   markets?: ScraperMarket[];
-  // Optional fields for auto-creation of events not yet in DB
   home_team?: string;
   away_team?: string;
   sport?: string;
   league?: string;
   starts_at?: string;
-  // Extra live data
   period?: string;
   period_code?: number;
   half_score_home?: number[];
   half_score_away?: number[];
-  // API-Football statistics
   stats?: Record<string, [number, number]>;
   match_events?: Array<{
     minute: number;
     type: string;
-    team: 'home' | 'away';
+    team: "home" | "away";
     player: string;
     assist?: string;
     detail?: string;
@@ -54,29 +51,33 @@ function slugify(str: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-const MARKET_NAMES: Record<string, string> = {
-  "1X2": "1X2",
-  "over_under_0.5": "O/U 0.5",
-  "over_under_1.5": "O/U 1.5",
-  "over_under_2.5": "O/U 2.5",
-  "over_under_3.5": "O/U 3.5",
-  "over_under_4.5": "O/U 4.5",
-  "gg_ng": "GG/NG",
-  "double_chance": "Doppia Chance",
-  "handicap": "Handicap",
-  "exact_score": "Risultato Esatto",
-  "draw_no_bet": "Draw No Bet",
-};
-
 function extractLine(marketType: string): number | null {
   const match = marketType.match(/[_.](\d+\.?\d*)$/);
   return match ? parseFloat(match[1]) : null;
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+const SPORT_ICONS: Record<string, string> = {
+  calcio: "⚽",
+  basket: "🏀",
+  tennis: "🎾",
+  hockey: "🏒",
+  pallavolo: "🏐",
+  football: "🏈",
+  baseball: "⚾",
+  rugby: "🏉",
+};
+
 // ═══ HANDLER ═══
 
 export async function POST(req: NextRequest) {
-  // Auth
   const key = req.headers.get("x-scraper-key");
   if (!key || key !== process.env.SCRAPER_API_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -103,14 +104,8 @@ export async function POST(req: NextRequest) {
   let inserted = 0;
   const errors: string[] = [];
 
-  // Cache sport/league IDs for auto-creation
   const sportCache = new Map<string, string>();
   const leagueCache = new Map<string, string>();
-
-  const SPORT_ICONS: Record<string, string> = {
-    calcio: "⚽", basket: "🏀", tennis: "🎾", hockey: "🏒",
-    pallavolo: "🏐", football: "🏈", baseball: "⚾", rugby: "🏉",
-  };
 
   for (const ev of events) {
     try {
@@ -119,26 +114,19 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // ── 1. Find or auto-create event by external_id ──
-      let { data: event, error: findErr } = await supabase
+      // ── 1. Find or auto-create event ──
+      let { data: event } = await supabase
         .from("events")
         .select("id")
         .eq("external_id", ev.external_id)
         .maybeSingle();
 
-      if (findErr && !event) {
-        errors.push(`${ev.external_id}: lookup failed — ${findErr.message}`);
-        continue;
-      }
-
-      // Auto-create event if not found and creation fields are present
       if (!event) {
         if (!ev.home_team || !ev.away_team || !ev.sport) {
           errors.push(`${ev.external_id}: event not found and missing creation fields`);
           continue;
         }
 
-        // Upsert sport
         const sportSlug = slugify(ev.sport);
         let sportId = sportCache.get(sportSlug);
         if (!sportId) {
@@ -158,7 +146,6 @@ export async function POST(req: NextRequest) {
           sportCache.set(sportSlug, sportId);
         }
 
-        // Upsert league
         const leagueName = ev.league || "Sconosciuto";
         const leagueSlug = `${sportSlug}-${slugify(leagueName)}`;
         let leagueId = leagueCache.get(leagueSlug);
@@ -179,7 +166,6 @@ export async function POST(req: NextRequest) {
           leagueCache.set(leagueSlug, leagueId);
         }
 
-        // Insert new event
         const { data: newEvent, error: insertErr } = await supabase
           .from("events")
           .insert({
@@ -205,7 +191,7 @@ export async function POST(req: NextRequest) {
         inserted++;
       }
 
-      // ── 2. Update event status, scores, minute ──
+      // ── 2. Update event status, scores, live_data ──
       const liveData: Record<string, unknown> = {};
       if (ev.period_code != null) liveData.periodCode = ev.period_code;
       if (ev.half_score_home) liveData.halfScoreHome = ev.half_score_home;
@@ -213,7 +199,7 @@ export async function POST(req: NextRequest) {
       if (ev.stats) liveData.stats = ev.stats;
       if (ev.match_events) liveData.matchEvents = ev.match_events;
 
-      const { error: updateErr } = await supabase
+      await supabase
         .from("events")
         .update({
           status: ev.status || "live",
@@ -227,100 +213,71 @@ export async function POST(req: NextRequest) {
         })
         .eq("id", event.id);
 
-      if (updateErr) {
-        errors.push(`${ev.external_id}: update failed — ${updateErr.message}`);
+      if (!ev.markets?.length) {
+        updated++;
         continue;
       }
 
-      // ── 3. Upsert markets + outcomes (live odds update) ──
-      for (const mkt of ev.markets || []) {
-        const marketSlug = slugify(mkt.type);
-        const line = extractLine(mkt.type);
+      // ── 3. Upsert markets (deduplicate by market_type first) ──
+      const dedupMarkets = new Map<string, Record<string, unknown>>();
+      for (const m of ev.markets) {
+        dedupMarkets.set(m.type, {
+          event_id: event!.id,
+          name: m.type,
+          slug: slugify(m.type),
+          market_type: m.type,
+          line: extractLine(m.type),
+          is_active: true,
+          is_suspended: false,
+        });
+      }
+      const marketRows = [...dedupMarkets.values()];
 
-        // Find existing market by event_id + market_type
-        const { data: existingMarket } = await supabase
+      const marketMap = new Map<string, string>();
+
+      for (const batch of chunk(marketRows, 500)) {
+        const { data: upserted, error: mktErr } = await supabase
           .from("markets")
-          .select("id")
-          .eq("event_id", event.id)
-          .eq("market_type", mkt.type)
-          .maybeSingle();
+          .upsert(batch, { onConflict: "event_id,market_type", ignoreDuplicates: false })
+          .select("id, market_type");
 
-        let market: { id: string } | null = null;
-
-        if (existingMarket) {
-          // Update existing market
-          await supabase
-            .from("markets")
-            .update({
-              name: MARKET_NAMES[mkt.type] || mkt.type,
-              slug: marketSlug,
-              line,
-              is_active: true,
-              is_suspended: false,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingMarket.id);
-          market = existingMarket;
+        if (mktErr) {
+          errors.push(`${ev.external_id}: market upsert failed — ${mktErr.message}`);
         } else {
-          // Insert new market
-          const { data: newMarket, error: insertErr } = await supabase
-            .from("markets")
-            .insert({
-              event_id: event.id,
-              name: MARKET_NAMES[mkt.type] || mkt.type,
-              slug: marketSlug,
-              market_type: mkt.type,
-              line,
-              is_active: true,
-              is_suspended: false,
-            })
-            .select("id")
-            .single();
-          if (insertErr || !newMarket) {
-            errors.push(`${ev.external_id}/${mkt.type}: market insert failed — ${insertErr?.message}`);
-            continue;
+          for (const m of upserted || []) {
+            marketMap.set(m.market_type, m.id);
           }
-          market = newMarket;
         }
+      }
 
-        if (!market) continue;
+      // ── 4. Upsert outcomes (deduplicate by market_id+name) ──
+      const dedupOutcomes = new Map<string, Record<string, unknown>>();
 
-        // Fetch existing outcomes for this market
-        const { data: existingOutcomes } = await supabase
+      for (const m of ev.markets) {
+        const marketId = marketMap.get(m.type);
+        if (!marketId) continue;
+
+        for (const o of m.outcomes) {
+          if (o.odds <= 1) continue;
+          const key = `${marketId}|${o.name}`;
+          dedupOutcomes.set(key, {
+            market_id: marketId,
+            name: o.name,
+            odds: o.odds,
+            is_active: true,
+            is_suspended: false,
+          });
+        }
+      }
+      const outcomeRows = [...dedupOutcomes.values()];
+
+      for (const batch of chunk(outcomeRows, 500)) {
+        const { error: outErr } = await supabase
           .from("outcomes")
-          .select("id, name, odds")
-          .eq("market_id", market.id);
+          .upsert(batch, { onConflict: "market_id,name", ignoreDuplicates: false });
 
-        const existingMap = new Map(
-          (existingOutcomes || []).map((o) => [o.name, o])
-        );
-
-        for (const out of mkt.outcomes || []) {
-          const existing = existingMap.get(out.name);
-
-          if (existing) {
-            // Shift current odds → previous_odds, set new odds
-            if (existing.odds !== out.odds) {
-              await supabase
-                .from("outcomes")
-                .update({
-                  previous_odds: existing.odds,
-                  odds: out.odds,
-                  is_active: true,
-                  is_suspended: false,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", existing.id);
-            }
-          } else {
-            await supabase.from("outcomes").insert({
-              market_id: market.id,
-              name: out.name,
-              odds: out.odds,
-              is_active: true,
-              is_suspended: false,
-            });
-          }
+        if (outErr) {
+          errors.push(`${ev.external_id}: outcome upsert failed — ${outErr.message}`);
         }
       }
 

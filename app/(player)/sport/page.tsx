@@ -101,7 +101,7 @@ export default function SportPage() {
   // Market lookup by name — supports Italian aliases from Goldbet scraper
   const MARKET_ALIASES: Record<string, string[]> = {
     "1X2": ["1X2"],
-    "O/U 2.5": ["O/U 2.5", "Under/Over 2.5"],
+    "U/O 2.5": ["U/O 2.5", "O/U 2.5", "Under/Over 2.5"],
     "GG/NG": ["GG/NG", "Gol/NoGol"],
   };
   const getMarket = (e: SportEvent, name: string) => {
@@ -252,7 +252,7 @@ export default function SportPage() {
 
                 {displayEvents.map((e) => {
                   const m1x2 = getMarket(e, "1X2");
-                  const mOU = getMarket(e, "O/U 2.5");
+                  const mOU = getMarket(e, "U/O 2.5");
                   const mGG = getMarket(e, "GG/NG");
 
                   return (
@@ -298,8 +298,8 @@ export default function SportPage() {
                       {m1x2?.selections[1] ? <OddsCell event={e} marketName="1X2" sel={m1x2.selections[1]} /> : <span />}
                       {m1x2?.selections[2] ? <OddsCell event={e} marketName="1X2" sel={m1x2.selections[2]} /> : <span />}
                       {/* O/U */}
-                      {mOU?.selections[0] ? <OddsCell event={e} marketName="O/U 2.5" sel={mOU.selections[0]} /> : <span />}
-                      {mOU?.selections[1] ? <OddsCell event={e} marketName="O/U 2.5" sel={mOU.selections[1]} /> : <span />}
+                      {mOU?.selections[0] ? <OddsCell event={e} marketName="U/O 2.5" sel={mOU.selections[0]} /> : <span />}
+                      {mOU?.selections[1] ? <OddsCell event={e} marketName="U/O 2.5" sel={mOU.selections[1]} /> : <span />}
                       {/* GG/NG */}
                       {mGG?.selections[0] ? <OddsCell event={e} marketName="GG/NG" sel={mGG.selections[0]} /> : <span />}
                       {mGG?.selections[1] ? <OddsCell event={e} marketName="GG/NG" sel={mGG.selections[1]} /> : <span />}

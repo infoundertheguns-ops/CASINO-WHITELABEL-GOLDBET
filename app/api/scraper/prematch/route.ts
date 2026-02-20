@@ -48,35 +48,22 @@ const SPORT_ICONS: Record<string, string> = {
   ciclismo: "🚴",
 };
 
-const MARKET_NAMES: Record<string, string> = {
-  "1X2": "1X2",
-  "over_under_0.5": "O/U 0.5",
-  "over_under_1.5": "O/U 1.5",
-  "over_under_2.5": "O/U 2.5",
-  "over_under_3.5": "O/U 3.5",
-  "over_under_4.5": "O/U 4.5",
-  "gg_ng": "GG/NG",
-  "double_chance": "Doppia Chance",
-  "handicap": "Handicap",
-  "exact_score": "Risultato Esatto",
-  "draw_no_bet": "Draw No Bet",
-  "first_goal": "Primo Gol",
-  "ht_ft": "HT/FT",
-  "corners_ou": "Corner O/U",
-  "cards_ou": "Cartellini O/U",
-  "clean_sheet": "Clean Sheet",
-  "win_to_nil": "Vittoria a Zero",
-};
-
 function extractLine(marketType: string): number | null {
   const match = marketType.match(/[_.](\d+\.?\d*)$/);
   return match ? parseFloat(match[1]) : null;
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
 // ═══ HANDLER ═══
 
 export async function POST(req: NextRequest) {
-  // Auth
   const key = req.headers.get("x-scraper-key");
   if (!key || key !== process.env.SCRAPER_API_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -103,7 +90,6 @@ export async function POST(req: NextRequest) {
   let updated = 0;
   const errors: string[] = [];
 
-  // Cache sport/league IDs to avoid repeated lookups
   const sportCache = new Map<string, string>();
   const leagueCache = new Map<string, string>();
 
@@ -168,7 +154,6 @@ export async function POST(req: NextRequest) {
       let event: { id: string } | null = null;
 
       if (existingEvent) {
-        // Update existing event
         await supabase
           .from("events")
           .update({
@@ -185,7 +170,6 @@ export async function POST(req: NextRequest) {
         event = existingEvent;
         updated++;
       } else {
-        // Insert new event
         const { data: newEvent, error: insertErr } = await supabase
           .from("events")
           .insert({
@@ -209,99 +193,68 @@ export async function POST(req: NextRequest) {
         inserted++;
       }
 
-      if (!event) continue;
+      if (!event || !ev.markets?.length) continue;
 
-      // ── 5. Markets + Outcomes ──
-      for (const mkt of ev.markets || []) {
-        const marketSlug = slugify(mkt.type);
-        const line = extractLine(mkt.type);
+      // ── 4. Upsert markets (deduplicate by market_type first) ──
+      const dedupMarkets = new Map<string, Record<string, unknown>>();
+      for (const m of ev.markets) {
+        dedupMarkets.set(m.type, {
+          event_id: event!.id,
+          name: m.type,
+          slug: slugify(m.type),
+          market_type: m.type,
+          line: extractLine(m.type),
+          is_active: true,
+          is_suspended: false,
+        });
+      }
+      const marketRows = [...dedupMarkets.values()];
 
-        // Find existing market by event_id + market_type
-        const { data: existingMarket } = await supabase
+      const marketMap = new Map<string, string>();
+
+      for (const batch of chunk(marketRows, 500)) {
+        const { data: upserted, error: mktErr } = await supabase
           .from("markets")
-          .select("id")
-          .eq("event_id", event.id)
-          .eq("market_type", mkt.type)
-          .maybeSingle();
+          .upsert(batch, { onConflict: "event_id,market_type", ignoreDuplicates: false })
+          .select("id, market_type");
 
-        let market: { id: string } | null = null;
-
-        if (existingMarket) {
-          await supabase
-            .from("markets")
-            .update({
-              name: MARKET_NAMES[mkt.type] || mkt.type,
-              slug: marketSlug,
-              line,
-              is_active: true,
-              is_suspended: false,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingMarket.id);
-          market = existingMarket;
+        if (mktErr) {
+          errors.push(`${ev.external_id}: market upsert failed — ${mktErr.message}`);
         } else {
-          const { data: newMarket, error: insertErr } = await supabase
-            .from("markets")
-            .insert({
-              event_id: event.id,
-              name: MARKET_NAMES[mkt.type] || mkt.type,
-              slug: marketSlug,
-              market_type: mkt.type,
-              line,
-              is_active: true,
-              is_suspended: false,
-            })
-            .select("id")
-            .single();
-          if (insertErr || !newMarket) {
-            errors.push(`${ev.external_id}/${mkt.type}: market insert failed — ${insertErr?.message}`);
-            continue;
+          for (const m of upserted || []) {
+            marketMap.set(m.market_type, m.id);
           }
-          market = newMarket;
         }
+      }
 
-        if (!market) continue;
+      // ── 5. Upsert outcomes (deduplicate by market_id+name) ──
+      const dedupOutcomes = new Map<string, Record<string, unknown>>();
 
-        // Fetch existing outcomes for this market (batch per market)
-        const { data: existingOutcomes } = await supabase
+      for (const m of ev.markets) {
+        const marketId = marketMap.get(m.type);
+        if (!marketId) continue;
+
+        for (const o of m.outcomes) {
+          if (o.odds <= 1) continue;
+          const key = `${marketId}|${o.name}`;
+          dedupOutcomes.set(key, {
+            market_id: marketId,
+            name: o.name,
+            odds: o.odds,
+            is_active: true,
+            is_suspended: false,
+          });
+        }
+      }
+      const outcomeRows = [...dedupOutcomes.values()];
+
+      for (const batch of chunk(outcomeRows, 500)) {
+        const { error: outErr } = await supabase
           .from("outcomes")
-          .select("id, name, odds")
-          .eq("market_id", market.id);
+          .upsert(batch, { onConflict: "market_id,name", ignoreDuplicates: false });
 
-        const existingMap = new Map(
-          (existingOutcomes || []).map((o) => [o.name, o])
-        );
-
-        for (const out of mkt.outcomes || []) {
-          const existing = existingMap.get(out.name);
-
-          if (existing) {
-            // Update: shift odds → previous_odds
-            if (existing.odds !== out.odds) {
-              await supabase
-                .from("outcomes")
-                .update({
-                  previous_odds: existing.odds,
-                  odds: out.odds,
-                  is_active: true,
-                  is_suspended: false,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", existing.id);
-            }
-          } else {
-            // Insert new outcome
-            const { error: outErr } = await supabase.from("outcomes").insert({
-              market_id: market.id,
-              name: out.name,
-              odds: out.odds,
-              is_active: true,
-              is_suspended: false,
-            });
-            if (outErr) {
-              errors.push(`${ev.external_id}/${mkt.type}/${out.name}: outcome insert failed — ${outErr.message}`);
-            }
-          }
+        if (outErr) {
+          errors.push(`${ev.external_id}: outcome upsert failed — ${outErr.message}`);
         }
       }
     } catch (err: unknown) {

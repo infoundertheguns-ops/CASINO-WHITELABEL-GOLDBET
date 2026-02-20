@@ -267,6 +267,7 @@ export function useSportsbook() {
           )
         `)
         .in("status", ["prematch", "live"])
+        .in("markets.market_type", ["1X2", "U/O 2.5", "GG/NG"])
         .order("is_live", { ascending: false })
         .order("starts_at", { ascending: true });
 
