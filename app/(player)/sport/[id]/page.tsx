@@ -428,7 +428,26 @@ export default function EventDetail() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [directEvent?.live, hookEvent?.live, eventId, fetchFullEvent]);
 
-  // Realtime: instant score/status updates + trigger odds refresh
+  // Collect known market IDs so we can filter outcome realtime events
+  const marketIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = new Set<string>();
+    if (directEvent) {
+      for (const m of directEvent.markets) {
+        if (m.id) ids.add(m.id);
+      }
+    }
+    marketIdsRef.current = ids;
+  }, [directEvent]);
+
+  // Debounced refetch for outcome changes
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefetch = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    refetchTimerRef.current = setTimeout(() => fetchFullEvent(false), 500);
+  }, [fetchFullEvent]);
+
+  // Realtime: score/status updates + outcome changes (suspended, odds)
   useEffect(() => {
     if (!eventId) return;
 
@@ -441,7 +460,6 @@ export default function EventDetail() {
           const updated = payload.new as Record<string, any>;
           const updatedLiveData = updated.live_data || {};
 
-          // Instant update for scores/status (no re-fetch needed)
           setDirectEvent((prev) => {
             if (!prev) return prev;
             return {
@@ -461,10 +479,24 @@ export default function EventDetail() {
           });
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "outcomes" },
+        (payload) => {
+          const updated = payload.new as Record<string, any>;
+          // Only refetch if this outcome belongs to our event's markets
+          if (marketIdsRef.current.has(updated.market_id)) {
+            debouncedRefetch();
+          }
+        }
+      )
       .subscribe();
 
-    return () => { supabaseDetail.removeChannel(channel); };
-  }, [eventId, supabaseDetail]);
+    return () => {
+      supabaseDetail.removeChannel(channel);
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    };
+  }, [eventId, supabaseDetail, debouncedRefetch]);
 
   // Use direct fetch (full markets) when available, fallback to hook
   const ev = directEvent || hookEvent;
