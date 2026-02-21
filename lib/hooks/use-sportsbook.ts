@@ -279,7 +279,16 @@ export function useSportsbook() {
         setEvents(SEED_EVENTS);
         setIsMockData(true);
       } else {
-        setEvents(data.map((row) => mapDbToSportEvent(row)));
+        // Deduplicate events by home+away+league (API can create dupes with different external_ids)
+        const mapped = data.map((row) => mapDbToSportEvent(row));
+        const seen = new Set<string>();
+        const deduped = mapped.filter((e) => {
+          const key = `${e.home}|${e.away}|${e.league}`.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setEvents(deduped);
         setIsMockData(false);
       }
     } catch (err: any) {

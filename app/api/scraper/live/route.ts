@@ -70,9 +70,20 @@ const SPORT_ICONS: Record<string, string> = {
   tennis: "🎾",
   hockey: "🏒",
   pallavolo: "🏐",
-  football: "🏈",
-  baseball: "⚾",
+  "tennis-tavolo": "🏓",
   rugby: "🏉",
+  baseball: "⚾",
+  mma: "🥊",
+  ciclismo: "🚴",
+  esports: "🎮",
+  handball: "🤾",
+  freccette: "🎯",
+  football: "🏈",
+  boxe: "🥊",
+  snooker: "🎱",
+  cricket: "🏏",
+  "sport-invernali": "⛷️",
+  motori: "🏎️",
 };
 
 // ═══ HANDLER ═══
@@ -115,11 +126,32 @@ export async function POST(req: NextRequest) {
       }
 
       // ── 1. Find or auto-create event ──
+      // First try by external_id, then fallback to team names + league to catch duplicates
       let { data: event } = await supabase
         .from("events")
         .select("id")
         .eq("external_id", ev.external_id)
         .maybeSingle();
+
+      if (!event && ev.home_team && ev.away_team) {
+        // Fallback: find existing event by team names (catches dupes with different external_ids)
+        const { data: dupEvent } = await supabase
+          .from("events")
+          .select("id, external_id")
+          .eq("home_team", ev.home_team)
+          .eq("away_team", ev.away_team)
+          .eq("is_live", true)
+          .maybeSingle();
+
+        if (dupEvent) {
+          event = dupEvent;
+          // Update external_id to the latest one
+          await supabase
+            .from("events")
+            .update({ external_id: ev.external_id })
+            .eq("id", dupEvent.id);
+        }
+      }
 
       if (!event) {
         if (!ev.home_team || !ev.away_team || !ev.sport) {
