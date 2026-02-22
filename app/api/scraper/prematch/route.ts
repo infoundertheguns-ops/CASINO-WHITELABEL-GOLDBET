@@ -41,11 +41,20 @@ const SPORT_ICONS: Record<string, string> = {
   tennis: "🎾",
   hockey: "🏒",
   pallavolo: "🏐",
-  football: "🏈",
-  baseball: "⚾",
+  "tennis-tavolo": "🏓",
   rugby: "🏉",
+  baseball: "⚾",
   mma: "🥊",
   ciclismo: "🚴",
+  esports: "🎮",
+  handball: "🤾",
+  freccette: "🎯",
+  football: "🏈",
+  boxe: "🥊",
+  snooker: "🎱",
+  cricket: "🏏",
+  "sport-invernali": "⛷️",
+  motori: "🏎️",
 };
 
 function extractLine(marketType: string): number | null {
