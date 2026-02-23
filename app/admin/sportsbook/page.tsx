@@ -142,48 +142,21 @@ export default function AdminSportsbook() {
   const [settledLoading, setSettledLoading] = useState(true);
 
   // ════════════════════════════════════════════
-  // FETCH: Bets
+  // FETCH: Bets (via admin API — bypasses RLS)
   // ════════════════════════════════════════════
   const fetchBets = useCallback(async () => {
     setBetsLoading(true);
     try {
-      let query = supabase
-        .from("bets")
-        .select(
-          `
-          *,
-          bet_selections(
-            id, event_id, odds_at_placement, result,
-            event:events(home_team, away_team)
-          )
-        `
-        )
-        .order("created_at", { ascending: false })
-        .limit(200);
-
-      if (betStatus !== "all") query = query.eq("status", betStatus);
       const cutoff = getDateCutoff(betDateRange);
-      if (cutoff) query = query.gte("created_at", cutoff);
+      const params = new URLSearchParams({ tab: "bets", status: betStatus });
+      if (cutoff) params.set("cutoff", cutoff);
 
-      const { data } = await query;
+      const res = await fetch(`/api/admin/sportsbook?${params}`);
+      const json = await res.json();
 
-      if (data && data.length > 0) {
-        const userIds = [
-          ...new Set(data.map((b: Record<string, unknown>) => b.user_id as string)),
-        ];
-        const { data: users } = await supabase
-          .from("users")
-          .select("id, username")
-          .in("id", userIds);
-        const userMap = new Map(
-          (users || []).map((u: Record<string, unknown>) => [
-            u.id as string,
-            u.username as string,
-          ])
-        );
-
+      if (json.bets && json.bets.length > 0) {
         setBets(
-          data.map((b: Record<string, unknown>) => {
+          json.bets.map((b: Record<string, unknown>) => {
             const sels = (b.bet_selections as Record<string, unknown>[] | null) || [];
             return {
               id: b.id as string,
@@ -195,7 +168,7 @@ export default function AdminSportsbook() {
               status: b.status as string,
               created_at: b.created_at as string,
               settled_at: b.settled_at as string | null,
-              username: userMap.get(b.user_id as string) || "—",
+              username: (b.username as string) || "—",
               legs: sels.map((s: Record<string, unknown>) => {
                 const ev = s.event as Record<string, string> | null;
                 return {
@@ -210,48 +183,35 @@ export default function AdminSportsbook() {
             };
           })
         );
+        setOpenEventsCount(json.openEventsCount || 0);
       } else {
         setBets([]);
+        setOpenEventsCount(json.openEventsCount || 0);
       }
     } catch (err) {
       console.error("fetchBets error:", err);
     }
     setBetsLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [betStatus, betDateRange]);
 
   // ════════════════════════════════════════════
-  // FETCH: Open events count
+  // FETCH: Open events count (included in bets fetch)
   // ════════════════════════════════════════════
   const fetchOpenEventsCount = useCallback(async () => {
-    const { count } = await supabase
-      .from("events")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["prematch", "live"]);
-    setOpenEventsCount(count || 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Already fetched in fetchBets
   }, []);
 
   // ════════════════════════════════════════════
-  // FETCH: Events
+  // FETCH: Events (via admin API)
   // ════════════════════════════════════════════
   const fetchEvents = useCallback(async () => {
     setEventsLoading(true);
     try {
-      const { data } = await supabase
-        .from("events")
-        .select(
-          `
-          *,
-          sport:sports(name),
-          league:leagues(name)
-        `
-        )
-        .order("starts_at", { ascending: false })
-        .limit(300);
+      const res = await fetch("/api/admin/sportsbook?tab=events");
+      const json = await res.json();
 
       setEvents(
-        (data || []).map((e: Record<string, unknown>) => {
+        (json.events || []).map((e: Record<string, unknown>) => {
           const sport = e.sport as Record<string, string> | null;
           const league = e.league as Record<string, string> | null;
           return {
@@ -273,46 +233,20 @@ export default function AdminSportsbook() {
       console.error("fetchEvents error:", err);
     }
     setEventsLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ════════════════════════════════════════════
-  // FETCH: Settlement log
+  // FETCH: Settlement log (via admin API)
   // ════════════════════════════════════════════
   const fetchSettledBets = useCallback(async () => {
     setSettledLoading(true);
     try {
-      const { data } = await supabase
-        .from("bets")
-        .select(
-          `
-          *,
-          bet_selections(
-            event:events(home_team, away_team)
-          )
-        `
-        )
-        .in("status", ["won", "lost", "void"])
-        .order("settled_at", { ascending: false })
-        .limit(200);
+      const res = await fetch("/api/admin/sportsbook?tab=settlement");
+      const json = await res.json();
 
-      if (data && data.length > 0) {
-        const userIds = [
-          ...new Set(data.map((b: Record<string, unknown>) => b.user_id as string)),
-        ];
-        const { data: users } = await supabase
-          .from("users")
-          .select("id, username")
-          .in("id", userIds);
-        const userMap = new Map(
-          (users || []).map((u: Record<string, unknown>) => [
-            u.id as string,
-            u.username as string,
-          ])
-        );
-
+      if (json.settledBets && json.settledBets.length > 0) {
         setSettledBets(
-          data.map((b: Record<string, unknown>) => {
+          json.settledBets.map((b: Record<string, unknown>) => {
             const sels =
               (b.bet_selections as Record<string, unknown>[] | null) || [];
             const names = sels
@@ -335,7 +269,7 @@ export default function AdminSportsbook() {
               potential_win: b.potential_win as number,
               status: b.status as string,
               settled_at: b.settled_at as string | null,
-              username: userMap.get(b.user_id as string) || "—",
+              username: (b.username as string) || "—",
               event_names: names || "—",
             };
           })
@@ -347,7 +281,6 @@ export default function AdminSportsbook() {
       console.error("fetchSettledBets error:", err);
     }
     setSettledLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ════════════════════════════════════════════

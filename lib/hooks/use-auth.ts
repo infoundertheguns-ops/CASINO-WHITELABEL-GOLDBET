@@ -49,7 +49,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const { data: admin } = await supabase
       .from("admin_users")
       .select("id")
-      .eq("id", authUser.id)
+      .eq("user_id", authUser.id)
       .single();
 
     set({

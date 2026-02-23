@@ -31,8 +31,9 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // Protected player routes
-  if (!user && path.match(/^\/(sport|casino|wallet|promo|account)/)) {
+  // Protected player routes (wallet, account, bets require login)
+  // Sport, casino, promo are publicly accessible
+  if (!user && path.match(/^\/(wallet|account|bets)/)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", path);
@@ -50,7 +51,7 @@ export async function updateSession(request: NextRequest) {
     const { data: adminUser } = await supabase
       .from("admin_users")
       .select("id, role_id")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .single();
 
     if (!adminUser) {

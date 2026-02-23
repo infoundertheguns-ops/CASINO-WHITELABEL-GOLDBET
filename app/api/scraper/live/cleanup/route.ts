@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { settleEvent } from "@/lib/settlement";
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-scraper-key");
@@ -55,5 +56,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ finished: 0, error: updateErr.message });
   }
 
-  return NextResponse.json({ finished: toFinish.length });
+  // ── Auto-settle finished events (max 20 per cycle to avoid timeout) ──
+  const toSettle = toFinish.slice(0, 20);
+  let settled = 0;
+  const settleErrors: string[] = [];
+
+  for (const ev of toSettle) {
+    try {
+      const res = await settleEvent(supabase, ev.id);
+      if (res.success) settled++;
+      else if (res.error) settleErrors.push(`${ev.external_id}: ${res.error}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      settleErrors.push(`${ev.external_id}: ${msg}`);
+    }
+  }
+
+  return NextResponse.json({
+    finished: toFinish.length,
+    settled,
+    settle_errors: settleErrors.length > 0 ? settleErrors.slice(0, 10) : undefined,
+  });
 }
