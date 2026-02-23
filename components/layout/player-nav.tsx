@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/hooks/use-auth";
+import { SportSidebarContent } from "@/components/layout/sport-sidebar";
 
 const NAV_ITEMS = [
   { href: "/home", icon: "🏠", label: "Home" },
@@ -95,9 +96,13 @@ export function PlayerBottomNav() {
 
 export function PlayerDesktopSidebar() {
   const pathname = usePathname();
+  const isSportPage = pathname === "/sport" || pathname.startsWith("/sport/");
 
   return (
-    <aside className="w-56 bg-white border-r border-gray-200 min-h-screen flex-shrink-0 sticky top-0 h-screen overflow-y-auto">
+    <aside className={cn(
+      "bg-white border-r border-gray-200 min-h-screen flex-shrink-0 sticky top-0 h-screen overflow-y-auto transition-all",
+      isSportPage ? "w-64" : "w-56"
+    )}>
       {/* Logo */}
       <div className="px-5 py-4 border-b border-gray-100">
         <Link href="/home" className="flex items-center gap-1.5">
@@ -130,8 +135,15 @@ export function PlayerDesktopSidebar() {
         })}
       </nav>
 
+      {/* Sport sidebar — shown when on /sport route */}
+      {isSportPage && (
+        <div className="border-t border-gray-100">
+          <SportSidebarContent />
+        </div>
+      )}
+
       {/* Quick Links */}
-      <div className="mt-auto px-3 py-4 border-t border-gray-100 space-y-1">
+      <div className={cn("px-3 py-4 border-t border-gray-100 space-y-1", !isSportPage && "mt-auto")}>
         <Link href="/account" className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50">
           <span>👤</span> Account
         </Link>

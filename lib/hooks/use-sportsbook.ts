@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "./use-auth";
+import { useSportFilter } from "@/lib/contexts/sport-filter-context";
 
 // ═══ API-FOOTBALL STATS TYPES ═══
 
@@ -32,6 +33,7 @@ export interface MatchEvent {
 export interface SportEvent {
   id: string;
   league: string;
+  leagueSlug?: string;
   leagueIcon: string;
   home: string;
   away: string;
@@ -101,6 +103,7 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
   return {
     id: row.id,
     league: row.league?.name || "",
+    leagueSlug: row.league?.slug || "",
     leagueIcon: row.sport?.icon || "⚽",
     sportName: row.sport?.name || "",
     sportSlug: row.sport?.slug || "",
@@ -242,11 +245,12 @@ export function useSportsbook() {
   const { user, wallet } = useAuth();
   const supabase = createClient();
 
+  const { activeSport, setActiveSport, activeLeague, setActiveLeague } = useSportFilter();
+
   const [events, setEvents] = useState<SportEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMockData, setIsMockData] = useState(false);
-  const [activeSport, setActiveSport] = useState<string | null>(null);
   const [betslip, setBetslip] = useState<BetslipItem[]>([]);
   const [placingBet, setPlacingBet] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -382,10 +386,12 @@ export function useSportsbook() {
     };
   }, []);
 
-  // ── Filtered events by sport ──
-  const filteredEvents = activeSport
-    ? events.filter((e) => e.sportSlug === activeSport)
-    : events;
+  // ── Filtered events by sport + league ──
+  const filteredEvents = events.filter((e) => {
+    if (activeSport && e.sportSlug !== activeSport) return false;
+    if (activeLeague && e.leagueSlug !== activeLeague) return false;
+    return true;
+  });
 
   // ── Betslip: toggle selection ──
   const toggleBet = (event: SportEvent, marketName: string, selection: Selection) => {

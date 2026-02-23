@@ -151,8 +151,8 @@ export default function SportPage() {
           </div>
           <p className="text-xs text-gray-500 mb-3">Live e prematch su calcio, basket, tennis e altri sport.</p>
 
-          {/* Sport pills */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 pb-1">
+          {/* Sport pills — mobile only (sidebar replaces this on desktop) */}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 pb-1 lg:hidden">
             <button
               onClick={() => setActiveSport(null)}
               className={cn(
