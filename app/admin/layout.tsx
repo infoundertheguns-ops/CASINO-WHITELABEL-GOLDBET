@@ -7,8 +7,7 @@ import { AdminTopBar } from "@/components/layout/admin-topbar";
 import { useAuth } from "@/lib/hooks/use-auth";
 import type { AdminNavGroup } from "@/lib/types";
 
-// ═══ NAVIGATION STRUCTURE ═══
-// Badges will be filled by real-time data in production
+// ═══ NAVIGATION STRUCTURE — Betting Only ═══
 const NAVIGATION: AdminNavGroup[] = [
   {
     group: "OVERVIEW",
@@ -23,36 +22,9 @@ const NAVIGATION: AdminNavGroup[] = [
     ],
   },
   {
-    group: "CASINO",
-    items: [
-      { id: "casino", icon: "🎰", label: "Provider & Giochi" },
-      { id: "sessions", icon: "📡", label: "Sessioni Live", badge: 5 },
-    ],
-  },
-  {
-    group: "PROMOZIONI",
-    items: [
-      { id: "promos", icon: "🎁", label: "Tutte le Promo", badge: 11 },
-      { id: "wagering", icon: "⏳", label: "Wagering", badge: 5 },
-      { id: "free-items", icon: "🎡", label: "Spins & Free Bet" },
-      { id: "tournaments", icon: "🏆", label: "Tornei", badge: 2 },
-      { id: "promo-analytics", icon: "📈", label: "Analytics Promo" },
-    ],
-  },
-  {
-    group: "CRYPTO PAYMENTS",
-    items: [
-      { id: "withdrawals", icon: "💸", label: "Prelievi", badge: 5 },
-      { id: "deposits", icon: "↓", label: "Depositi" },
-      { id: "treasury", icon: "🏦", label: "Treasury" },
-      { id: "aml", icon: "🔒", label: "AML", badge: 1 },
-    ],
-  },
-  {
     group: "GESTIONE",
     items: [
       { id: "users", icon: "👥", label: "Utenti" },
-      { id: "agents", icon: "🤝", label: "Agenti" },
       { id: "config", icon: "⚙️", label: "Configurazione" },
       { id: "audit", icon: "📋", label: "Audit Log" },
     ],
@@ -64,19 +36,7 @@ const TITLES: Record<string, string> = {
   bets: "Scommesse",
   settlement: "Settlement",
   risk: "Risk Management & AI Agent",
-  casino: "Casino — Provider & Giochi",
-  sessions: "Casino — Sessioni Live",
-  promos: "Promozioni & Bonus",
-  wagering: "Wagering Tracker",
-  "free-items": "Free Spins & Free Bet",
-  tournaments: "Slot Tournaments & Race",
-  "promo-analytics": "Analytics Promozioni",
-  withdrawals: "Crypto — Prelievi",
-  deposits: "Crypto — Depositi",
-  treasury: "Treasury",
-  aml: "AML — Anti Money Laundering",
   users: "Gestione Utenti",
-  agents: "Agenti & Partner",
   config: "Configurazione",
   audit: "Audit Log",
 };
@@ -101,26 +61,13 @@ export default function AdminLayout({
   }, [initialize]);
 
   const handleNavigate = (id: string) => {
-    // Map sidebar ids to routes
     const routeMap: Record<string, string> = {
       dashboard: "/admin/dashboard",
       bets: "/admin/sportsbook",
       settlement: "/admin/sportsbook",
-      risk: "/admin/sportsbook",
-      casino: "/admin/casino",
-      sessions: "/admin/casino",
-      promos: "/admin/promos",
-      wagering: "/admin/promos",
-      "free-items": "/admin/promos",
-      tournaments: "/admin/promos",
-      "promo-analytics": "/admin/promos",
-      withdrawals: "/admin/crypto",
-      deposits: "/admin/crypto",
-      treasury: "/admin/treasury",
-      aml: "/admin/aml",
+      risk: "/admin/risk",
       users: "/admin/management",
-      agents: "/admin/management",
-      config: "/admin/management",
+      config: "/admin/config",
       audit: "/admin/audit",
     };
     router.push(`${routeMap[id] || "/admin/dashboard"}?tab=${id}`);

@@ -333,6 +333,116 @@ export interface RiskAlert {
   created_at: string;
 }
 
+export interface RiskFlag {
+  id: string;
+  user_id?: string;
+  flag_type: "auto_block" | "manual_review" | "kyc_required" | "limit_reduce" | "monitoring";
+  severity: "critical" | "high" | "medium" | "low";
+  description?: string;
+  ai_analysis?: Record<string, any>;
+  related_entity_type?: "bet" | "deposit" | "withdrawal" | "session";
+  related_entity_id?: string;
+  status: "open" | "acknowledged" | "resolved" | "dismissed" | "escalated";
+  resolved_by?: string;
+  resolved_at?: string;
+  created_at: string;
+  users?: { username: string };
+}
+
+export interface PlayerProfile {
+  id: string;
+  user_id: string;
+  classification: "recreational" | "semi_pro" | "sharp" | "syndicate" | "vip";
+  risk_score: number;
+  total_bets: number;
+  total_stake: number;
+  total_won: number;
+  total_lost: number;
+  win_rate: number;
+  avg_stake: number;
+  avg_odds: number;
+  max_stake: number;
+  total_deposits: number;
+  total_withdrawals: number;
+  lifetime_ggr: number;
+  last_bet_at?: string;
+  last_deposit_at?: string;
+  flags_count: number;
+  device_fingerprints: string[];
+  ip_addresses: string[];
+  notes?: string;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface RiskConfig {
+  thresholds: {
+    auto_block: number;
+    auto_flag: number;
+    auto_reduce_limits: number;
+    auto_kyc: number;
+    ai_threshold: number;
+  };
+  auto_actions: {
+    enabled: boolean;
+    block_account: boolean;
+    reduce_limits: boolean;
+    require_kyc: boolean;
+    notify_admin: boolean;
+  };
+  rules: {
+    stake_spike_multiplier: number;
+    high_stake: number;
+    very_high_stake: number;
+    new_account_days: number;
+    young_account_days: number;
+    high_odds: number;
+    extreme_odds: number;
+    velocity_1h: number;
+    extreme_velocity_1h: number;
+    win_rate_threshold: number;
+    win_rate_min_bets: number;
+    unverified_stake: number;
+    free_bet_high_odds: number;
+  };
+  ai_settings: {
+    enabled: boolean;
+    model: string;
+    max_tokens: number;
+    auto_analyze_above: number;
+  };
+}
+
+export interface DailyStats {
+  id: string;
+  date: string;
+  bet_count: number;
+  total_stake: number;
+  total_payout: number;
+  ggr: number;
+  margin_pct: number;
+  deposit_count: number;
+  deposit_volume: number;
+  withdrawal_count: number;
+  withdrawal_volume: number;
+  new_users: number;
+  active_users: number;
+  risk_alerts: number;
+  sport_breakdown: Record<string, { count: number; stake: number }>;
+  casino_ggr: number;
+  created_at: string;
+}
+
+export interface EnhancedRiskAnalysis {
+  score: number;
+  level: "low" | "medium" | "high" | "critical";
+  flags: string[];
+  player_classification: string;
+  confidence: number;
+  recommended_actions: string[];
+  reasoning: string;
+}
+
 // ═══ AGENTS ═══
 export interface Agent {
   id: string;

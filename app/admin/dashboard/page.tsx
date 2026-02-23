@@ -1,106 +1,116 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { RevenueChart } from "@/components/admin/dashboard/revenue-chart";
+import { BetVolumeChart } from "@/components/admin/dashboard/bet-volume-chart";
+import { PlayerActivityChart } from "@/components/admin/dashboard/player-activity-chart";
+import { SportBreakdownChart } from "@/components/admin/dashboard/sport-breakdown-chart";
 
-interface KPI {
+type Range = "7d" | "30d" | "90d";
+
+interface KPICard {
   label: string;
   value: string;
-  icon: string;
+  trend?: number;
   color: string;
 }
 
 export default function AdminDashboard() {
-  const [kpis, setKpis] = useState<KPI[]>([]);
+  const [range, setRange] = useState<Range>("30d");
+  const [loading, setLoading] = useState(true);
+  const [kpis, setKpis] = useState<KPICard[]>([]);
+  const [stats, setStats] = useState<any[]>([]);
   const [recentBets, setRecentBets] = useState<any[]>([]);
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sportBreakdown, setSportBreakdown] = useState<any[]>([]);
   const supabase = createClient();
 
-  useEffect(() => {
-    async function loadDashboard() {
-      setLoading(true);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch aggregated stats
+      const statsRes = await fetch(`/api/admin/stats?range=${range}`);
+      const statsData = await statsRes.json();
 
-      try {
-        // Users
-        const { data: usersData } = await supabase.from("users").select("id");
-        const totalUsers = usersData?.length || 0;
+      setStats(statsData.stats || []);
 
-        // Bets
-        const { data: betsData } = await supabase.from("bets").select("*");
-        const bets = betsData || [];
-        const totalBets = bets.length;
-        const totalStaked = bets.reduce((sum: number, b: any) => sum + (b.stake || 0), 0);
-        const openBets = bets.filter((b: any) => b.status === "open").length;
+      // KPIs
+      const k = statsData.kpis || {};
+      const pk = statsData.prev_kpis || {};
+      const trend = (cur: number, prev: number) => prev > 0 ? ((cur - prev) / prev) * 100 : 0;
 
-        // Wallets
-        const { data: walletsData } = await supabase.from("wallets").select("*");
-        const wallets = walletsData || [];
-        const totalBalance = wallets.reduce((sum: number, w: any) => sum + (w.balance || 0), 0);
-        const totalBonus = wallets.reduce((sum: number, w: any) => sum + (w.bonus_balance || 0), 0);
+      // Count total users and open alerts
+      const [
+        { data: allUsers },
+        { data: openAlerts },
+        { data: allWallets },
+      ] = await Promise.all([
+        supabase.from("users").select("id", { count: "exact" }),
+        supabase.from("risk_flags").select("id", { count: "exact" }).eq("status", "open"),
+        supabase.from("wallets").select("balance"),
+      ]);
 
-        // Transactions
-        let deposits = 0;
-        try {
-          const { data: txData } = await supabase.from("transactions").select("*");
-          deposits = (txData || []).filter((t: any) => t.type === "deposit").reduce((s: number, t: any) => s + Math.abs(t.amount || 0), 0);
-        } catch {}
+      const totalUsers = allUsers?.length || 0;
+      const totalBalance = (allWallets || []).reduce((s, w) => s + (w.balance || 0), 0);
 
-        // Sessions
-        let totalSessions = 0;
-        try {
-          const { data: sessData } = await supabase.from("game_sessions").select("id");
-          totalSessions = sessData?.length || 0;
-        } catch {}
+      setKpis([
+        { label: "UTENTI", value: String(totalUsers), color: "text-blue-400" },
+        { label: "SCOMMESSE", value: String(k.total_bets || 0), trend: trend(k.total_bets, pk.total_bets), color: "text-brand" },
+        { label: "VOLUME", value: `$${(k.total_stake || 0).toFixed(0)}`, trend: trend(k.total_stake, pk.total_stake), color: "text-emerald-400" },
+        { label: "GGR", value: `$${(k.ggr || 0).toFixed(0)}`, trend: trend(k.ggr, pk.ggr), color: (k.ggr || 0) >= 0 ? "text-emerald-500" : "text-red-400" },
+        { label: "BET APERTE", value: String(k.open_bets || 0), color: "text-yellow-400" },
+        { label: "DEPOSITI", value: `$${(k.deposits || 0).toFixed(0)}`, color: "text-teal-400" },
+        { label: "ALERT RISCHIO", value: String(openAlerts?.length || 0), color: "text-red-400" },
+        { label: "MARGIN %", value: `${(k.margin_pct || 0).toFixed(1)}%`, color: "text-purple-400" },
+      ]);
 
-        setKpis([
-          { label: "Utenti Registrati", value: String(totalUsers), icon: "👥", color: "text-blue-500" },
-          { label: "Scommesse Totali", value: String(totalBets), icon: "🎯", color: "text-brand" },
-          { label: "Volume Scommesso", value: `$${totalStaked.toFixed(2)}`, icon: "💵", color: "text-emerald-500" },
-          { label: "Scommesse Aperte", value: String(openBets), icon: "⏳", color: "text-yellow-500" },
-          { label: "Saldo Utenti", value: `$${totalBalance.toFixed(2)}`, icon: "💰", color: "text-purple-500" },
-          { label: "Bonus Erogati", value: `$${totalBonus.toFixed(2)}`, icon: "🎁", color: "text-pink-500" },
-          { label: "Sessioni Casino", value: String(totalSessions), icon: "🎰", color: "text-indigo-500" },
-          { label: "Depositi", value: `$${deposits.toFixed(2)}`, icon: "↓", color: "text-teal-500" },
-        ]);
-
-        // Recent bets
-        const { data: rBets } = await supabase
-          .from("bets")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        if (rBets && rBets.length > 0) {
-          const userIds = [...new Set(rBets.map((b: any) => b.user_id))];
-          const { data: users } = await supabase.from("users").select("id, username").in("id", userIds);
-          const userMap = new Map(users?.map((u: any) => [u.id, u.username]) || []);
-          setRecentBets(rBets.map((b: any) => ({ ...b, username: userMap.get(b.user_id) || "—" })));
+      // Sport breakdown from stats
+      const sportMap: Record<string, { count: number; stake: number }> = {};
+      for (const day of statsData.stats || []) {
+        for (const [sport, data] of Object.entries(day.sport_breakdown || {})) {
+          if (!sportMap[sport]) sportMap[sport] = { count: 0, stake: 0 };
+          sportMap[sport].count += (data as any).count || 0;
+          sportMap[sport].stake += (data as any).stake || 0;
         }
+      }
+      setSportBreakdown(Object.entries(sportMap).map(([name, d]) => ({ name, ...d })));
 
-        // Recent users
-        const { data: rUsers } = await supabase
-          .from("users")
-          .select("id, username, email, created_at, kyc_status")
-          .order("created_at", { ascending: false })
-          .limit(5);
-        if (rUsers) setRecentUsers(rUsers);
+      // Recent bets
+      const { data: rBets } = await supabase
+        .from("bets")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-      } catch (err) {
-        console.error("Dashboard error:", err);
+      if (rBets && rBets.length > 0) {
+        const userIds = [...new Set(rBets.map((b: any) => b.user_id))];
+        const { data: users } = await supabase.from("users").select("id, username").in("id", userIds);
+        const userMap = new Map(users?.map((u: any) => [u.id, u.username]) || []);
+        setRecentBets(rBets.map((b: any) => ({ ...b, username: userMap.get(b.user_id) || "—" })));
       }
 
-      setLoading(false);
-    }
+      // Recent users
+      const { data: rUsers } = await supabase
+        .from("users")
+        .select("id, username, email, created_at, kyc_status")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (rUsers) setRecentUsers(rUsers);
 
-    loadDashboard();
-  }, []);
+    } catch (err) {
+      console.error("Dashboard error:", err);
+    }
+    setLoading(false);
+  }, [range, supabase]);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">⏳ Caricamento dashboard...</div>
+        <div className="text-gray-400 text-sm">Caricamento dashboard...</div>
       </div>
     );
   }
@@ -110,10 +120,21 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Dashboard</h1>
-          <p className="text-sm text-gray-500">Overview piattaforma in tempo reale</p>
+          <p className="text-sm text-gray-500">Overview piattaforma scommesse</p>
         </div>
-        <div className="text-xs text-gray-500">
-          {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        <div className="flex items-center gap-2">
+          {(["7d", "30d", "90d"] as Range[]).map(r => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                range === r ? "bg-brand/20 text-brand" : "text-gray-500 hover:text-white"
+              )}
+            >
+              {r === "7d" ? "7 Giorni" : r === "30d" ? "30 Giorni" : "90 Giorni"}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -121,24 +142,41 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {kpis.map((kpi, i) => (
           <div key={i} className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-lg">{kpi.icon}</span>
-            </div>
-            <div className={cn("text-xl font-black font-mono", kpi.color)}>{kpi.value}</div>
-            <div className="text-[10px] text-gray-500 font-semibold mt-0.5">{kpi.label}</div>
+            <div className="text-[10px] text-gray-500 font-semibold">{kpi.label}</div>
+            <div className={cn("text-xl font-black font-mono mt-1", kpi.color)}>{kpi.value}</div>
+            {kpi.trend !== undefined && kpi.trend !== 0 && (
+              <div className={cn("text-[10px] font-bold mt-1",
+                kpi.trend > 0 ? "text-emerald-400" : "text-red-400"
+              )}>
+                {kpi.trend > 0 ? "+" : ""}{kpi.trend.toFixed(1)}% vs periodo prec.
+              </div>
+            )}
           </div>
         ))}
       </div>
 
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <RevenueChart data={stats} />
+        <BetVolumeChart data={stats} />
+      </div>
+
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <PlayerActivityChart data={stats} />
+        <SportBreakdownChart data={sportBreakdown} />
+      </div>
+
+      {/* Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Recent Bets */}
         <div className="lg:col-span-2 bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-            <span className="text-sm font-bold text-white">🎯 Ultime Scommesse</span>
+            <span className="text-sm font-bold text-white">Ultime Scommesse</span>
             <span className="text-[10px] text-gray-500">{recentBets.length} risultati</span>
           </div>
           {recentBets.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-500">Nessuna scommessa ancora</div>
+            <div className="p-8 text-center text-sm text-gray-500">Nessuna scommessa</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -150,6 +188,7 @@ export default function AdminDashboard() {
                     <th className="text-right px-4 py-2 font-semibold">Quota</th>
                     <th className="text-right px-4 py-2 font-semibold">Vincita pot.</th>
                     <th className="text-center px-4 py-2 font-semibold">Stato</th>
+                    <th className="text-center px-4 py-2 font-semibold">Risk</th>
                     <th className="text-right px-4 py-2 font-semibold">Data</th>
                   </tr>
                 </thead>
@@ -169,7 +208,17 @@ export default function AdminDashboard() {
                           "bg-gray-500/20 text-gray-400"
                         )}>{bet.status?.toUpperCase()}</span>
                       </td>
-                      <td className="px-4 py-2 text-right text-gray-500">
+                      <td className="px-4 py-2 text-center">
+                        {bet.risk_score > 0 && (
+                          <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold font-mono",
+                            bet.risk_score > 75 ? "bg-red-500/20 text-red-400" :
+                            bet.risk_score > 50 ? "bg-orange-500/20 text-orange-400" :
+                            bet.risk_score > 25 ? "bg-yellow-500/20 text-yellow-400" :
+                            "bg-green-500/20 text-green-400"
+                          )}>{bet.risk_score}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-500 whitespace-nowrap">
                         {new Date(bet.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </td>
                     </tr>
@@ -183,7 +232,7 @@ export default function AdminDashboard() {
         {/* Recent Users */}
         <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-800">
-            <span className="text-sm font-bold text-white">👥 Ultimi Utenti</span>
+            <span className="text-sm font-bold text-white">Ultimi Utenti</span>
           </div>
           {recentUsers.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">Nessun utente</div>
@@ -198,7 +247,7 @@ export default function AdminDashboard() {
                   <div className="text-right">
                     <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded",
                       u.kyc_status === "verified" ? "bg-emerald-500/20 text-emerald-400" : "bg-orange-500/20 text-orange-400"
-                    )}>{u.kyc_status === "verified" ? "KYC ✓" : "PENDING"}</span>
+                    )}>{u.kyc_status === "verified" ? "KYC OK" : "PENDING"}</span>
                     <div className="text-[9px] text-gray-600 mt-0.5">
                       {new Date(u.created_at).toLocaleDateString("it-IT")}
                     </div>

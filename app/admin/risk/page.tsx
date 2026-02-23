@@ -1,155 +1,297 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { RiskKPIs } from "@/components/admin/risk/risk-kpis";
+import { RiskScoreChart } from "@/components/admin/risk/risk-score-chart";
+import { AlertsTimeline } from "@/components/admin/risk/alerts-timeline";
+import { SportRiskChart } from "@/components/admin/risk/sport-risk-chart";
+import { FlaggedUsersTable } from "@/components/admin/risk/flagged-users-table";
+import { AIAnalysisPanel } from "@/components/admin/risk/ai-analysis-panel";
+
+type Tab = "dashboard" | "alerts" | "users" | "ai";
 
 export default function AdminRiskAgent() {
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [flaggedBets, setFlaggedBets] = useState<any[]>([]);
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [loading, setLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [overview, setOverview] = useState<any>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alertsPage, setAlertsPage] = useState(1);
+  const [alertsTotal, setAlertsTotal] = useState(0);
+  const [alertFilter, setAlertFilter] = useState({ severity: "", status: "" });
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotal, setUsersTotal] = useState(0);
   const supabase = createClient();
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
-    setLoading(true);
-    const { data: flags } = await supabase.from("risk_flags").select("*, users(username)").order("created_at", { ascending: false }).limit(20);
-    setAlerts(flags || []);
-    const { data: bets } = await supabase.from("bets").select("*, users(username)").not("risk_score", "is", null).order("risk_score", { ascending: false }).limit(20);
-    setFlaggedBets(bets || []);
-    setLoading(false);
-  };
-
-  const runAnalysis = async (betId: string) => {
-    setAnalyzing(betId);
-    setAnalysisResult(null);
+  const loadOverview = useCallback(async () => {
     try {
-      const res = await fetch("/api/risk-agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bet_id: betId, use_ai: false }) });
+      const res = await fetch("/api/admin/risk?tab=overview");
       const data = await res.json();
-      setAnalysisResult(data);
-      await loadData();
-    } catch { setAnalysisResult({ error: "Errore analisi" }); }
-    setAnalyzing(null);
+      setOverview(data);
+    } catch {}
+  }, []);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ tab: "alerts", page: String(alertsPage), limit: "20" });
+      if (alertFilter.severity) params.set("severity", alertFilter.severity);
+      if (alertFilter.status) params.set("status", alertFilter.status);
+      const res = await fetch(`/api/admin/risk?${params}`);
+      const data = await res.json();
+      setAlerts(data.alerts || []);
+      setAlertsTotal(data.total || 0);
+    } catch {}
+  }, [alertsPage, alertFilter]);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/risk?tab=users&page=${usersPage}&limit=20`);
+      const data = await res.json();
+      setUsers(data.users || []);
+      setUsersTotal(data.total || 0);
+    } catch {}
+  }, [usersPage]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([loadOverview()]).finally(() => setLoading(false));
+  }, [loadOverview]);
+
+  useEffect(() => {
+    if (tab === "alerts") loadAlerts();
+  }, [tab, loadAlerts]);
+
+  useEffect(() => {
+    if (tab === "users") loadUsers();
+  }, [tab, loadUsers]);
+
+  // Realtime subscription for risk_flags
+  useEffect(() => {
+    const channel = supabase
+      .channel("risk-flags-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "risk_flags" }, () => {
+        loadOverview();
+        if (tab === "alerts") loadAlerts();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [tab, loadOverview, loadAlerts, supabase]);
+
+  const handleResolveAlert = async (id: string, status: string) => {
+    try {
+      await fetch("/api/admin/risk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      setAlerts(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+      loadOverview();
+    } catch {}
   };
 
-  const resolveAlert = async (id: string, status: string) => {
-    await supabase.from("risk_flags").update({ status, resolved_at: new Date().toISOString() }).eq("id", id);
-    setAlerts(alerts.map(a => a.id === id ? { ...a, status } : a));
+  const handleAIAnalyze = async (id: string, type: "bet" | "user") => {
+    const res = await fetch("/api/risk-agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bet_id: id, use_ai: true }),
+    });
+    if (!res.ok) throw new Error("Analisi fallita");
+    return res.json();
   };
 
-  const sevColor = (s: string) => s === "critical" ? "bg-red-500/20 text-red-400" : s === "high" ? "bg-orange-500/20 text-orange-400" : s === "medium" ? "bg-yellow-500/20 text-yellow-400" : "bg-green-500/20 text-green-400";
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "alerts", label: "Alert" },
+    { id: "users", label: "Utenti Flaggati" },
+    { id: "ai", label: "AI Analysis" },
+  ];
+
+  if (loading && !overview) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400 text-sm">Caricamento...</div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">AI Risk Agent</h1>
-      <p className="text-sm text-gray-500 mb-6">Analisi rischio automatizzata con regole + Claude AI</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-black text-white">AI Risk Agent</h1>
+          <p className="text-sm text-gray-500">Monitoraggio rischio in tempo reale con AI avanzata</p>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        {[
-          { label: "ALERT APERTI", value: alerts.filter(a => a.status === "open").length, color: "text-red-400" },
-          { label: "CRITICAL", value: alerts.filter(a => a.severity === "critical").length, color: "text-red-500" },
-          { label: "BETS FLAGGED", value: flaggedBets.length, color: "text-orange-400" },
-          { label: "AVG RISK", value: flaggedBets.length > 0 ? (flaggedBets.reduce((s, b) => s + (b.risk_score || 0), 0) / flaggedBets.length).toFixed(0) : "—", color: "text-yellow-400" },
-        ].map((k, i) => (
-          <div key={i} className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-            <div className="text-[10px] text-gray-500">{k.label}</div>
-            <div className={cn("text-lg font-black font-mono", k.color)}>{k.value}</div>
-          </div>
+      {/* Tab navigation */}
+      <div className="flex gap-1 mb-6 bg-[#12111a] rounded-lg p-1 w-fit">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "px-4 py-2 rounded-md text-xs font-bold transition-colors",
+              tab === t.id ? "bg-brand/20 text-brand" : "text-gray-500 hover:text-white"
+            )}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {analysisResult && (
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4 mb-4">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-sm font-bold text-white">Risultato Analisi</span>
-            <button onClick={() => setAnalysisResult(null)} className="text-gray-500 hover:text-white">✕</button>
+      {/* Tab: Dashboard */}
+      {tab === "dashboard" && overview && (
+        <div className="space-y-4">
+          <RiskKPIs
+            openAlerts={overview.kpis?.open_alerts || 0}
+            criticalAlerts={overview.kpis?.critical_alerts || 0}
+            avgScore={overview.kpis?.avg_score || 0}
+            flaggedUsers={overview.kpis?.flagged_users || 0}
+            blockedToday={overview.kpis?.blocked_today || 0}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <RiskScoreChart distribution={overview.distribution || { low: 0, medium: 0, high: 0, critical: 0 }} />
+            <SportRiskChart data={overview.sport_risk || []} />
           </div>
-          {analysisResult.error ? (
-            <div className="text-red-400 text-xs">{analysisResult.error}</div>
-          ) : (
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className={cn("px-2 py-1 rounded text-xs font-bold", sevColor(analysisResult.rule_analysis?.level || "low"))}>
-                  SCORE: {analysisResult.rule_analysis?.score} — {analysisResult.rule_analysis?.level?.toUpperCase()}
-                </span>
-                <span className="text-xs text-gray-400">{analysisResult.action_taken?.toUpperCase()}</span>
-              </div>
-              <div className="text-xs text-gray-300 mb-1">{analysisResult.rule_analysis?.recommendation}</div>
-              <div className="text-[10px] text-gray-500">{analysisResult.rule_analysis?.details}</div>
-              {analysisResult.rule_analysis?.flags?.length > 0 && (
-                <div className="flex gap-1 mt-2 flex-wrap">
-                  {analysisResult.rule_analysis.flags.map((f: string, i: number) => (
-                    <span key={i} className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[9px] font-bold rounded">{f}</span>
+
+          <AlertsTimeline
+            alerts={overview.recent_alerts || []}
+            onResolve={handleResolveAlert}
+          />
+        </div>
+      )}
+
+      {/* Tab: Alerts */}
+      {tab === "alerts" && (
+        <div className="space-y-4">
+          <div className="flex gap-3 items-center">
+            <select
+              value={alertFilter.severity}
+              onChange={e => { setAlertFilter(f => ({ ...f, severity: e.target.value })); setAlertsPage(1); }}
+              className="bg-[#12111a] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+            >
+              <option value="">Tutte le severity</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select
+              value={alertFilter.status}
+              onChange={e => { setAlertFilter(f => ({ ...f, status: e.target.value })); setAlertsPage(1); }}
+              className="bg-[#12111a] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+            >
+              <option value="">Tutti gli status</option>
+              <option value="open">Open</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="resolved">Resolved</option>
+              <option value="dismissed">Dismissed</option>
+              <option value="escalated">Escalated</option>
+            </select>
+            <span className="text-[10px] text-gray-500 ml-auto">{alertsTotal} risultati</span>
+          </div>
+
+          <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 border-b border-gray-800">
+                    <th className="text-left px-4 py-2 font-semibold">Severity</th>
+                    <th className="text-left px-4 py-2 font-semibold">Utente</th>
+                    <th className="text-left px-4 py-2 font-semibold">Tipo</th>
+                    <th className="text-left px-4 py-2 font-semibold">Descrizione</th>
+                    <th className="text-center px-4 py-2 font-semibold">Status</th>
+                    <th className="text-right px-4 py-2 font-semibold">Data</th>
+                    <th className="text-center px-4 py-2 font-semibold">Azioni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alerts.map(a => (
+                    <tr key={a.id} className="border-b border-gray-800/50 hover:bg-white/5">
+                      <td className="px-4 py-2">
+                        <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold",
+                          a.severity === "critical" ? "bg-red-500/20 text-red-400" :
+                          a.severity === "high" ? "bg-orange-500/20 text-orange-400" :
+                          a.severity === "medium" ? "bg-yellow-500/20 text-yellow-400" :
+                          "bg-green-500/20 text-green-400"
+                        )}>{a.severity?.toUpperCase()}</span>
+                      </td>
+                      <td className="px-4 py-2 text-white">{a.users?.username || "—"}</td>
+                      <td className="px-4 py-2 text-gray-400">{a.flag_type}</td>
+                      <td className="px-4 py-2 text-gray-400 max-w-xs truncate">{a.description}</td>
+                      <td className="px-4 py-2 text-center">
+                        <span className={cn("text-[8px] font-bold",
+                          a.status === "open" ? "text-yellow-400" :
+                          a.status === "resolved" ? "text-emerald-400" :
+                          a.status === "escalated" ? "text-red-400" :
+                          "text-gray-500"
+                        )}>{a.status?.toUpperCase()}</span>
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-500 whitespace-nowrap">
+                        {new Date(a.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {a.status === "open" && (
+                          <div className="flex gap-1 justify-center">
+                            <button onClick={() => handleResolveAlert(a.id, "resolved")} className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[8px] font-bold">Risolvi</button>
+                            <button onClick={() => handleResolveAlert(a.id, "dismissed")} className="px-2 py-0.5 rounded bg-gray-500/20 text-gray-400 text-[8px] font-bold">Ignora</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              )}
+                </tbody>
+              </table>
+            </div>
+            {alertsTotal > 20 && (
+              <div className="px-4 py-3 border-t border-gray-800 flex gap-2 justify-center">
+                <button
+                  onClick={() => setAlertsPage(p => Math.max(1, p - 1))}
+                  disabled={alertsPage === 1}
+                  className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30"
+                >Prec</button>
+                <span className="text-xs text-gray-500 px-3 py-1">Pagina {alertsPage}</span>
+                <button
+                  onClick={() => setAlertsPage(p => p + 1)}
+                  disabled={alertsPage * 20 >= alertsTotal}
+                  className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30"
+                >Succ</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Flagged Users */}
+      {tab === "users" && (
+        <div className="space-y-4">
+          <FlaggedUsersTable users={users} />
+          {usersTotal > 20 && (
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                disabled={usersPage === 1}
+                className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30"
+              >Prec</button>
+              <span className="text-xs text-gray-500 px-3 py-1">Pagina {usersPage} / {Math.ceil(usersTotal / 20)}</span>
+              <button
+                onClick={() => setUsersPage(p => p + 1)}
+                disabled={usersPage * 20 >= usersTotal}
+                className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30"
+              >Succ</button>
             </div>
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800"><span className="text-sm font-bold text-white">Risk Alerts</span></div>
-          {alerts.length === 0 ? <div className="p-8 text-center text-gray-500 text-sm">Nessun alert</div> : (
-            <div className="max-h-[500px] overflow-y-auto">
-              {alerts.map(a => (
-                <div key={a.id} className="px-4 py-3 border-b border-gray-800/50 hover:bg-white/5">
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold", sevColor(a.severity))}>{a.severity?.toUpperCase()}</span>
-                      <span className="text-xs text-white">{a.users?.username || "—"}</span>
-                    </div>
-                    <span className={cn("text-[8px] font-bold", a.status === "open" ? "text-yellow-400" : "text-gray-500")}>{a.status?.toUpperCase()}</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mb-2">{a.description}</p>
-                  {a.status === "open" && (
-                    <div className="flex gap-1">
-                      <button onClick={() => resolveAlert(a.id, "resolved")} className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[8px] font-bold">✓ Risolvi</button>
-                      <button onClick={() => resolveAlert(a.id, "dismissed")} className="px-2 py-0.5 rounded bg-gray-500/20 text-gray-400 text-[8px] font-bold">Ignora</button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800"><span className="text-sm font-bold text-white">Scommesse Flaggate</span></div>
-          {flaggedBets.length === 0 ? <div className="p-8 text-center text-gray-500 text-sm">Nessuna scommessa con risk score</div> : (
-            <div className="max-h-[500px] overflow-y-auto">
-              {flaggedBets.map(b => (
-                <div key={b.id} className="px-4 py-3 border-b border-gray-800/50 hover:bg-white/5">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-xs text-white">{b.users?.username || "—"}</span>
-                      <span className="text-[10px] text-gray-500 ml-2">${b.stake?.toFixed(2)} @ {b.total_odds?.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",
-                        (b.risk_score || 0) > 75 ? "bg-red-500/20 text-red-400" :
-                        (b.risk_score || 0) > 50 ? "bg-orange-500/20 text-orange-400" :
-                        "bg-yellow-500/20 text-yellow-400"
-                      )}>RISK: {b.risk_score}</span>
-                      <button onClick={() => runAnalysis(b.id)} disabled={analyzing === b.id}
-                        className="px-2 py-0.5 rounded bg-brand/20 text-brand text-[8px] font-bold">{analyzing === b.id ? "..." : "Analizza"}</button>
-                    </div>
-                  </div>
-                  {b.risk_flags?.length > 0 && (
-                    <div className="flex gap-1 mt-1">{b.risk_flags.map((f: string, i: number) => (
-                      <span key={i} className="px-1.5 py-0.5 bg-red-500/10 text-red-400 text-[8px] rounded">{f}</span>
-                    ))}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Tab: AI Analysis */}
+      {tab === "ai" && (
+        <AIAnalysisPanel onAnalyze={handleAIAnalyze} />
+      )}
     </div>
   );
 }
