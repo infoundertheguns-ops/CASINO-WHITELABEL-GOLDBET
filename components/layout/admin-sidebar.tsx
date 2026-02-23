@@ -16,22 +16,28 @@ export function AdminSidebar({ navigation, activeId, onNavigate }: AdminSidebarP
   return (
     <aside
       className={cn(
-        "flex flex-col flex-shrink-0 border-r border-admin transition-[width] duration-200 overflow-hidden",
-        collapsed ? "w-14" : "w-[220px]"
+        "flex flex-col flex-shrink-0 border-r transition-[width] duration-200 overflow-hidden"
       )}
-      style={{ background: "#0a0914" }}
+      style={{
+        width: collapsed ? 56 : 220,
+        background: "var(--admin-sidebar)",
+        borderColor: "var(--admin-border)",
+      }}
     >
       {/* Logo */}
       <div
         onClick={() => setCollapsed(!collapsed)}
         className={cn(
-          "flex items-center gap-2.5 border-b border-admin cursor-pointer",
+          "flex items-center gap-2.5 border-b cursor-pointer",
           collapsed ? "px-2.5 py-3.5" : "px-4 py-3.5"
         )}
+        style={{ borderColor: "var(--admin-border)" }}
       >
         <span className="text-xl flex-shrink-0">🎲</span>
         {!collapsed && (
-          <span className="text-sm font-extrabold text-txt tracking-tight whitespace-nowrap">
+          <span className="text-sm font-extrabold tracking-tight whitespace-nowrap"
+            style={{ color: "var(--admin-text)" }}
+          >
             BACK OFFICE
           </span>
         )}
@@ -41,14 +47,13 @@ export function AdminSidebar({ navigation, activeId, onNavigate }: AdminSidebarP
       <div className="flex-1 overflow-y-auto py-2">
         {navigation.map((group) => (
           <div key={group.group}>
-            {/* Group Label */}
             {!collapsed && (
-              <div className="px-4 pt-3 pb-1 text-[9px] font-bold text-txt-tertiary tracking-widest">
+              <div className="px-4 pt-3 pb-1 text-[9px] font-bold tracking-widest"
+                style={{ color: "var(--admin-text4)" }}
+              >
                 {group.group}
               </div>
             )}
-
-            {/* Items */}
             {group.items.map((item) => (
               <SidebarItem
                 key={item.id}
@@ -64,7 +69,9 @@ export function AdminSidebar({ navigation, activeId, onNavigate }: AdminSidebarP
 
       {/* Footer */}
       {!collapsed && (
-        <div className="px-4 py-3 border-t border-admin text-[10px] text-txt-tertiary">
+        <div className="px-4 py-3 border-t text-[10px]"
+          style={{ borderColor: "var(--admin-border)", color: "var(--admin-text4)" }}
+        >
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             <span>admin · super_admin</span>
@@ -92,12 +99,19 @@ function SidebarItem({
       className={cn(
         "w-full flex items-center gap-2.5 transition-all duration-150 text-left",
         collapsed ? "px-4 py-2.5" : "px-4 py-2",
-        isActive
-          ? "text-txt font-bold border-r-2 border-gold"
-          : "text-txt-tertiary hover:text-txt-secondary hover:bg-admin-surface",
-        isActive && "bg-[#1a1830]"
       )}
-      style={{ borderRightColor: isActive ? "#f0b429" : "transparent" }}
+      style={{
+        color: isActive ? "var(--admin-text)" : "var(--admin-text4)",
+        fontWeight: isActive ? 700 : 400,
+        background: isActive ? "var(--admin-sidebar-active)" : "transparent",
+        borderRight: isActive ? "2px solid #f0b429" : "2px solid transparent",
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) e.currentTarget.style.background = "var(--admin-card-hover)";
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) e.currentTarget.style.background = "transparent";
+      }}
     >
       <span className="text-[15px] flex-shrink-0 w-5 text-center">{item.icon}</span>
       {!collapsed && (

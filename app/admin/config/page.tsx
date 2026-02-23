@@ -64,8 +64,8 @@ export default function AdminConfig() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-black text-white">Configurazione</h1>
-          <p className="text-sm text-gray-500">Gestione soglie rischio, regole e impostazioni piattaforma</p>
+          <h1 className="text-2xl font-black" style={{ color: "var(--admin-text)" }}>Configurazione</h1>
+          <p className="text-sm" style={{ color: "var(--admin-text4)" }}>Gestione soglie rischio, regole e impostazioni piattaforma</p>
         </div>
         {toast && (
           <div className="px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold">

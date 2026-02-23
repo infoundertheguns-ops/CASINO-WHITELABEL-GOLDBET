@@ -121,13 +121,13 @@ export default function AdminRiskAgent() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-black text-white">AI Risk Agent</h1>
-          <p className="text-sm text-gray-500">Monitoraggio rischio in tempo reale con AI avanzata</p>
+          <h1 className="text-2xl font-black" style={{ color: "var(--admin-text)" }}>AI Risk Agent</h1>
+          <p className="text-sm" style={{ color: "var(--admin-text4)" }}>Monitoraggio rischio in tempo reale con AI avanzata</p>
         </div>
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 bg-[#12111a] rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-6 rounded-lg p-1 w-fit" style={{ background: "var(--admin-card)" }}>
         {tabs.map(t => (
           <button
             key={t.id}
@@ -172,7 +172,8 @@ export default function AdminRiskAgent() {
             <select
               value={alertFilter.severity}
               onChange={e => { setAlertFilter(f => ({ ...f, severity: e.target.value })); setAlertsPage(1); }}
-              className="bg-[#12111a] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+              className="border border-gray-700 rounded-lg px-3 py-2 text-xs"
+              style={{ background: "var(--admin-card)", color: "var(--admin-text)" }}
             >
               <option value="">Tutte le severity</option>
               <option value="critical">Critical</option>
@@ -183,7 +184,8 @@ export default function AdminRiskAgent() {
             <select
               value={alertFilter.status}
               onChange={e => { setAlertFilter(f => ({ ...f, status: e.target.value })); setAlertsPage(1); }}
-              className="bg-[#12111a] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
+              className="border border-gray-700 rounded-lg px-3 py-2 text-xs"
+              style={{ background: "var(--admin-card)", color: "var(--admin-text)" }}
             >
               <option value="">Tutti gli status</option>
               <option value="open">Open</option>
@@ -192,14 +194,14 @@ export default function AdminRiskAgent() {
               <option value="dismissed">Dismissed</option>
               <option value="escalated">Escalated</option>
             </select>
-            <span className="text-[10px] text-gray-500 ml-auto">{alertsTotal} risultati</span>
+            <span className="text-[10px] ml-auto" style={{ color: "var(--admin-text4)" }}>{alertsTotal} risultati</span>
           </div>
 
-          <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
+                  <tr style={{ color: "var(--admin-text4)", borderBottom: "1px solid var(--admin-border)" }}>
                     <th className="text-left px-4 py-2 font-semibold">Severity</th>
                     <th className="text-left px-4 py-2 font-semibold">Utente</th>
                     <th className="text-left px-4 py-2 font-semibold">Tipo</th>
@@ -220,9 +222,9 @@ export default function AdminRiskAgent() {
                           "bg-green-500/20 text-green-400"
                         )}>{a.severity?.toUpperCase()}</span>
                       </td>
-                      <td className="px-4 py-2 text-white">{a.users?.username || "—"}</td>
-                      <td className="px-4 py-2 text-gray-400">{a.flag_type}</td>
-                      <td className="px-4 py-2 text-gray-400 max-w-xs truncate">{a.description}</td>
+                      <td className="px-4 py-2" style={{ color: "var(--admin-text)" }}>{a.users?.username || "—"}</td>
+                      <td className="px-4 py-2" style={{ color: "var(--admin-text3)" }}>{a.flag_type}</td>
+                      <td className="px-4 py-2 max-w-xs truncate" style={{ color: "var(--admin-text3)" }}>{a.description}</td>
                       <td className="px-4 py-2 text-center">
                         <span className={cn("text-[8px] font-bold",
                           a.status === "open" ? "text-yellow-400" :

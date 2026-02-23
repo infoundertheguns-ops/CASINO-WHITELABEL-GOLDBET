@@ -119,8 +119,8 @@ export default function AdminDashboard() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-black text-white">Dashboard</h1>
-          <p className="text-sm text-gray-500">Overview piattaforma scommesse</p>
+          <h1 className="text-2xl font-black" style={{ color: "var(--admin-text)" }}>Dashboard</h1>
+          <p className="text-sm" style={{ color: "var(--admin-text4)" }}>Overview piattaforma scommesse</p>
         </div>
         <div className="flex items-center gap-2">
           {(["7d", "30d", "90d"] as Range[]).map(r => (
@@ -141,8 +141,8 @@ export default function AdminDashboard() {
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {kpis.map((kpi, i) => (
-          <div key={i} className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-            <div className="text-[10px] text-gray-500 font-semibold">{kpi.label}</div>
+          <div key={i} className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+            <div className="text-[10px] font-semibold" style={{ color: "var(--admin-text4)" }}>{kpi.label}</div>
             <div className={cn("text-xl font-black font-mono mt-1", kpi.color)}>{kpi.value}</div>
             {kpi.trend !== undefined && kpi.trend !== 0 && (
               <div className={cn("text-[10px] font-bold mt-1",
@@ -170,10 +170,10 @@ export default function AdminDashboard() {
       {/* Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Recent Bets */}
-        <div className="lg:col-span-2 bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-            <span className="text-sm font-bold text-white">Ultime Scommesse</span>
-            <span className="text-[10px] text-gray-500">{recentBets.length} risultati</span>
+        <div className="lg:col-span-2 rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+          <div className="px-4 py-3 flex justify-between items-center" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+            <span className="text-sm font-bold" style={{ color: "var(--admin-text)" }}>Ultime Scommesse</span>
+            <span className="text-[10px]" style={{ color: "var(--admin-text4)" }}>{recentBets.length} risultati</span>
           </div>
           {recentBets.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">Nessuna scommessa</div>
@@ -181,7 +181,7 @@ export default function AdminDashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
+                  <tr style={{ color: "var(--admin-text4)", borderBottom: "1px solid var(--admin-border)" }}>
                     <th className="text-left px-4 py-2 font-semibold">Utente</th>
                     <th className="text-left px-4 py-2 font-semibold">Tipo</th>
                     <th className="text-right px-4 py-2 font-semibold">Stake</th>
@@ -195,10 +195,10 @@ export default function AdminDashboard() {
                 <tbody>
                   {recentBets.map((bet: any) => (
                     <tr key={bet.id} className="border-b border-gray-800/50 hover:bg-white/5">
-                      <td className="px-4 py-2 text-white font-medium">{bet.username}</td>
-                      <td className="px-4 py-2 text-gray-400 capitalize">{bet.bet_type}</td>
-                      <td className="px-4 py-2 text-right font-mono text-white">${bet.stake?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right font-mono text-gray-300">{bet.total_odds?.toFixed(2)}</td>
+                      <td className="px-4 py-2 font-medium" style={{ color: "var(--admin-text)" }}>{bet.username}</td>
+                      <td className="px-4 py-2 capitalize" style={{ color: "var(--admin-text3)" }}>{bet.bet_type}</td>
+                      <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text)" }}>${bet.stake?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text2)" }}>{bet.total_odds?.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right font-mono text-emerald-400">${bet.potential_win?.toFixed(2)}</td>
                       <td className="px-4 py-2 text-center">
                         <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",
@@ -230,9 +230,9 @@ export default function AdminDashboard() {
         </div>
 
         {/* Recent Users */}
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800">
-            <span className="text-sm font-bold text-white">Ultimi Utenti</span>
+        <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+          <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+            <span className="text-sm font-bold" style={{ color: "var(--admin-text)" }}>Ultimi Utenti</span>
           </div>
           {recentUsers.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">Nessun utente</div>
@@ -241,8 +241,8 @@ export default function AdminDashboard() {
               {recentUsers.map((u: any) => (
                 <div key={u.id} className="flex items-center justify-between px-4 py-3 border-b border-gray-800/50 hover:bg-white/5">
                   <div>
-                    <div className="text-xs font-semibold text-white">{u.username}</div>
-                    <div className="text-[10px] text-gray-500">{u.email}</div>
+                    <div className="text-xs font-semibold" style={{ color: "var(--admin-text)" }}>{u.username}</div>
+                    <div className="text-[10px]" style={{ color: "var(--admin-text4)" }}>{u.email}</div>
                   </div>
                   <div className="text-right">
                     <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded",

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminTopBar } from "@/components/layout/admin-topbar";
 import { useAuth } from "@/lib/hooks/use-auth";
+import { useAdminTheme } from "@/lib/hooks/use-admin-theme";
 import type { AdminNavGroup } from "@/lib/types";
 
 // ═══ NAVIGATION STRUCTURE — Betting Only ═══
@@ -46,11 +47,11 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { initialize, isLoading, isAdmin } = useAuth();
+  const { initialize } = useAuth();
+  const { theme, toggle } = useAdminTheme();
   const pathname = usePathname();
   const router = useRouter();
 
-  // Derive active module from URL
   const activeId = useMemo(() => {
     const segment = pathname.split("/").pop() || "dashboard";
     return segment;
@@ -73,14 +74,17 @@ export default function AdminLayout({
     router.push(`${routeMap[id] || "/admin/dashboard"}?tab=${id}`);
   };
 
-  // Total notification count
   const notifCount = useMemo(() => {
     return NAVIGATION.flatMap((g) => g.items)
       .reduce((sum, item) => sum + (item.badge || 0), 0);
   }, []);
 
+  const isLight = theme === "light";
+
   return (
-    <div className="admin-theme flex min-h-screen bg-admin-bg text-txt font-sans">
+    <div className={`admin-theme ${isLight ? "admin-light" : ""} flex min-h-screen font-sans`}
+      style={{ background: "var(--admin-bg)", color: "var(--admin-text)" }}
+    >
       <AdminSidebar
         navigation={NAVIGATION}
         activeId={activeId}
@@ -91,6 +95,8 @@ export default function AdminLayout({
         <AdminTopBar
           title={TITLES[activeId] || "Back Office"}
           notificationCount={notifCount}
+          theme={theme}
+          onToggleTheme={toggle}
         />
 
         <main className="flex-1 overflow-auto p-5">{children}</main>

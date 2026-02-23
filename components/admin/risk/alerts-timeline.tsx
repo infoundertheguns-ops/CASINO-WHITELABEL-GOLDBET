@@ -32,10 +32,10 @@ const sevDot = (s: string) =>
 
 export function AlertsTimeline({ alerts, onResolve }: AlertsTimelineProps) {
   return (
-    <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-        <span className="text-sm font-bold text-white">Alert in Tempo Reale</span>
-        <span className="text-[10px] text-gray-500">{alerts.length} recenti</span>
+    <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+      <div className="px-4 py-3 flex justify-between items-center" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        <span className="text-sm font-bold" style={{ color: "var(--admin-text)" }}>Alert in Tempo Reale</span>
+        <span className="text-[10px]" style={{ color: "var(--admin-text4)" }}>{alerts.length} recenti</span>
       </div>
       {alerts.length === 0 ? (
         <div className="p-8 text-center text-gray-500 text-sm">Nessun alert</div>
@@ -52,7 +52,7 @@ export function AlertsTimeline({ alerts, onResolve }: AlertsTimelineProps) {
                   <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold border", sevColor(a.severity))}>
                     {a.severity?.toUpperCase()}
                   </span>
-                  <span className="text-xs text-white font-medium">{a.users?.username || "—"}</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--admin-text)" }}>{a.users?.username || "—"}</span>
                   <span className="text-[9px] text-gray-600 ml-auto">{timeAgo(a.created_at)}</span>
                 </div>
                 <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{a.description}</p>

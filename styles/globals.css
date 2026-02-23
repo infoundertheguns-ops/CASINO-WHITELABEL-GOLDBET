@@ -16,7 +16,42 @@
     font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
-  /* Admin dark scrollbar */
+  /* ═══ Admin Theme Variables ═══ */
+  .admin-theme {
+    --admin-bg: #08070f;
+    --admin-surface: #0e0d1a;
+    --admin-card: #12111a;
+    --admin-card-hover: rgba(255,255,255,0.03);
+    --admin-sidebar: #0a0914;
+    --admin-sidebar-active: #1a1830;
+    --admin-border: #1f2937;
+    --admin-border2: #342f60;
+    --admin-text: #ffffff;
+    --admin-text2: #d1d5db;
+    --admin-text3: #9ca3af;
+    --admin-text4: #6b7280;
+    --admin-scroll: #342f60;
+    --admin-input: #0a0914;
+  }
+
+  .admin-theme.admin-light {
+    --admin-bg: #f3f4f6;
+    --admin-surface: #ffffff;
+    --admin-card: #ffffff;
+    --admin-card-hover: rgba(0,0,0,0.02);
+    --admin-sidebar: #ffffff;
+    --admin-sidebar-active: #f0f0ff;
+    --admin-border: #e5e7eb;
+    --admin-border2: #d1d5db;
+    --admin-text: #111827;
+    --admin-text2: #374151;
+    --admin-text3: #6b7280;
+    --admin-text4: #9ca3af;
+    --admin-scroll: #d1d5db;
+    --admin-input: #f9fafb;
+  }
+
+  /* Admin scrollbar */
   .admin-theme ::-webkit-scrollbar {
     width: 5px;
     height: 5px;
@@ -25,7 +60,7 @@
     background: transparent;
   }
   .admin-theme ::-webkit-scrollbar-thumb {
-    background: #342f60;
+    background: var(--admin-scroll);
     border-radius: 3px;
   }
 

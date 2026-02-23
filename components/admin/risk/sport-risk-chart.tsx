@@ -11,9 +11,9 @@ interface SportRiskData {
 export function SportRiskChart({ data }: { data: SportRiskData[] }) {
   if (data.length === 0) {
     return (
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-        <h3 className="text-sm font-bold text-white mb-4">Rischio per Sport</h3>
-        <div className="h-[200px] flex items-center justify-center text-gray-500 text-sm">Nessun dato</div>
+      <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+        <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Rischio per Sport</h3>
+        <div className="h-[200px] flex items-center justify-center text-sm" style={{ color: "var(--admin-text4)" }}>Nessun dato</div>
       </div>
     );
   }
@@ -25,14 +25,14 @@ export function SportRiskChart({ data }: { data: SportRiskData[] }) {
     "#22c55e";
 
   return (
-    <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-      <h3 className="text-sm font-bold text-white mb-4">Rischio per Sport</h3>
+    <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+      <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Rischio per Sport</h3>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} layout="vertical" margin={{ left: 60 }}>
           <XAxis type="number" domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} />
           <YAxis dataKey="sport" type="category" tick={{ fill: "#d1d5db", fontSize: 11 }} width={55} />
           <Tooltip
-            contentStyle={{ background: "#1a1830", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: 8, fontSize: 12 }}
             itemStyle={{ color: "#fff" }}
             formatter={(val: number) => [`Score: ${val}`, "Avg Risk"]}
           />

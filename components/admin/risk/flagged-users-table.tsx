@@ -39,21 +39,21 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
 
   if (users.length === 0) {
     return (
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-8 text-center text-gray-500 text-sm">
+      <div className="rounded-xl p-8 text-center text-sm" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px", color: "var(--admin-text4)" }}>
         Nessun utente flaggato
       </div>
     );
   }
 
   return (
-    <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-800">
-        <span className="text-sm font-bold text-white">Utenti Flaggati</span>
+    <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        <span className="text-sm font-bold" style={{ color: "var(--admin-text)" }}>Utenti Flaggati</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-gray-500 border-b border-gray-800">
+            <tr style={{ color: "var(--admin-text4)", borderBottom: "1px solid var(--admin-border)" }}>
               <th className="text-left px-4 py-2 font-semibold">Utente</th>
               <th className="text-center px-4 py-2 font-semibold">Classificazione</th>
               <th className="text-right px-4 py-2 font-semibold">Risk Score</th>
@@ -73,8 +73,8 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
                   onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
                 >
                   <td className="px-4 py-2">
-                    <div className="text-white font-medium">{u.users?.username || "—"}</div>
-                    <div className="text-[9px] text-gray-500">{u.users?.email}</div>
+                    <div className="font-medium" style={{ color: "var(--admin-text)" }}>{u.users?.username || "—"}</div>
+                    <div className="text-[9px]" style={{ color: "var(--admin-text4)" }}>{u.users?.email}</div>
                   </td>
                   <td className="px-4 py-2 text-center">
                     <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold", classBadge(u.classification))}>
@@ -89,8 +89,8 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
                       "text-green-400"
                     )}>{u.risk_score}</span>
                   </td>
-                  <td className="px-4 py-2 text-right font-mono text-gray-300">{u.total_bets}</td>
-                  <td className="px-4 py-2 text-right font-mono text-gray-300">{(u.win_rate * 100).toFixed(1)}%</td>
+                  <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text2)" }}>{u.total_bets}</td>
+                  <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text2)" }}>{(u.win_rate * 100).toFixed(1)}%</td>
                   <td className={cn("px-4 py-2 text-right font-mono", u.lifetime_ggr >= 0 ? "text-emerald-400" : "text-red-400")}>
                     ${u.lifetime_ggr.toFixed(2)}
                   </td>
@@ -104,23 +104,23 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
                   </td>
                 </tr>
                 {expandedId === u.id && (
-                  <tr key={`${u.id}-detail`} className="bg-[#0d0c15]">
+                  <tr key={`${u.id}-detail`} style={{ background: "var(--admin-bg)" }}>
                     <td colSpan={8} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 text-[10px]">
                         <div>
-                          <span className="text-gray-500">Stake Totale</span>
-                          <div className="text-white font-mono">${u.total_stake.toFixed(2)}</div>
+                          <span style={{ color: "var(--admin-text4)" }}>Stake Totale</span>
+                          <div className="font-mono" style={{ color: "var(--admin-text)" }}>${u.total_stake.toFixed(2)}</div>
                         </div>
                         <div>
-                          <span className="text-gray-500">Avg Stake</span>
-                          <div className="text-white font-mono">${u.avg_stake.toFixed(2)}</div>
+                          <span style={{ color: "var(--admin-text4)" }}>Avg Stake</span>
+                          <div className="font-mono" style={{ color: "var(--admin-text)" }}>${u.avg_stake.toFixed(2)}</div>
                         </div>
                         <div>
-                          <span className="text-gray-500">Account</span>
-                          <div className="text-white">{u.users?.created_at ? new Date(u.users.created_at).toLocaleDateString("it-IT") : "—"}</div>
+                          <span style={{ color: "var(--admin-text4)" }}>Account</span>
+                          <div style={{ color: "var(--admin-text)" }}>{u.users?.created_at ? new Date(u.users.created_at).toLocaleDateString("it-IT") : "—"}</div>
                         </div>
                         <div>
-                          <span className="text-gray-500">Status</span>
+                          <span style={{ color: "var(--admin-text4)" }}>Status</span>
                           <div className={u.users?.is_blocked ? "text-red-400 font-bold" : "text-green-400"}>
                             {u.users?.is_blocked ? "BLOCCATO" : "ATTIVO"}
                           </div>

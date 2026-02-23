@@ -13,16 +13,16 @@ const COLORS = ["#f0b429", "#3b82f6", "#22c55e", "#ef4444", "#8b5cf6", "#f97316"
 export function SportBreakdownChart({ data }: { data: SportData[] }) {
   if (data.length === 0) {
     return (
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-        <h3 className="text-sm font-bold text-white mb-4">Breakdown per Sport</h3>
-        <div className="h-[250px] flex items-center justify-center text-gray-500 text-sm">Nessun dato</div>
+      <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+        <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Breakdown per Sport</h3>
+        <div className="h-[250px] flex items-center justify-center text-sm" style={{ color: "var(--admin-text4)" }}>Nessun dato</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-      <h3 className="text-sm font-bold text-white mb-4">Breakdown per Sport</h3>
+    <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+      <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Breakdown per Sport</h3>
       <ResponsiveContainer width="100%" height={250}>
         <PieChart>
           <Pie
@@ -40,7 +40,7 @@ export function SportBreakdownChart({ data }: { data: SportData[] }) {
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ background: "#1a1830", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: 8, fontSize: 12 }}
             itemStyle={{ color: "#fff" }}
             formatter={(val: number, name: string, props: any) => [
               `${val} scommesse ($${props.payload.stake?.toFixed(0) || 0})`,

@@ -22,13 +22,13 @@ interface ConfigSectionProps {
 
 export function ConfigSection({ title, description, fields, values, onChange }: ConfigSectionProps) {
   return (
-    <div className="bg-[#12111a] rounded-xl border border-gray-800 p-5">
-      <h3 className="text-sm font-bold text-white mb-1">{title}</h3>
-      {description && <p className="text-[10px] text-gray-500 mb-4">{description}</p>}
+    <div className="rounded-xl p-5" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+      <h3 className="text-sm font-bold mb-1" style={{ color: "var(--admin-text)" }}>{title}</h3>
+      {description && <p className="text-[10px] mb-4" style={{ color: "var(--admin-text4)" }}>{description}</p>}
       <div className="space-y-4">
         {fields.map(f => (
           <div key={f.key} className="flex items-center justify-between gap-4">
-            <label className="text-xs text-gray-300 min-w-[200px]">{f.label}</label>
+            <label className="text-xs min-w-[200px]" style={{ color: "var(--admin-text2)" }}>{f.label}</label>
             {f.type === "toggle" ? (
               <button
                 onClick={() => onChange(f.key, !values[f.key])}
@@ -60,14 +60,16 @@ export function ConfigSection({ title, description, fields, values, onChange }: 
                   step={f.step || 1}
                   value={values[f.key] ?? 0}
                   onChange={e => onChange(f.key, Number(e.target.value))}
-                  className="w-16 bg-[#0a0914] border border-gray-700 rounded px-2 py-1 text-xs text-white text-center font-mono"
+                  className="w-16 border border-gray-700 rounded px-2 py-1 text-xs text-center font-mono"
+                  style={{ background: "var(--admin-input)", color: "var(--admin-text)" }}
                 />
               </div>
             ) : f.type === "select" ? (
               <select
                 value={values[f.key] ?? ""}
                 onChange={e => onChange(f.key, e.target.value)}
-                className="bg-[#0a0914] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white"
+                className="border border-gray-700 rounded-lg px-3 py-1.5 text-xs"
+                style={{ background: "var(--admin-input)", color: "var(--admin-text)" }}
               >
                 {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -76,7 +78,8 @@ export function ConfigSection({ title, description, fields, values, onChange }: 
                 type="text"
                 value={values[f.key] ?? ""}
                 onChange={e => onChange(f.key, e.target.value)}
-                className="w-48 bg-[#0a0914] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white"
+                className="w-48 border border-gray-700 rounded-lg px-3 py-1.5 text-xs"
+                style={{ background: "var(--admin-input)", color: "var(--admin-text)" }}
               />
             )}
           </div>

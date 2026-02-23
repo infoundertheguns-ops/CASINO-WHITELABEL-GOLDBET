@@ -36,25 +36,27 @@ export function AIAnalysisPanel({ onAnalyze }: AIAnalysisPanelProps) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-        <h3 className="text-sm font-bold text-white mb-4">Analisi AI Manuale</h3>
+      <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+        <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Analisi AI Manuale</h3>
         <div className="flex gap-3 items-end">
           <div className="flex-1">
-            <label className="text-[10px] text-gray-500 block mb-1">ID Scommessa</label>
+            <label className="text-[10px] block mb-1" style={{ color: "var(--admin-text4)" }}>ID Scommessa</label>
             <input
               type="text"
               value={inputId}
               onChange={e => setInputId(e.target.value)}
               placeholder="Inserisci bet ID..."
-              className="w-full bg-[#0a0914] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-brand focus:outline-none"
+              className="w-full border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-600 focus:border-brand focus:outline-none"
+              style={{ background: "var(--admin-input)", color: "var(--admin-text)" }}
             />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 block mb-1">Tipo</label>
+            <label className="text-[10px] block mb-1" style={{ color: "var(--admin-text4)" }}>Tipo</label>
             <select
               value={inputType}
               onChange={e => setInputType(e.target.value as "bet" | "user")}
-              className="bg-[#0a0914] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-brand focus:outline-none"
+              className="border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-brand focus:outline-none"
+              style={{ background: "var(--admin-input)", color: "var(--admin-text)" }}
             >
               <option value="bet">Scommessa</option>
               <option value="user">Utente</option>
@@ -77,9 +79,9 @@ export function AIAnalysisPanel({ onAnalyze }: AIAnalysisPanelProps) {
       )}
 
       {result && (
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-bold text-white">Risultato Analisi</span>
+            <span className="text-sm font-bold" style={{ color: "var(--admin-text)" }}>Risultato Analisi</span>
             <button onClick={() => setResult(null)} className="text-gray-500 hover:text-white text-sm">&#10005;</button>
           </div>
 
@@ -100,9 +102,9 @@ export function AIAnalysisPanel({ onAnalyze }: AIAnalysisPanelProps) {
 
           {/* Rule analysis */}
           <div className="mb-4">
-            <div className="text-[10px] text-gray-500 font-semibold mb-1">REGOLE</div>
-            <div className="text-xs text-gray-300">{result.rule_analysis?.recommendation}</div>
-            <div className="text-[10px] text-gray-500 mt-1">{result.rule_analysis?.details}</div>
+            <div className="text-[10px] font-semibold mb-1" style={{ color: "var(--admin-text4)" }}>REGOLE</div>
+            <div className="text-xs" style={{ color: "var(--admin-text2)" }}>{result.rule_analysis?.recommendation}</div>
+            <div className="text-[10px] mt-1" style={{ color: "var(--admin-text4)" }}>{result.rule_analysis?.details}</div>
             {result.rule_analysis?.flags?.length > 0 && (
               <div className="flex gap-1 mt-2 flex-wrap">
                 {result.rule_analysis.flags.map((f: string, i: number) => (
@@ -114,22 +116,22 @@ export function AIAnalysisPanel({ onAnalyze }: AIAnalysisPanelProps) {
 
           {/* AI analysis */}
           {result.ai_analysis && (
-            <div className="border-t border-gray-800 pt-4">
-              <div className="text-[10px] text-gray-500 font-semibold mb-2">ANALISI AI</div>
-              <div className="text-xs text-gray-300 mb-2">{result.ai_analysis.reasoning}</div>
+            <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+              <div className="text-[10px] font-semibold mb-2" style={{ color: "var(--admin-text4)" }}>ANALISI AI</div>
+              <div className="text-xs mb-2" style={{ color: "var(--admin-text2)" }}>{result.ai_analysis.reasoning}</div>
               <div className="grid grid-cols-2 gap-3 text-[10px]">
                 <div>
-                  <span className="text-gray-500">Player Classification</span>
-                  <div className="text-white font-bold">{result.ai_analysis.player_classification}</div>
+                  <span style={{ color: "var(--admin-text4)" }}>Player Classification</span>
+                  <div className="font-bold" style={{ color: "var(--admin-text)" }}>{result.ai_analysis.player_classification}</div>
                 </div>
                 <div>
-                  <span className="text-gray-500">Confidence</span>
-                  <div className="text-white font-mono">{((result.ai_analysis.confidence || 0) * 100).toFixed(0)}%</div>
+                  <span style={{ color: "var(--admin-text4)" }}>Confidence</span>
+                  <div className="font-mono" style={{ color: "var(--admin-text)" }}>{((result.ai_analysis.confidence || 0) * 100).toFixed(0)}%</div>
                 </div>
               </div>
               {result.ai_analysis.recommended_actions?.length > 0 && (
                 <div className="mt-3">
-                  <span className="text-[10px] text-gray-500">Azioni Raccomandate</span>
+                  <span className="text-[10px]" style={{ color: "var(--admin-text4)" }}>Azioni Raccomandate</span>
                   <div className="flex gap-1 mt-1 flex-wrap">
                     {result.ai_analysis.recommended_actions.map((a: string, i: number) => (
                       <span key={i} className="px-2 py-0.5 bg-brand/10 text-brand text-[9px] rounded">{a}</span>
@@ -142,8 +144,8 @@ export function AIAnalysisPanel({ onAnalyze }: AIAnalysisPanelProps) {
 
           {/* Actions executed */}
           {result.actions_executed?.length > 0 && (
-            <div className="border-t border-gray-800 pt-3 mt-3">
-              <div className="text-[10px] text-gray-500 font-semibold mb-1">AZIONI ESEGUITE</div>
+            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--admin-border)" }}>
+              <div className="text-[10px] font-semibold mb-1" style={{ color: "var(--admin-text4)" }}>AZIONI ESEGUITE</div>
               <div className="flex gap-1 flex-wrap">
                 {result.actions_executed.map((a: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold rounded">{a}</span>

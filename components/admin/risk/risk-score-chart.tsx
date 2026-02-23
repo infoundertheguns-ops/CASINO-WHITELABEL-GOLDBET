@@ -26,16 +26,16 @@ export function RiskScoreChart({ distribution }: { distribution: Distribution })
 
   if (data.length === 0) {
     return (
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-        <h3 className="text-sm font-bold text-white mb-4">Distribuzione Risk Score</h3>
-        <div className="h-[200px] flex items-center justify-center text-gray-500 text-sm">Nessun dato</div>
+      <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+        <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Distribuzione Risk Score</h3>
+        <div className="h-[200px] flex items-center justify-center text-sm" style={{ color: "var(--admin-text4)" }}>Nessun dato</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-      <h3 className="text-sm font-bold text-white mb-4">Distribuzione Risk Score</h3>
+    <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", borderColor: "var(--admin-border)", borderWidth: "1px" }}>
+      <h3 className="text-sm font-bold mb-4" style={{ color: "var(--admin-text)" }}>Distribuzione Risk Score</h3>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Pie
@@ -52,7 +52,7 @@ export function RiskScoreChart({ distribution }: { distribution: Distribution })
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ background: "#1a1830", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: 8, fontSize: 12 }}
             itemStyle={{ color: "#fff" }}
           />
           <Legend
