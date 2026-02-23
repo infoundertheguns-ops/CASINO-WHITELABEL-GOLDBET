@@ -167,8 +167,9 @@ export default function HomePage() {
           </div>
 
           {/* ── Quick Actions ── */}
-          <div className="grid grid-cols-4 gap-2 mb-5">
+          <div className="grid grid-cols-5 gap-2 mb-5">
             {[
+              { href: "/live", icon: "🔴", label: "Live", color: "from-red-500 to-red-600" },
               { href: "/sport", icon: "⚽", label: "Scommetti", color: "from-blue-500 to-blue-600" },
               { href: "/casino", icon: "🎰", label: "Casino", color: "from-purple-500 to-violet-600" },
               { href: "/bets", icon: "🎫", label: "Le Mie Bet", color: "from-emerald-500 to-emerald-600" },
@@ -206,7 +207,7 @@ export default function HomePage() {
                     {liveEvents.length}
                   </span>
                 </div>
-                <Link href="/sport" className="text-[11px] text-brand font-semibold hover:underline">
+                <Link href="/live" className="text-[11px] text-brand font-semibold hover:underline">
                   Vedi tutti
                 </Link>
               </div>

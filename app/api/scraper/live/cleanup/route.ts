@@ -56,6 +56,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ finished: 0, error: updateErr.message });
   }
 
+  // ── Cleanup stale prematch events (started 3+ hours ago, never went live) ──
+  const staleThreshold = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+  const { data: stalePrematch } = await supabase
+    .from("events")
+    .select("id")
+    .eq("status", "prematch")
+    .eq("is_live", false)
+    .lt("starts_at", staleThreshold)
+    .limit(100);
+
+  let staleMarked = 0;
+  if (stalePrematch && stalePrematch.length > 0) {
+    const { error: staleErr } = await supabase
+      .from("events")
+      .update({ status: "finished", updated_at: new Date().toISOString() })
+      .in("id", stalePrematch.map((e) => e.id));
+    if (!staleErr) staleMarked = stalePrematch.length;
+  }
+
   // ── Auto-settle finished events (max 20 per cycle to avoid timeout) ──
   const toSettle = toFinish.slice(0, 20);
   let settled = 0;
@@ -74,6 +93,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     finished: toFinish.length,
+    stale_prematch_cleaned: staleMarked || undefined,
     settled,
     settle_errors: settleErrors.length > 0 ? settleErrors.slice(0, 10) : undefined,
   });

@@ -55,7 +55,6 @@ export default function SportPage() {
   const [stake, setStake] = useState("");
   const [showMobileBetslip, setShowMobileBetslip] = useState(false);
   const [betResult, setBetResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "live" | "prematch">("all");
 
   // Derive unique sports from all events
   const sports = useMemo(() => {
@@ -72,12 +71,8 @@ export default function SportPage() {
     return Array.from(map.values());
   }, [allEvents]);
 
-  // Apply live/prematch filter on top of sport filter
-  const displayEvents = filteredEvents.filter((e) => {
-    if (activeFilter === "live") return e.live;
-    if (activeFilter === "prematch") return !e.live;
-    return true;
-  });
+  // Only prematch events (live has its own page)
+  const displayEvents = filteredEvents.filter((e) => !e.live);
 
   const potentialWin = stake ? parseFloat(stake) * totalOdds : 0;
 
@@ -100,9 +95,13 @@ export default function SportPage() {
 
   // Market lookup by name — supports Italian aliases from Goldbet scraper
   const MARKET_ALIASES: Record<string, string[]> = {
-    "1X2": ["1X2"],
+    "1X2": [
+      "1X2", "T/T Risultato", "Testa A Testa",
+      "Vincente Incontro (escl. ritiro)", "Vincente Incontro",
+      "Esito Finale 1X2", "T/T Match", "1X2 Tempi Reg.",
+    ],
     "U/O 2.5": ["U/O 2.5", "O/U 2.5", "Under/Over 2.5"],
-    "GG/NG": ["GG/NG", "Gol/NoGol"],
+    "GG/NG": ["GG/NG", "Gol/NoGol", "Gol/No Gol"],
   };
   const getMarket = (e: SportEvent, name: string) => {
     const aliases = MARKET_ALIASES[name] || [name];
@@ -142,14 +141,14 @@ export default function SportPage() {
       <div className="lg:flex lg:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-lg font-bold text-gray-900">Scommesse Sportive</h2>
+            <h2 className="text-lg font-bold text-gray-900">Scommesse Prematch</h2>
             {wallet && (
               <span className="text-xs font-mono text-gray-400">
                 Saldo: <span className="text-emerald-500 font-bold">${wallet.balance?.toFixed(2)}</span>
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mb-3">Live e prematch su calcio, basket, tennis e altri sport.</p>
+          <p className="text-xs text-gray-500 mb-3">Quote prematch su calcio, basket, tennis e altri sport.</p>
 
           {/* Sport pills — mobile only (sidebar replaces this on desktop) */}
           <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 pb-1 lg:hidden">
@@ -180,27 +179,6 @@ export default function SportPage() {
             ))}
           </div>
 
-          {/* Live/Prematch filter */}
-          <div className="flex gap-1 mb-3">
-            {([
-              { id: "all" as const, label: "Tutti", count: filteredEvents.length },
-              { id: "live" as const, label: "🔴 Live", count: filteredEvents.filter((e) => e.live).length },
-              { id: "prematch" as const, label: "Prematch", count: filteredEvents.filter((e) => !e.live).length },
-            ]).map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setActiveFilter(f.id)}
-                className={cn(
-                  "px-3 py-1 rounded-lg text-xs font-semibold transition-all",
-                  activeFilter === f.id
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                )}
-              >
-                {f.label} ({f.count})
-              </button>
-            ))}
-          </div>
 
           {/* ═══ LOADING SKELETONS ═══ */}
           {loading ? (

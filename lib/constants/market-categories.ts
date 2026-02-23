@@ -61,10 +61,23 @@ export function getMarketCategoryId(market: Market): string {
   if (name.includes("rete inviolata") || name.includes("vincente a 0") || name.includes("clean sheet")) return "gol";
   if (name.includes("segna") && !name.includes("+")) return "gol";
 
+  // Winner markets per tutti sport → "1x2" category
+  if (["t/t risultato", "testa a testa", "vincente incontro", "t/t match", "esito finale 1x2"]
+      .some(p => name === p || name.startsWith(p))) return "1x2";
+  if (name === "vincente incontro (escl. ritiro)") return "1x2";
+  if (name === "1x2 tempi reg.") return "1x2";
+
   // 1X2 family
   if (name === "1x2" || type === "1x2") return "1x2";
   if (name.includes("doppia chance") || type === "double_chance") return "1x2";
   if (name.includes("draw no bet") || type === "draw_no_bet") return "1x2";
+
+  // O/U per basket/volley/tennis/TT
+  if (name.startsWith("u/o incl") || name.startsWith("u/o punti") || name.startsWith("u/o games")
+      || name.startsWith("under/over punti")) return "uo";
+
+  // Handicap per tutti sport
+  if (name.startsWith("t/t handicap")) return "handicap";
 
   // Speciali
   if (name.includes("angoli") || name.includes("corner")) return "speciali";
@@ -116,6 +129,17 @@ function buildPrincipaliMarkets(markets: Market[]): Market[] {
   // Doppia Chance
   const mdc = markets.find((m) => nameL(m).includes("doppia chance"));
   if (mdc) result.push(mdc);
+
+  // Se nessun mercato calcio trovato, cerca mercato vincente generico (basket, tennis, hockey etc.)
+  if (result.length === 0) {
+    const winnerNames = ["t/t risultato", "testa a testa", "vincente incontro (escl. ritiro)",
+      "vincente incontro", "esito finale 1x2", "t/t match", "1x2 tempi reg."];
+    const winner = markets.find(m => winnerNames.includes(nameL(m)));
+    if (winner) result.push(winner);
+    // Primo O/U generico
+    const firstOU = markets.find(m => nameL(m).startsWith("u/o") || nameL(m).startsWith("under/over"));
+    if (firstOU) result.push(firstOU);
+  }
 
   return result;
 }

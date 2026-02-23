@@ -62,7 +62,8 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
         setSportIcon(sportData?.icon || "");
       }
 
-      // 2. Fetch ALL events for this league with ALL markets
+      // 2. Fetch ALL events for this league with ALL markets (exclude stale prematch)
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: eventRows, error: eventsErr } = await supabase
         .from("events")
         .select(`
@@ -76,6 +77,7 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
         `)
         .eq("league_id", leagueRow.id)
         .in("status", ["prematch", "live"])
+        .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
         .order("starts_at", { ascending: true });
 
       if (eventsErr) throw eventsErr;

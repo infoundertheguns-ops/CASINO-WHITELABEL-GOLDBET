@@ -261,6 +261,8 @@ export function useSportsbook() {
     setError(null);
 
     try {
+      // Exclude prematch events that already started (with 30min buffer)
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data, error: fetchErr } = await supabase
         .from("events")
         .select(`
@@ -273,7 +275,14 @@ export function useSportsbook() {
           )
         `)
         .in("status", ["prematch", "live"])
-        .in("markets.market_type", ["1X2", "U/O 2.5", "GG/NG"])
+        .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
+        .in("markets.market_type", [
+          "1X2", "U/O 2.5", "GG/NG",                                          // Calcio
+          "T/T Risultato", "Testa A Testa", "1X2 Tempi Reg.",                  // Basket
+          "Vincente Incontro (escl. ritiro)", "Vincente Incontro",             // Tennis/Volley/TT/Snooker
+          "Esito Finale 1X2", "Gol/No Gol",                                   // Hockey
+          "T/T Match",                                                          // Cricket
+        ])
         .order("is_live", { ascending: false })
         .order("starts_at", { ascending: true });
 

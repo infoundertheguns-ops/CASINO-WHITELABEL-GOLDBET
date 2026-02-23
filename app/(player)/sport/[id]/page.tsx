@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/hooks/use-auth";
@@ -205,9 +205,10 @@ function MarketCard({
   toggleBet: (event: SportEvent, marketName: string, sel: Selection) => void;
   isSelected: (eventId: string, marketName: string, selectionLabel: string) => boolean;
 }) {
-  // Extract line from market name if present
-  const lineMatch = market.name.match(/(\d+\.?\d*)\s*$/);
-  const displayLine = market.line || (lineMatch ? lineMatch[1] : null);
+  // Extract line from market name if present (e.g. "U/O Incl. Supp. 136.5" → line=136.5)
+  // DB market.line is unreliable (Goldbet internal field), so always prefer name-extracted line
+  const lineMatch = market.name.match(/[-+]?(\d+\.?\d*)\s*$/);
+  const displayLine = lineMatch ? lineMatch[0].trim() : null;
   const displayName = lineMatch ? market.name.replace(lineMatch[0], "").trim() : market.name;
 
   return (
@@ -265,7 +266,11 @@ function MarketCard({
 
 export default function EventDetail() {
   const params = useParams();
+  const pathname = usePathname();
   const router = useRouter();
+  const isLivePage = pathname.startsWith("/live/");
+  const basePath = isLivePage ? "/live" : "/sport";
+  const baseLabel = isLivePage ? "Live" : "Sport";
   const { user, wallet } = useAuth();
   const {
     allEvents,
@@ -486,7 +491,7 @@ export default function EventDetail() {
       <div className="p-6 text-center">
         {directError && <p className="text-red-500 text-xs mb-3">{directError}</p>}
         <p className="text-gray-400 mb-3">Evento non trovato</p>
-        <button onClick={() => router.push("/sport")} className="px-4 py-2 rounded-lg bg-brand text-white text-sm font-bold">&larr; Sport</button>
+        <button onClick={() => router.push(basePath)} className="px-4 py-2 rounded-lg bg-brand text-white text-sm font-bold">&larr; {baseLabel}</button>
       </div>
     );
   }
@@ -501,7 +506,7 @@ export default function EventDetail() {
 
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-4">
-        <Link href="/sport" className="hover:text-brand transition-colors">Sport</Link>
+        <Link href={basePath} className="hover:text-brand transition-colors">{baseLabel}</Link>
         <span>/</span>
         {leagueSlug ? (
           <Link href={`/sport/league/${leagueSlug}`} className="text-gray-500 hover:text-brand transition-colors">{ev.league}</Link>
