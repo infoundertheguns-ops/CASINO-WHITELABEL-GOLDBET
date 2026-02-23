@@ -10,8 +10,7 @@ const NAV_ITEMS = [
   { href: "/home", icon: "🏠", label: "Home" },
   { href: "/live", icon: "🔴", label: "Live" },
   { href: "/sport", icon: "⚽", label: "Sport" },
-  { href: "/casino", icon: "🎰", label: "Casino" },
-  { href: "/promo", icon: "🎁", label: "Promo" },
+  { href: "/bets", icon: "🎫", label: "Le Mie Bet" },
   { href: "/wallet", icon: "💰", label: "Wallet" },
 ];
 

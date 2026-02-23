@@ -5,8 +5,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useSportsbook, type SportEvent, type Selection } from "@/lib/hooks/use-sportsbook";
-import { useCasino, type CasinoGame } from "@/lib/hooks/use-casino";
-import { usePromos } from "@/lib/hooks/use-promos";
 import { createClient } from "@/lib/supabase/client";
 
 // ═══ TYPES ═══
@@ -38,8 +36,6 @@ export default function HomePage() {
     placeBet,
     placingBet,
   } = useSportsbook();
-  const { games } = useCasino();
-  const { promos } = usePromos();
 
   const [recentBets, setRecentBets] = useState<RecentBet[]>([]);
   const [stake, setStake] = useState("");
@@ -65,8 +61,6 @@ export default function HomePage() {
   // ── Derived data ──
   const liveEvents = allEvents.filter((e) => e.live).slice(0, 4);
   const upcomingEvents = allEvents.filter((e) => !e.live).slice(0, 6);
-  const hotGames = games.filter((g) => g.hot).slice(0, 6);
-  const featuredPromos = promos.slice(0, 3);
   const potentialWin = stake ? parseFloat(stake) * totalOdds : 0;
 
   const handlePlaceBet = async () => {
@@ -147,7 +141,7 @@ export default function HomePage() {
                   Benvenuto su <span className="text-[#e8611c]">VinciTu</span>
                 </h1>
               )}
-              <p className="text-white/50 text-sm mb-4">Scommesse, Casino & Crypto in un unico posto.</p>
+              <p className="text-white/50 text-sm mb-4">La tua piattaforma di scommesse sportive.</p>
 
               {wallet && (
                 <div className="flex items-center gap-4">
@@ -167,13 +161,12 @@ export default function HomePage() {
           </div>
 
           {/* ── Quick Actions ── */}
-          <div className="grid grid-cols-5 gap-2 mb-5">
+          <div className="grid grid-cols-4 gap-2 mb-5">
             {[
               { href: "/live", icon: "🔴", label: "Live", color: "from-red-500 to-red-600" },
               { href: "/sport", icon: "⚽", label: "Scommetti", color: "from-blue-500 to-blue-600" },
-              { href: "/casino", icon: "🎰", label: "Casino", color: "from-purple-500 to-violet-600" },
               { href: "/bets", icon: "🎫", label: "Le Mie Bet", color: "from-emerald-500 to-emerald-600" },
-              { href: "/promo", icon: "🎁", label: "Promo", color: "from-orange-500 to-red-500" },
+              { href: "/wallet", icon: "💰", label: "Wallet", color: "from-orange-500 to-amber-500" },
             ].map((a) => (
               <Link
                 key={a.href}
@@ -326,66 +319,6 @@ export default function HomePage() {
                 })}
               </div>
             )}
-          </section>
-
-          {/* ── Hot Casino Games ── */}
-          <section className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-gray-900">Casino Popolari</h2>
-              <Link href="/casino" className="text-[11px] text-brand font-semibold hover:underline">
-                Tutti i giochi
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5">
-              {hotGames.map((game) => (
-                <Link key={game.id} href="/casino" className="group">
-                  <div className={cn(
-                    "relative rounded-xl aspect-square bg-gradient-to-br flex items-center justify-center overflow-hidden",
-                    game.color
-                  )}>
-                    <span className="text-4xl drop-shadow-lg group-hover:scale-110 transition-transform">{game.icon}</span>
-                    {game.hot && (
-                      <span className="absolute top-1.5 left-1.5 bg-red-500 text-white text-[7px] font-bold px-1 py-0.5 rounded">
-                        HOT
-                      </span>
-                    )}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-white text-[10px] font-bold bg-white/20 backdrop-blur px-3 py-1.5 rounded-lg">GIOCA</span>
-                    </div>
-                  </div>
-                  <div className="mt-1">
-                    <div className="text-[11px] font-semibold text-gray-800 truncate">{game.name}</div>
-                    <div className="text-[9px] text-gray-400">{game.provider}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          {/* ── Promotions ── */}
-          <section className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-gray-900">Promozioni</h2>
-              <Link href="/promo" className="text-[11px] text-brand font-semibold hover:underline">
-                Vedi tutte
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              {featuredPromos.map((promo) => (
-                <Link key={promo.id} href="/promo" className="group">
-                  <div className={cn("bg-gradient-to-r rounded-xl p-4 relative overflow-hidden hover:shadow-md transition-shadow", promo.color)}>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-4xl opacity-20">{promo.icon}</span>
-                    <span className="bg-white/20 backdrop-blur text-white text-[8px] font-bold px-2 py-0.5 rounded inline-block mb-2">
-                      {promo.badge}
-                    </span>
-                    <h3 className="text-sm font-bold text-white mb-0.5">{promo.name}</h3>
-                    <p className="text-[11px] text-white/70 line-clamp-2">{promo.desc}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
           </section>
 
           {/* ── Recent Bets ── */}
