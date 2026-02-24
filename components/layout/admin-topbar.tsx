@@ -1,5 +1,7 @@
 "use client";
 
+import { NotificationBell } from "@/components/admin/notifications/notification-bell";
+
 interface AdminTopBarProps {
   title: string;
   notificationCount?: number;
@@ -7,7 +9,7 @@ interface AdminTopBarProps {
   onToggleTheme?: () => void;
 }
 
-export function AdminTopBar({ title, notificationCount = 0, theme = "dark", onToggleTheme }: AdminTopBarProps) {
+export function AdminTopBar({ title, theme = "dark", onToggleTheme }: AdminTopBarProps) {
   const now = new Date();
   const dateStr = now.toLocaleDateString("it-IT", {
     day: "numeric",
@@ -51,14 +53,8 @@ export function AdminTopBar({ title, notificationCount = 0, theme = "dark", onTo
           </button>
         )}
 
-        <button className="relative">
-          <span className="text-base">🔔</span>
-          {notificationCount > 0 && (
-            <span className="absolute -top-1 -right-1.5 bg-red-500 text-white rounded-full px-1 text-[8px] font-extrabold min-w-[14px] text-center">
-              {notificationCount}
-            </span>
-          )}
-        </button>
+        {/* Notification Bell with realtime dropdown */}
+        <NotificationBell />
       </div>
     </div>
   );

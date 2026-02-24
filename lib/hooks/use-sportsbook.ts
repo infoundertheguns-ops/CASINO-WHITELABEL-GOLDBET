@@ -443,8 +443,16 @@ export function useSportsbook() {
   // ── Betslip: total odds ──
   const totalOdds = betslip.reduce((acc, b) => acc * b.odds, 1);
 
-  // ── Place bet with risk check ──
-  const placeBet = async (stake: number): Promise<{ success: boolean; error?: string; flagged?: boolean }> => {
+  // ── Place bet via server-side API ──
+  const placeBet = async (stake: number): Promise<{
+    success: boolean;
+    error?: string;
+    flagged?: boolean;
+    partial?: boolean;
+    accepted_stake?: number;
+    pending_acceptance?: boolean;
+    updated_selections?: any[];
+  }> => {
     if (!user) return { success: false, error: "Devi accedere per scommettere" };
     if (!wallet || wallet.balance < stake) return { success: false, error: "Saldo insufficiente" };
     if (betslip.length === 0) return { success: false, error: "Schedina vuota" };
@@ -452,107 +460,66 @@ export function useSportsbook() {
     if (stake > 10000) return { success: false, error: "Puntata massima: $10,000" };
 
     if (isMockData) {
-      return { success: false, error: "Modalità demo — connetti il database per piazzare scommesse" };
+      return { success: false, error: "Modalita' demo — connetti il database per piazzare scommesse" };
     }
 
     setPlacingBet(true);
 
     try {
-      const betType = betslip.length === 1 ? "singola" : betslip.length <= 3 ? "multi" : "sistema";
-      const potentialWin = parseFloat((stake * totalOdds).toFixed(2));
-      const hasLive = betslip.some((b) => events.find((e) => e.id === b.eventId)?.live);
-
-      // 1. Insert bet
-      const { data: bet, error: betError } = await supabase
-        .from("bets")
-        .insert({
-          user_id: user.id,
-          bet_type: betType,
-          total_odds: parseFloat(totalOdds.toFixed(4)),
+      const res = await fetch("/api/player/place-bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           stake,
-          potential_win: potentialWin,
-          status: "open",
-          is_live: hasLive,
-          selections_count: betslip.length,
-        })
-        .select("id")
-        .single();
-
-      if (betError || !bet) {
-        setPlacingBet(false);
-        return { success: false, error: "Errore nel piazzamento: " + (betError?.message || "sconosciuto") };
-      }
-
-      // 2. Insert bet selections
-      const legs = betslip.map((b) => ({
-        bet_id: bet.id,
-        event_id: b.eventId,
-        market_id: b.marketId,
-        outcome_id: b.outcomeId,
-        odds_at_placement: b.odds,
-      }));
-
-      const { error: legsError } = await supabase.from("bet_selections").insert(legs);
-      if (legsError) {
-        await supabase.from("bets").delete().eq("id", bet.id);
-        setPlacingBet(false);
-        return { success: false, error: "Errore inserimento selezioni: " + legsError.message };
-      }
-
-      // 3. Risk check via /api/risk-agent
-      let flagged = false;
-      try {
-        const riskRes = await fetch("/api/risk-agent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bet_id: bet.id }),
-        });
-
-        if (riskRes.ok) {
-          const riskData = await riskRes.json();
-
-          if (riskData.action_taken === "blocked") {
-            // Void bet and cleanup
-            await supabase.from("bet_selections").delete().eq("bet_id", bet.id);
-            await supabase.from("bets").delete().eq("id", bet.id);
-            setPlacingBet(false);
-            return {
-              success: false,
-              error: `Scommessa bloccata dal sistema di sicurezza: ${riskData.rule_analysis?.recommendation || "Contatta il supporto"}`,
-            };
-          }
-
-          if (riskData.action_taken === "flagged") {
-            flagged = true;
-          }
-        }
-      } catch {
-        // Risk agent unavailable — continue without blocking
-      }
-
-      // 4. Deduct from wallet
-      await supabase
-        .from("wallets")
-        .update({ balance: wallet.balance - stake })
-        .eq("user_id", user.id);
-
-      // 5. Create transaction record
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        wallet_id: wallet.id,
-        type: "bet",
-        amount: -stake,
-        balance_before: wallet.balance,
-        balance_after: wallet.balance - stake,
-        reference_type: "bet",
-        reference_id: bet.id,
-        description: `Scommessa ${betType}: ${betslip.map((b) => b.match).join(", ")}`,
-        status: "completed",
+          selections: betslip.map((b) => ({
+            eventId: b.eventId,
+            marketId: b.marketId,
+            outcomeId: b.outcomeId,
+            odds: b.odds,
+          })),
+        }),
       });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPlacingBet(false);
+
+        // Handle odds changed — update betslip with new odds
+        if (data.code === "ODDS_CHANGED" && data.updated_selections) {
+          setBetslip((prev) =>
+            prev.map((item) => {
+              const updated = data.updated_selections.find(
+                (s: any) => s.outcomeId === item.outcomeId
+              );
+              return updated ? { ...item, odds: updated.current_odds } : item;
+            })
+          );
+          return {
+            success: false,
+            error: "Le quote sono cambiate. La schedina e' stata aggiornata.",
+            updated_selections: data.updated_selections,
+          };
+        }
+
+        // Handle limit exceeded — return max_stake for UI
+        if (data.code === "LIMIT_EXCEEDED" || data.code === "DAILY_LIMIT_EXCEEDED") {
+          return { success: false, error: data.error, accepted_stake: data.max_stake || data.remaining };
+        }
+
+        return { success: false, error: data.error || "Errore nel piazzamento" };
+      }
 
       setBetslip([]);
       setPlacingBet(false);
-      return { success: true, flagged };
+
+      return {
+        success: true,
+        flagged: data.flagged,
+        partial: data.partial,
+        accepted_stake: data.stake,
+        pending_acceptance: data.status === "pending_acceptance",
+      };
     } catch (err: any) {
       setPlacingBet(false);
       return { success: false, error: err.message || "Errore imprevisto" };

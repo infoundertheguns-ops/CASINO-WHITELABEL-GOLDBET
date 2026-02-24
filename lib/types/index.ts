@@ -100,12 +100,25 @@ export interface Bet {
   stake: number;
   potential_win: number;
   total_odds: number;
-  status: "open" | "won" | "lost" | "void" | "cashout";
+  status: "open" | "won" | "lost" | "void" | "cashout" | "pending_acceptance" | "rejected";
   is_free_bet: boolean;
   free_bet_id?: string;
   settled_at?: string;
   created_at: string;
   legs: BetLeg[];
+  // Acceptance system
+  requested_stake?: number;
+  accepted_stake?: number;
+  acceptance_mode?: "auto" | "manual" | "partial";
+  accepted_by?: string;
+  acceptance_note?: string;
+  reviewed_at?: string;
+  // Tracking
+  placed_ip?: string;
+  placed_fingerprint?: string;
+  time_to_kickoff_minutes?: number;
+  risk_score?: number;
+  risk_flags?: string[];
 }
 
 export interface BetLeg {
@@ -441,6 +454,73 @@ export interface EnhancedRiskAnalysis {
   confidence: number;
   recommended_actions: string[];
   reasoning: string;
+}
+
+// ═══ RISK — Additional types ═══
+
+export interface RiskAction {
+  id: string;
+  action_type: string;
+  entity_type: string;
+  entity_id: string;
+  performed_by?: string;
+  performed_by_system: boolean;
+  details?: Record<string, any>;
+  notes?: string;
+  created_at: string;
+}
+
+export interface AdminNotification {
+  id: string;
+  admin_user_id?: string;
+  type: "risk_alert" | "bet_review" | "liability_warning" | "odds_suggestion" | "system";
+  severity: "info" | "warning" | "critical";
+  title: string;
+  message?: string;
+  link?: string;
+  related_entity_type?: string;
+  related_entity_id?: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface OddsAdjustment {
+  id: string;
+  outcome_id: string;
+  market_id?: string;
+  event_id?: string;
+  old_odds: number;
+  new_odds: number;
+  reason: string;
+  suggested_by?: string;
+  approved_by?: string;
+  auto_applied: boolean;
+  liability_snapshot?: Record<string, any>;
+  created_at: string;
+}
+
+export interface LoginFingerprint {
+  id: string;
+  user_id: string;
+  ip_address?: string;
+  fingerprint?: string;
+  user_agent?: string;
+  country?: string;
+  created_at: string;
+}
+
+export interface AcceptanceConfig {
+  mode: "auto" | "manual" | "hybrid";
+  partial_accept_enabled: boolean;
+  manual_review_stake_threshold: number;
+  live_bet_delay_seconds: number;
+  max_liability_per_outcome: number;
+  max_liability_per_event: number;
+  max_liability_per_market: number;
+  sharp_player_mode: "auto" | "manual" | "block";
+  odds_change_tolerance: number;
+  auto_accept_max_stake: number;
+  always_manual_classes: string[];
 }
 
 // ═══ AGENTS ═══
