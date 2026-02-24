@@ -262,6 +262,135 @@ function MarketCard({
   );
 }
 
+// ═══ SPORT FIELD BACKGROUNDS ═══
+
+function SoccerField() {
+  return (
+    <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect width="600" height="180" fill="transparent" />
+      <rect x="30" y="10" width="540" height="160" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" rx="2" />
+      <line x1="300" y1="10" x2="300" y2="170" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <circle cx="300" cy="90" r="35" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.15" />
+      <rect x="30" y="35" width="70" height="110" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+      <rect x="30" y="60" width="30" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+      <rect x="500" y="35" width="70" height="110" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+      <rect x="540" y="60" width="30" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+      <path d="M 100 65 A 20 20 0 0 1 100 115" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+      <path d="M 500 65 A 20 20 0 0 0 500 115" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function BasketCourt() {
+  return (
+    <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect width="600" height="180" fill="transparent" />
+      <rect x="30" y="10" width="540" height="160" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" rx="2" />
+      <line x1="300" y1="10" x2="300" y2="170" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <circle cx="300" cy="90" r="28" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <path d="M 30 55 Q 120 55 120 90 Q 120 125 30 125" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+      <path d="M 570 55 Q 480 55 480 90 Q 480 125 570 125" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+      <rect x="30" y="60" width="55" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+      <rect x="515" y="60" width="55" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+      <circle cx="85" cy="90" r="3" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1" />
+      <circle cx="515" cy="90" r="3" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1" />
+      <line x1="57" y1="45" x2="57" y2="135" stroke="white" strokeOpacity="0.06" strokeWidth="1" />
+      <line x1="543" y1="45" x2="543" y2="135" stroke="white" strokeOpacity="0.06" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function TennisCourt() {
+  return (
+    <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect width="600" height="180" fill="transparent" />
+      <rect x="60" y="15" width="480" height="150" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" rx="1" />
+      <rect x="110" y="15" width="380" height="150" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
+      <line x1="300" y1="15" x2="300" y2="165" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" />
+      <line x1="300" y1="85" x2="300" y2="95" stroke="white" strokeOpacity="0.3" strokeWidth="2" />
+      <line x1="110" y1="90" x2="490" y2="90" stroke="white" strokeOpacity="0.06" strokeWidth="1" />
+      <line x1="60" y1="55" x2="540" y2="55" stroke="white" strokeOpacity="0.06" strokeWidth="0.8" />
+      <line x1="60" y1="125" x2="540" y2="125" stroke="white" strokeOpacity="0.06" strokeWidth="0.8" />
+    </svg>
+  );
+}
+
+function IceRink() {
+  return (
+    <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect width="600" height="180" fill="transparent" />
+      <rect x="30" y="10" width="540" height="160" rx="30" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <line x1="300" y1="10" x2="300" y2="170" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" />
+      <circle cx="300" cy="90" r="25" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
+      <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.15" />
+      <line x1="170" y1="10" x2="170" y2="170" stroke="rgba(59,130,246,0.15)" strokeWidth="1.5" />
+      <line x1="430" y1="10" x2="430" y2="170" stroke="rgba(59,130,246,0.15)" strokeWidth="1.5" />
+      <line x1="100" y1="10" x2="100" y2="170" stroke="rgba(239,68,68,0.12)" strokeWidth="1.5" />
+      <line x1="500" y1="10" x2="500" y2="170" stroke="rgba(239,68,68,0.12)" strokeWidth="1.5" />
+      <circle cx="170" cy="90" r="20" fill="none" stroke="white" strokeOpacity="0.06" strokeWidth="1" />
+      <circle cx="430" cy="90" r="20" fill="none" stroke="white" strokeOpacity="0.06" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function VolleyCourt() {
+  return (
+    <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect width="600" height="180" fill="transparent" />
+      <rect x="60" y="15" width="480" height="150" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" rx="1" />
+      <line x1="300" y1="5" x2="300" y2="175" stroke="white" strokeOpacity="0.2" strokeWidth="2" />
+      <line x1="180" y1="15" x2="180" y2="165" stroke="white" strokeOpacity="0.06" strokeWidth="1" strokeDasharray="4 4" />
+      <line x1="420" y1="15" x2="420" y2="165" stroke="white" strokeOpacity="0.06" strokeWidth="1" strokeDasharray="4 4" />
+      <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.2" />
+    </svg>
+  );
+}
+
+function GenericField() {
+  return (
+    <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect width="600" height="180" fill="transparent" />
+      <circle cx="300" cy="90" r="50" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1.5" />
+      <circle cx="300" cy="90" r="25" fill="none" stroke="white" strokeOpacity="0.06" strokeWidth="1" />
+      <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.12" />
+      <line x1="100" y1="90" x2="500" y2="90" stroke="white" strokeOpacity="0.04" strokeWidth="1" />
+      <line x1="300" y1="20" x2="300" y2="160" stroke="white" strokeOpacity="0.04" strokeWidth="1" />
+    </svg>
+  );
+}
+
+const SPORT_BG_COLORS: Record<string, string> = {
+  calcio: "#1a472a",
+  "calcio-a-5": "#1a472a",
+  basket: "#4a2810",
+  tennis: "#1a3a5c",
+  "tennis-tavolo": "#1a3355",
+  hockey: "#0c2d48",
+  "hockey-ghiaccio": "#0c2d48",
+  volley: "#2d1a47",
+  pallavolo: "#2d1a47",
+  rugby: "#2a3d1a",
+  baseball: "#2a3d1a",
+  handball: "#3d2a1a",
+  cricket: "#2a3d1a",
+  snooker: "#1a3d2a",
+  freccette: "#1a1a2e",
+  mma: "#2e1a1a",
+  boxe: "#2e1a1a",
+  esports: "#1a1a2e",
+};
+
+function SportFieldSvg({ sportSlug }: { sportSlug?: string }) {
+  const slug = sportSlug || "calcio";
+  if (slug === "calcio" || slug === "calcio-a-5") return <SoccerField />;
+  if (slug === "basket") return <BasketCourt />;
+  if (slug === "tennis" || slug === "tennis-tavolo") return <TennisCourt />;
+  if (slug === "hockey" || slug === "hockey-ghiaccio") return <IceRink />;
+  if (slug === "volley" || slug === "pallavolo") return <VolleyCourt />;
+  return <GenericField />;
+}
+
 // ═══ PAGE COMPONENT ═══
 
 export default function EventDetail() {
@@ -520,20 +649,8 @@ export default function EventDetail() {
       {/* ── Event Header ── */}
       {ev.live ? (
         /* LIVE header */
-        <div className="rounded-2xl mb-4 relative overflow-hidden" style={{ backgroundColor: "#1a472a", minHeight: "180px" }}>
-          <svg viewBox="0 0 600 180" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
-            <rect width="600" height="180" fill="transparent" />
-            <rect x="30" y="10" width="540" height="160" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" rx="2" />
-            <line x1="300" y1="10" x2="300" y2="170" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
-            <circle cx="300" cy="90" r="35" fill="none" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
-            <circle cx="300" cy="90" r="2" fill="white" fillOpacity="0.15" />
-            <rect x="30" y="35" width="70" height="110" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
-            <rect x="30" y="60" width="30" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
-            <rect x="500" y="35" width="70" height="110" fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="1.2" />
-            <rect x="540" y="60" width="30" height="60" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
-            <path d="M 100 65 A 20 20 0 0 1 100 115" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
-            <path d="M 500 65 A 20 20 0 0 0 500 115" fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="1" />
-          </svg>
+        <div className="rounded-2xl mb-4 relative overflow-hidden" style={{ backgroundColor: SPORT_BG_COLORS[ev.sportSlug || "calcio"] || "#1a472a", minHeight: "180px" }}>
+          <SportFieldSvg sportSlug={ev.sportSlug} />
           <div className="relative z-10 px-6 py-5 flex flex-col items-center justify-center min-h-[180px]">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[10px] text-white/50">{ev.leagueIcon} {ev.league}</span>
