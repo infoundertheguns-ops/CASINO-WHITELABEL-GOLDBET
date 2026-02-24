@@ -95,8 +95,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  let inserted = 0;
-  let updated = 0;
+  let processed = 0;
   const errors: string[] = [];
 
   const sportCache = new Map<string, string>();
@@ -153,35 +152,11 @@ export async function POST(req: NextRequest) {
         leagueCache.set(leagueSlug, leagueId);
       }
 
-      // ── 3. Find or create event ──
-      const { data: existingEvent } = await supabase
+      // ── 3. Upsert event by external_id ──
+      const { data: event, error: eventErr } = await supabase
         .from("events")
-        .select("id")
-        .eq("external_id", ev.external_id)
-        .maybeSingle();
-
-      let event: { id: string } | null = null;
-
-      if (existingEvent) {
-        await supabase
-          .from("events")
-          .update({
-            sport_id: sportId,
-            league_id: leagueId,
-            home_team: ev.home_team,
-            away_team: ev.away_team,
-            starts_at: ev.starts_at,
-            status: ev.status || "prematch",
-            is_live: false,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingEvent.id);
-        event = existingEvent;
-        updated++;
-      } else {
-        const { data: newEvent, error: insertErr } = await supabase
-          .from("events")
-          .insert({
+        .upsert(
+          {
             external_id: ev.external_id,
             sport_id: sportId,
             league_id: leagueId,
@@ -190,19 +165,20 @@ export async function POST(req: NextRequest) {
             starts_at: ev.starts_at,
             status: ev.status || "prematch",
             is_live: false,
-          })
-          .select("id")
-          .single();
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "external_id" }
+        )
+        .select("id")
+        .single();
 
-        if (insertErr || !newEvent) {
-          errors.push(`${ev.external_id}: event insert failed — ${insertErr?.message}`);
-          continue;
-        }
-        event = newEvent;
-        inserted++;
+      if (eventErr || !event) {
+        errors.push(`${ev.external_id}: event upsert failed — ${eventErr?.message}`);
+        continue;
       }
 
-      if (!event || !ev.markets?.length) continue;
+      processed++;
+      if (!ev.markets?.length) continue;
 
       // ── 4. Upsert markets (deduplicate by market_type first) ──
       const dedupMarkets = new Map<string, Record<string, unknown>>();
@@ -272,5 +248,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ inserted, updated, errors });
+  return NextResponse.json({ processed, errors });
 }

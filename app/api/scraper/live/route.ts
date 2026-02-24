@@ -125,34 +125,35 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // ── 1. Find or auto-create event ──
-      // First try by external_id, then fallback to team names + league to catch duplicates
-      let { data: event } = await supabase
+      // ── 1. Find existing event by external_id ──
+      const { data: existingEvents } = await supabase
         .from("events")
         .select("id")
         .eq("external_id", ev.external_id)
-        .maybeSingle();
+        .limit(1);
 
+      let event: { id: string } | null = existingEvents?.[0] || null;
+
+      // Fallback: find by team names (catches dupes with different external_ids)
       if (!event && ev.home_team && ev.away_team) {
-        // Fallback: find existing event by team names (catches dupes with different external_ids)
-        const { data: dupEvent } = await supabase
+        const { data: dupEvents } = await supabase
           .from("events")
-          .select("id, external_id")
+          .select("id")
           .eq("home_team", ev.home_team)
           .eq("away_team", ev.away_team)
           .eq("is_live", true)
-          .maybeSingle();
+          .limit(1);
 
-        if (dupEvent) {
-          event = dupEvent;
-          // Update external_id to the latest one
+        if (dupEvents?.[0]) {
+          event = dupEvents[0];
           await supabase
             .from("events")
             .update({ external_id: ev.external_id })
-            .eq("id", dupEvent.id);
+            .eq("id", event.id);
         }
       }
 
+      // Auto-create if not found
       if (!event) {
         if (!ev.home_team || !ev.away_team || !ev.sport) {
           errors.push(`${ev.external_id}: event not found and missing creation fields`);
