@@ -9,6 +9,12 @@ const config: Config = {
   darkMode: "class",
   theme: {
     extend: {
+      fontSize: {
+        xs: ["13px", { lineHeight: "18px" }],   // default 12px
+        sm: ["14.5px", { lineHeight: "21px" }],  // default 14px
+        base: ["16.5px", { lineHeight: "26px" }], // default 16px
+        lg: ["18.5px", { lineHeight: "28px" }],  // default 18px
+      },
       fontFamily: {
         sans: ["Geist", "SF Pro", "-apple-system", "sans-serif"],
         mono: ["Geist Mono", "SF Mono", "monospace"],

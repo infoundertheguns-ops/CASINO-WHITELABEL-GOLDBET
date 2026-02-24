@@ -377,6 +377,14 @@ export default function AdminRiskAgent() {
                         {bet.is_live && (
                           <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold">LIVE</span>
                         )}
+                        <span
+                          className="text-[9px] font-mono cursor-pointer hover:text-brand transition-colors"
+                          style={{ color: "var(--admin-text4)" }}
+                          title="Clicca per copiare ID completo"
+                          onClick={() => { navigator.clipboard.writeText(bet.id); }}
+                        >
+                          #{bet.id?.slice(0, 8)} 📋
+                        </span>
                       </div>
                       <div className="text-[10px] mb-2" style={{ color: "var(--admin-text3)" }}>
                         {(bet.bet_selections || []).map((s: any, i: number) => (

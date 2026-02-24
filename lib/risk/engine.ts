@@ -457,10 +457,28 @@ Respond ONLY with valid JSON:
       }),
     });
 
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error("Claude API error:", res.status, errBody);
+      return null;
+    }
+
     const data = await res.json();
     const text = data.content?.[0]?.text || "{}";
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
-  } catch {
+    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+
+    // Validate required fields
+    return {
+      score: typeof parsed.score === "number" ? parsed.score : 0,
+      level: parsed.level || "low",
+      flags: Array.isArray(parsed.flags) ? parsed.flags : [],
+      player_classification: parsed.player_classification || "unknown",
+      confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
+      recommended_actions: Array.isArray(parsed.recommended_actions) ? parsed.recommended_actions : [],
+      reasoning: parsed.reasoning || "AI analysis completed but no reasoning provided",
+    };
+  } catch (err) {
+    console.error("Claude AI analysis error:", err);
     return null;
   }
 }
@@ -811,8 +829,12 @@ export async function runRiskAnalysis(
     aiAnalysis = await analyzeWithClaude(bet, user, profile, history || [], ruleAnalysis.flags, config.ai_settings);
   }
 
-  // Final score
-  const finalScore = aiAnalysis ? Math.max(ruleAnalysis.score, aiAnalysis.score) : ruleAnalysis.score;
+  // Final score — protect against NaN from malformed AI response
+  const aiScore = aiAnalysis?.score;
+  const rawFinal = (typeof aiScore === "number" && !isNaN(aiScore))
+    ? Math.max(ruleAnalysis.score, aiScore)
+    : ruleAnalysis.score;
+  const finalScore = Math.min(100, Math.max(0, rawFinal || ruleAnalysis.score));
   const finalLevel = finalScore <= 25 ? "low" : finalScore <= 50 ? "medium" : finalScore <= 75 ? "high" : "critical";
 
   // Auto-actions

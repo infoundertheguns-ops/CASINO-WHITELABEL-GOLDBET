@@ -15,8 +15,19 @@ function getSupabase() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { bet_id, use_ai } = await req.json();
+    let { bet_id, use_ai } = await req.json();
     const supabase = getSupabase();
+
+    // Strip # prefix if present
+    bet_id = bet_id?.replace(/^#/, "");
+
+    // If partial ID (not full UUID), resolve to full ID
+    if (bet_id && bet_id.length < 36) {
+      const { data } = await supabase
+        .from("bets").select("id").ilike("id", `${bet_id}%`).limit(1).single();
+      if (!data) return NextResponse.json({ error: "Bet non trovata con ID parziale" }, { status: 404 });
+      bet_id = data.id;
+    }
 
     const result = await runRiskAnalysis(supabase, bet_id, { use_ai });
 
