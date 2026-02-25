@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { RevenueChart } from "@/components/admin/dashboard/revenue-chart";
 import { BetVolumeChart } from "@/components/admin/dashboard/bet-volume-chart";
@@ -25,85 +24,50 @@ export default function AdminDashboard() {
   const [recentBets, setRecentBets] = useState<any[]>([]);
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
   const [sportBreakdown, setSportBreakdown] = useState<any[]>([]);
-  const supabase = createClient();
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch aggregated stats
-      const statsRes = await fetch(`/api/admin/stats?range=${range}`);
-      const statsData = await statsRes.json();
+      // Single server-side API call — all data in one round-trip
+      const res = await fetch(`/api/admin/stats?range=${range}&dashboard=true`);
+      const data = await res.json();
 
-      setStats(statsData.stats || []);
+      setStats(data.stats || []);
+      setRecentBets(data.recent_bets || []);
+      setRecentUsers(data.recent_users || []);
 
       // KPIs
-      const k = statsData.kpis || {};
-      const pk = statsData.prev_kpis || {};
+      const k = data.kpis || {};
+      const pk = data.prev_kpis || {};
       const trend = (cur: number, prev: number) => prev > 0 ? ((cur - prev) / prev) * 100 : 0;
 
-      // Count total users and open alerts
-      const [
-        { data: allUsers },
-        { data: openAlerts },
-        { data: allWallets },
-      ] = await Promise.all([
-        supabase.from("users").select("id", { count: "exact" }),
-        supabase.from("risk_flags").select("id", { count: "exact" }).eq("status", "open"),
-        supabase.from("wallets").select("balance"),
-      ]);
-
-      const totalUsers = allUsers?.length || 0;
-      const totalBalance = (allWallets || []).reduce((s, w) => s + (w.balance || 0), 0);
-
       setKpis([
-        { label: "UTENTI", value: String(totalUsers), color: "text-blue-400" },
+        { label: "UTENTI", value: String(k.total_users || 0), color: "text-blue-400" },
         { label: "SCOMMESSE", value: String(k.total_bets || 0), trend: trend(k.total_bets, pk.total_bets), color: "text-brand" },
         { label: "VOLUME", value: `$${(k.total_stake || 0).toFixed(0)}`, trend: trend(k.total_stake, pk.total_stake), color: "text-emerald-400" },
         { label: "GGR", value: `$${(k.ggr || 0).toFixed(0)}`, trend: trend(k.ggr, pk.ggr), color: (k.ggr || 0) >= 0 ? "text-emerald-500" : "text-red-400" },
         { label: "BET APERTE", value: String(k.open_bets || 0), color: "text-yellow-400" },
         { label: "DEPOSITI", value: `$${(k.deposits || 0).toFixed(0)}`, color: "text-teal-400" },
-        { label: "ALERT RISCHIO", value: String(openAlerts?.length || 0), color: "text-red-400" },
+        { label: "ALERT RISCHIO", value: String(k.risk_alerts || 0), color: "text-red-400" },
         { label: "MARGIN %", value: `${(k.margin_pct || 0).toFixed(1)}%`, color: "text-purple-400" },
       ]);
 
       // Sport breakdown from stats
       const sportMap: Record<string, { count: number; stake: number }> = {};
-      for (const day of statsData.stats || []) {
-        for (const [sport, data] of Object.entries(day.sport_breakdown || {})) {
+      for (const day of data.stats || []) {
+        for (const [sport, d] of Object.entries(day.sport_breakdown || {})) {
           if (!sportMap[sport]) sportMap[sport] = { count: 0, stake: 0 };
-          sportMap[sport].count += (data as any).count || 0;
-          sportMap[sport].stake += (data as any).stake || 0;
+          sportMap[sport].count += (d as any).count || 0;
+          sportMap[sport].stake += (d as any).stake || 0;
         }
       }
       setSportBreakdown(Object.entries(sportMap).map(([name, d]) => ({ name, ...d })));
-
-      // Recent bets
-      const { data: rBets } = await supabase
-        .from("bets")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (rBets && rBets.length > 0) {
-        const userIds = [...new Set(rBets.map((b: any) => b.user_id))];
-        const { data: users } = await supabase.from("users").select("id, username").in("id", userIds);
-        const userMap = new Map(users?.map((u: any) => [u.id, u.username]) || []);
-        setRecentBets(rBets.map((b: any) => ({ ...b, username: userMap.get(b.user_id) || "—" })));
-      }
-
-      // Recent users
-      const { data: rUsers } = await supabase
-        .from("users")
-        .select("id, username, email, created_at, kyc_status")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (rUsers) setRecentUsers(rUsers);
 
     } catch (err) {
       console.error("Dashboard error:", err);
     }
     setLoading(false);
-  }, [range, supabase]);
+  }, [range]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 

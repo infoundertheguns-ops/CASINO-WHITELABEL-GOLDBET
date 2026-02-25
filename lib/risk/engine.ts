@@ -752,12 +752,6 @@ export async function batchPatternDetection(
   }
 
   // Rule 15: League specialist (>80% bets on one non-top league)
-  const { data: leagueBets } = await supabase
-    .from("bet_selections")
-    .select("events(league_id, leagues(name, slug))")
-    .eq("bets.user_id", userId)
-    .limit(100);
-  // Simplified: check from bets directly
   const { data: userBetsWithLeague } = await supabase
     .from("bets").select("bet_selections(events(leagues(name, slug)))").eq("user_id", userId).limit(100);
 

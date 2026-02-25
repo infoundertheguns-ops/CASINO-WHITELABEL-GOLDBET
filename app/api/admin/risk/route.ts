@@ -25,62 +25,36 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     if (tab === "overview") {
+      // Minimize Supabase round-trips (each ~2s from VPS)
+      // Single query for alerts + single for recent alerts + single for bets
       const [
-        { data: openAlerts },
-        { data: criticalAlerts },
-        { data: flaggedBets },
-        { data: flaggedUsers },
+        { data: allOpenFlags, count: openCount },
         { data: recentAlerts },
-        { data: todayBlocked },
-        { data: pendingBets },
+        { count: pendingCount },
       ] = await Promise.all([
-        supabase.from("risk_flags").select("id", { count: "exact" }).eq("status", "open"),
-        supabase.from("risk_flags").select("id", { count: "exact" }).eq("severity", "critical").eq("status", "open"),
-        supabase.from("bets").select("risk_score").not("risk_score", "is", null).gt("risk_score", 0),
-        supabase.from("player_profiles").select("id", { count: "exact" }).gt("risk_score", 50),
+        supabase.from("risk_flags").select("id, severity, flag_type, created_at", { count: "exact" }).eq("status", "open"),
         supabase.from("risk_flags").select("*, users(username, email)").order("created_at", { ascending: false }).limit(10),
-        supabase.from("risk_flags").select("id", { count: "exact" }).eq("flag_type", "auto_block").gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-        supabase.from("bets").select("id", { count: "exact" }).eq("status", "pending_acceptance"),
+        supabase.from("bets").select("*", { count: "exact", head: true }).eq("status", "pending_acceptance"),
       ]);
 
-      const allScores = (flaggedBets || []).map(b => b.risk_score || 0);
-      const distribution = {
-        low: allScores.filter(s => s <= 25).length,
-        medium: allScores.filter(s => s > 25 && s <= 50).length,
-        high: allScores.filter(s => s > 50 && s <= 75).length,
-        critical: allScores.filter(s => s > 75).length,
-      };
-      const avgScore = allScores.length > 0
-        ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
-
-      // Sport risk
-      const { data: sportBets } = await supabase
-        .from("bets")
-        .select("risk_score, bet_selections(events(sports(name)))")
-        .not("risk_score", "is", null).gt("risk_score", 0).limit(500);
-
-      const sportRisk: Record<string, { count: number; totalScore: number }> = {};
-      for (const b of sportBets || []) {
-        const sportName = (b as any).bet_selections?.[0]?.events?.sports?.name || "Altro";
-        if (!sportRisk[sportName]) sportRisk[sportName] = { count: 0, totalScore: 0 };
-        sportRisk[sportName].count++;
-        sportRisk[sportName].totalScore += b.risk_score || 0;
-      }
+      // Derive KPIs from the single flags query
+      const flags = allOpenFlags || [];
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+      const criticalCount = flags.filter(f => f.severity === "critical").length;
+      const blockedToday = flags.filter(f => f.flag_type === "auto_block" && f.created_at >= todayStart).length;
 
       return NextResponse.json({
         kpis: {
-          open_alerts: openAlerts?.length || 0,
-          critical_alerts: criticalAlerts?.length || 0,
-          avg_score: avgScore,
-          flagged_users: flaggedUsers?.length || 0,
-          blocked_today: todayBlocked?.length || 0,
-          pending_bets: pendingBets?.length || 0,
+          open_alerts: openCount || 0,
+          critical_alerts: criticalCount,
+          avg_score: 0, // loaded via stats tab
+          flagged_users: 0, // loaded via stats tab
+          blocked_today: blockedToday,
+          pending_bets: pendingCount || 0,
         },
-        distribution,
+        distribution: { low: 0, medium: 0, high: 0, critical: 0 }, // loaded via stats tab
         recent_alerts: recentAlerts || [],
-        sport_risk: Object.entries(sportRisk).map(([sport, data]) => ({
-          sport, count: data.count, avg_score: Math.round(data.totalScore / data.count),
-        })),
+        sport_risk: [],
       });
     }
 
@@ -124,7 +98,27 @@ export async function GET(req: NextRequest) {
         byDay[day] = (byDay[day] || 0) + 1;
       }
 
-      return NextResponse.json({ byType, bySeverity, byDay });
+      // Sport risk (moved here from overview for performance)
+      const { data: sportBets } = await supabase
+        .from("bets")
+        .select("risk_score, bet_selections(events(sports(name)))")
+        .not("risk_score", "is", null).gt("risk_score", 0)
+        .order("created_at", { ascending: false }).limit(100);
+
+      const sportRisk: Record<string, { count: number; totalScore: number }> = {};
+      for (const b of sportBets || []) {
+        const sportName = (b as any).bet_selections?.[0]?.events?.sports?.name || "Altro";
+        if (!sportRisk[sportName]) sportRisk[sportName] = { count: 0, totalScore: 0 };
+        sportRisk[sportName].count++;
+        sportRisk[sportName].totalScore += b.risk_score || 0;
+      }
+
+      return NextResponse.json({
+        byType, bySeverity, byDay,
+        sport_risk: Object.entries(sportRisk).map(([sport, data]) => ({
+          sport, count: data.count, avg_score: Math.round(data.totalScore / data.count),
+        })),
+      });
     }
 
     // Player detail
@@ -223,6 +217,27 @@ export async function PATCH(req: NextRequest) {
       }
 
       return NextResponse.json({ success: true, updated: ids.length });
+    }
+
+    // Assignment update (no status change)
+    if (body.id && body.assigned_to !== undefined && !body.status) {
+      const { data } = await supabase
+        .from("risk_flags")
+        .update({ assigned_to: body.assigned_to })
+        .eq("id", body.id)
+        .select()
+        .single();
+
+      await supabase.from("risk_actions").insert({
+        action_type: "assign",
+        entity_type: "risk_flag",
+        entity_id: body.id,
+        performed_by: "admin",
+        performed_by_system: false,
+        notes: body.assigned_to ? `Assigned to ${body.assigned_to}` : "Unassigned",
+      });
+
+      return NextResponse.json({ success: true, data });
     }
 
     // Single update (backward compat)

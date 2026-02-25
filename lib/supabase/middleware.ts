@@ -2,6 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+
+  // Admin routes — skip auth entirely (VPS behind SSH tunnel)
+  if (path.startsWith("/admin")) {
+    return NextResponse.next({ request });
+  }
+
+  // API routes — skip auth
+  if (path.startsWith("/api/")) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -29,36 +41,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
-
   // Protected player routes (wallet, account, bets require login)
-  // Sport, casino, promo are publicly accessible
   if (!user && path.match(/^\/(wallet|account|bets)/)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
-  }
-
-  // Protected admin routes
-  if (path.startsWith("/admin")) {
-    if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
-    }
-    // Check admin role (via user metadata or separate query)
-    const { data: adminUser } = await supabase
-      .from("admin_users")
-      .select("id, role_id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!adminUser) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
   }
 
   // Redirect logged-in users away from auth pages

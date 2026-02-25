@@ -11,6 +11,9 @@ import { FlaggedUsersTable } from "@/components/admin/risk/flagged-users-table";
 import { AIAnalysisPanel } from "@/components/admin/risk/ai-analysis-panel";
 import { ResolveModal } from "@/components/admin/risk/resolve-modal";
 import { SLABadge } from "@/components/admin/risk/sla-badge";
+import { AssignmentDropdown } from "@/components/admin/risk/assignment-dropdown";
+import { AlertsPerDayChart } from "@/components/admin/risk/alerts-per-day-chart";
+import { LiveBetTicker } from "@/components/admin/risk/live-bet-ticker";
 
 type Tab = "dashboard" | "alerts" | "users" | "ai" | "trading" | "liability";
 
@@ -36,6 +39,11 @@ export default function AdminRiskAgent() {
   // Liability
   const [liabilityData, setLiabilityData] = useState<any>(null);
   const [liabilityEvent, setLiabilityEvent] = useState<any>(null);
+  // Admins list for assignment
+  const [admins, setAdmins] = useState<{ id: string; display_name: string }[]>([]);
+  // Stats for dashboard charts (lazy loaded)
+  const [alertsByDay, setAlertsByDay] = useState<Record<string, number>>({});
+  const [sportRisk, setSportRisk] = useState<any[]>([]);
 
   const supabase = createClient();
 
@@ -45,6 +53,30 @@ export default function AdminRiskAgent() {
       const data = await res.json();
       setOverview(data);
     } catch {}
+  }, []);
+
+  // Load stats lazily only when dashboard tab is active
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/risk?tab=stats");
+      const data = await res.json();
+      setAlertsByDay(data.byDay || {});
+      setSportRisk(data.sport_risk || []);
+    } catch {}
+  }, []);
+
+  // Load admin users for assignment dropdown
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/risk?tab=users&page=1&limit=1");
+        // Admin users from admin_users table — use a simple list
+        // For now, provide a default admin
+        setAdmins([
+          { id: "admin", display_name: "Admin" },
+        ]);
+      } catch {}
+    })();
   }, []);
 
   const loadAlerts = useCallback(async () => {
@@ -94,6 +126,7 @@ export default function AdminRiskAgent() {
     Promise.all([loadOverview()]).finally(() => setLoading(false));
   }, [loadOverview]);
 
+  useEffect(() => { if (tab === "dashboard") loadStats(); }, [tab, loadStats]);
   useEffect(() => { if (tab === "alerts") loadAlerts(); }, [tab, loadAlerts]);
   useEffect(() => { if (tab === "users") loadUsers(); }, [tab, loadUsers]);
   useEffect(() => { if (tab === "trading") loadTrading(); }, [tab, loadTrading]);
@@ -157,6 +190,15 @@ export default function AdminRiskAgent() {
     });
     if (!res.ok) throw new Error("Analisi fallita");
     return res.json();
+  };
+
+  const handleAssign = async (alertId: string, adminId: string | null) => {
+    await fetch("/api/admin/risk", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: alertId, assigned_to: adminId }),
+    });
+    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, assigned_to: adminId } : a));
   };
 
   const toggleSelect = (id: string) => {
@@ -229,7 +271,11 @@ export default function AdminRiskAgent() {
           />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <RiskScoreChart distribution={overview.distribution || { low: 0, medium: 0, high: 0, critical: 0 }} />
-            <SportRiskChart data={overview.sport_risk || []} />
+            <SportRiskChart data={sportRisk.length > 0 ? sportRisk : (overview.sport_risk || [])} />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <AlertsPerDayChart data={alertsByDay} />
+            <LiveBetTicker />
           </div>
           <AlertsTimeline alerts={overview.recent_alerts || []} onResolve={handleResolveAlert} />
         </div>
@@ -279,6 +325,7 @@ export default function AdminRiskAgent() {
                     <th className="text-left px-3 py-2 font-semibold">Tipo</th>
                     <th className="text-left px-3 py-2 font-semibold">Descrizione</th>
                     <th className="text-center px-3 py-2 font-semibold">SLA</th>
+                    <th className="text-center px-3 py-2 font-semibold">Assegna</th>
                     <th className="text-center px-3 py-2 font-semibold">Status</th>
                     <th className="text-right px-3 py-2 font-semibold">Data</th>
                     <th className="text-center px-3 py-2 font-semibold">Azioni</th>
@@ -308,6 +355,13 @@ export default function AdminRiskAgent() {
                       <td className="px-3 py-2 max-w-xs truncate" style={{ color: "var(--admin-text3)" }}>{a.description}</td>
                       <td className="px-3 py-2 text-center">
                         <SLABadge deadline={a.sla_deadline} severity={a.severity} />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <AssignmentDropdown
+                          currentAssignee={a.assigned_to}
+                          admins={admins}
+                          onAssign={(adminId) => handleAssign(a.id, adminId)}
+                        />
                       </td>
                       <td className="px-3 py-2 text-center">
                         <span className={cn("text-[8px] font-bold",

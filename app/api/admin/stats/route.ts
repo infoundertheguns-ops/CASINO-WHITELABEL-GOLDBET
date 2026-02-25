@@ -8,17 +8,147 @@ function getSupabase() {
   );
 }
 
+// ═══ In-memory cache (globalThis survives module re-evaluation) ═══
+const g = globalThis as any;
+if (!g.__statsCache) g.__statsCache = {};
+const cache: Record<string, { data: any; ts: number; refreshing?: boolean }> = g.__statsCache;
+const CACHE_TTL = 300_000; // 5 minutes
+
+function getCached(key: string): any | null {
+  const entry = cache[key];
+  if (!entry) return null;
+  if (Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  return null;
+}
+
+function getStale(key: string): any | null {
+  return cache[key]?.data || null;
+}
+
+function setCache(key: string, data: any) {
+  cache[key] = { data, ts: Date.now() };
+}
+
+async function fetchDashboardData(supabase: any, range: string) {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceStr = since.toISOString().split("T")[0];
+
+  const [
+    { data: dailyStats },
+    { data: recentBets },
+    { data: recentUsers },
+  ] = await Promise.all([
+    supabase.from("daily_stats").select("*").gte("date", sinceStr).order("date", { ascending: true }),
+    supabase.from("bets").select("id, user_id, stake, total_odds, potential_win, status, risk_score, bet_type, created_at").order("created_at", { ascending: false }).limit(15),
+    supabase.from("users").select("id, username, email, kyc_status, created_at").order("created_at", { ascending: false }).limit(10),
+  ]);
+
+  // Map user_id → username
+  const userMap: Record<string, string> = {};
+  for (const u of recentUsers || []) userMap[u.id] = u.username || "—";
+  const missingIds = (recentBets || []).map((b: any) => b.user_id).filter((id: string) => id && !userMap[id]);
+  if (missingIds.length > 0) {
+    const uniqueIds = [...new Set(missingIds)] as string[];
+    const { data: extraUsers } = await supabase.from("users").select("id, username").in("id", uniqueIds);
+    for (const u of extraUsers || []) userMap[u.id] = u.username || "—";
+  }
+
+  const stats = dailyStats || [];
+  const totalStake = stats.reduce((s: number, d: any) => s + (d.total_stake || 0), 0);
+  const totalPayout = stats.reduce((s: number, d: any) => s + (d.total_payout || 0), 0);
+  const totalBets = stats.reduce((s: number, d: any) => s + (d.bet_count || 0), 0);
+  const deposits = stats.reduce((s: number, d: any) => s + (d.deposit_volume || 0), 0);
+  const riskAlerts = stats.reduce((s: number, d: any) => s + (d.risk_alerts || 0), 0);
+  const totalNewUsers = stats.reduce((s: number, d: any) => s + (d.new_users || 0), 0);
+  const ggr = totalStake - totalPayout;
+
+  return {
+    stats,
+    kpis: {
+      total_users: Math.max((recentUsers || []).length, totalNewUsers),
+      total_bets: totalBets,
+      total_stake: totalStake,
+      ggr,
+      margin_pct: totalStake > 0 ? (ggr / totalStake) * 100 : 0,
+      deposits,
+      open_bets: 0,
+      risk_alerts: riskAlerts,
+    },
+    prev_kpis: {},
+    recent_bets: (recentBets || []).map((b: any) => ({
+      id: b.id, username: userMap[b.user_id] || "—", stake: b.stake, total_odds: b.total_odds,
+      potential_win: b.potential_win, status: b.status, risk_score: b.risk_score || 0,
+      bet_type: b.bet_type, created_at: b.created_at,
+    })),
+    recent_users: recentUsers || [],
+    source: "cached",
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabase();
-    const range = req.nextUrl.searchParams.get("range") || "30d";
 
+    // Lightweight recent bets endpoint for ticker
+    const recentBetsLimit = req.nextUrl.searchParams.get("recent_bets");
+    if (recentBetsLimit) {
+      const limit = Math.min(parseInt(recentBetsLimit) || 10, 30);
+      const { data: bets } = await supabase
+        .from("bets")
+        .select("id, stake, total_odds, risk_score, bet_type, is_live, created_at, users(username)")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      return NextResponse.json({
+        recent_bets: (bets || []).map(b => ({
+          id: b.id,
+          username: (b as any).users?.username || "—",
+          stake: b.stake || 0,
+          total_odds: b.total_odds || 1,
+          risk_score: b.risk_score,
+          bet_type: b.bet_type || "singola",
+          is_live: b.is_live || false,
+          selections: "",
+          created_at: b.created_at,
+        })),
+      });
+    }
+
+    const range = req.nextUrl.searchParams.get("range") || "30d";
+    const isDashboard = req.nextUrl.searchParams.get("dashboard") === "true";
+
+    // ═══ Dashboard: stale-while-revalidate cache ═══
+    if (isDashboard) {
+      const cacheKey = `dashboard_${range}`;
+      const fresh = getCached(cacheKey);
+      if (fresh) return NextResponse.json(fresh);
+
+      // Serve stale data immediately, refresh in background
+      const stale = getStale(cacheKey);
+      const entry = cache[cacheKey];
+      if (stale && !entry?.refreshing) {
+        entry!.refreshing = true;
+        fetchDashboardData(supabase, range).then(data => {
+          setCache(cacheKey, data);
+        }).catch(() => { if (entry) entry.refreshing = false; });
+        return NextResponse.json(stale);
+      }
+
+      // No cache at all — must wait for fresh data
+      const data = await fetchDashboardData(supabase, range);
+      setCache(cacheKey, data);
+      return NextResponse.json(data);
+    }
+
+    // ═══ Non-dashboard stats endpoint ═══
     const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
     const sinceStr = since.toISOString().split("T")[0];
 
-    // Try to get pre-computed stats
+    // Try pre-computed stats first
     const { data: dailyStats } = await supabase
       .from("daily_stats")
       .select("*")
@@ -52,14 +182,11 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    // Fill all days in range
     for (let i = 0; i < days; i++) {
       const d = new Date(since);
       d.setDate(d.getDate() + i);
       initDay(d.toISOString().split("T")[0]);
     }
-
-    const activeUsersByDay: Record<string, Set<string>> = {};
 
     for (const b of bets || []) {
       const d = b.created_at?.substring(0, 10);
@@ -98,7 +225,6 @@ export async function GET(req: NextRequest) {
       dayMap[d].risk_alerts++;
     }
 
-    // Compute GGR and margin
     for (const d of Object.values(dayMap)) {
       d.ggr = d.total_stake - d.total_payout;
       d.margin_pct = d.total_stake > 0 ? (d.ggr / d.total_stake) * 100 : 0;
@@ -106,45 +232,24 @@ export async function GET(req: NextRequest) {
 
     const stats = Object.values(dayMap).sort((a: any, b: any) => a.date.localeCompare(b.date));
 
-    // Also compute KPI totals
     const allBets = bets || [];
-    const totalStake = allBets.reduce((s, b) => s + (b.stake || 0), 0);
-    const totalPayout = allBets.filter(b => b.status === "won").reduce((s, b) => s + (b.potential_win || 0), 0);
+    const totalStake = allBets.reduce((s: number, b: any) => s + (b.stake || 0), 0);
+    const totalPayout = allBets.filter((b: any) => b.status === "won").reduce((s: number, b: any) => s + (b.potential_win || 0), 0);
     const ggr = totalStake - totalPayout;
     const allTx = transactions || [];
-    const deposits = allTx.filter(t => t.type === "deposit").reduce((s, t) => s + Math.abs(t.amount || 0), 0);
-    const withdrawals = allTx.filter(t => t.type === "withdrawal").reduce((s, t) => s + Math.abs(t.amount || 0), 0);
-
-    // Totals (for previous period comparison)
-    const prevSince = new Date(since);
-    prevSince.setDate(prevSince.getDate() - days);
-    const { data: prevBets } = await supabase
-      .from("bets")
-      .select("stake, status, potential_win")
-      .gte("created_at", prevSince.toISOString())
-      .lt("created_at", since.toISOString());
-
-    const prevStake = (prevBets || []).reduce((s, b) => s + (b.stake || 0), 0);
-    const prevPayout = (prevBets || []).filter(b => b.status === "won").reduce((s, b) => s + (b.potential_win || 0), 0);
+    const deposits = allTx.filter((t: any) => t.type === "deposit").reduce((s: number, t: any) => s + Math.abs(t.amount || 0), 0);
 
     return NextResponse.json({
       stats,
       kpis: {
         total_bets: allBets.length,
         total_stake: totalStake,
-        total_payout: totalPayout,
         ggr,
         margin_pct: totalStake > 0 ? (ggr / totalStake) * 100 : 0,
         deposits,
-        withdrawals,
         new_users: (users || []).length,
         risk_alerts: (riskFlags || []).length,
-        open_bets: allBets.filter(b => b.status === "open").length,
-      },
-      prev_kpis: {
-        total_bets: (prevBets || []).length,
-        total_stake: prevStake,
-        ggr: prevStake - prevPayout,
+        open_bets: allBets.filter((b: any) => b.status === "open").length,
       },
       source: "computed",
     });

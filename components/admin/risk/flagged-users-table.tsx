@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface FlaggedUser {
@@ -36,6 +37,7 @@ const classBadge = (c: string) => {
 
 export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const router = useRouter();
 
   if (users.length === 0) {
     return (
@@ -73,7 +75,11 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
                   onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
                 >
                   <td className="px-4 py-2">
-                    <div className="font-medium" style={{ color: "var(--admin-text)" }}>{u.users?.username || "—"}</div>
+                    <div
+                      className="font-medium hover:text-brand cursor-pointer underline"
+                      style={{ color: "var(--admin-text)" }}
+                      onClick={(e) => { e.stopPropagation(); router.push(`/admin/risk/player/${u.user_id}`); }}
+                    >{u.users?.username || "—"}</div>
                     <div className="text-[9px]" style={{ color: "var(--admin-text4)" }}>{u.users?.email}</div>
                   </td>
                   <td className="px-4 py-2 text-center">
