@@ -355,6 +355,9 @@ export async function settleEvent(
     settled_by: "auto",
   });
 
+  // 10. Mark event as ended and deactivate markets/outcomes
+  await deactivateEvent(supabase, eventId);
+
   return {
     success: true,
     legs_processed: legsProcessed,
@@ -528,10 +531,54 @@ async function voidAllLegs(
     settled_by: "auto",
   });
 
+  // Deactivate markets/outcomes
+  await deactivateEvent(supabase, eventId);
+
   return {
     success: true,
     legs_processed: legs.length,
     bets_settled: betsSettled,
     total_payout: 0,
   };
+}
+
+// ═══ deactivateEvent — set ended + deactivate markets/outcomes ═══
+
+export async function deactivateEvent(
+  supabase: SupabaseClient,
+  eventId: string
+) {
+  const now = new Date().toISOString();
+
+  // Set event to ended
+  await supabase
+    .from("events")
+    .update({ status: "ended", updated_at: now })
+    .eq("id", eventId);
+
+  // Get market IDs for this event
+  const { data: markets } = await supabase
+    .from("markets")
+    .select("id")
+    .eq("event_id", eventId)
+    .eq("is_active", true);
+
+  if (markets && markets.length > 0) {
+    const marketIds = markets.map((m) => m.id);
+
+    // Deactivate markets
+    await supabase
+      .from("markets")
+      .update({ is_active: false, updated_at: now })
+      .in("id", marketIds);
+
+    // Deactivate outcomes (batch in chunks of 200 to avoid query limits)
+    for (let i = 0; i < marketIds.length; i += 200) {
+      const chunk = marketIds.slice(i, i + 200);
+      await supabase
+        .from("outcomes")
+        .update({ is_active: false, updated_at: now })
+        .in("market_id", chunk);
+    }
+  }
 }

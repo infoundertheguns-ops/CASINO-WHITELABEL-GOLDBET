@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { settleEvent } from "@/lib/settlement";
+import { settleEvent, deactivateEvent } from "@/lib/settlement";
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-scraper-key");
@@ -78,16 +78,33 @@ export async function POST(req: NextRequest) {
   // ── Auto-settle finished events (max 20 per cycle to avoid timeout) ──
   const toSettle = toFinish.slice(0, 20);
   let settled = 0;
+  let deactivated = 0;
   const settleErrors: string[] = [];
 
   for (const ev of toSettle) {
     try {
       const res = await settleEvent(supabase, ev.id);
       if (res.success) settled++;
-      else if (res.error) settleErrors.push(`${ev.external_id}: ${res.error}`);
+      else if (res.skipped_no_scores) {
+        // No scores — still deactivate markets/outcomes to save egress
+        await deactivateEvent(supabase, ev.id);
+        deactivated++;
+      } else if (res.error) {
+        settleErrors.push(`${ev.external_id}: ${res.error}`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       settleErrors.push(`${ev.external_id}: ${msg}`);
+    }
+  }
+
+  // ── Deactivate stale prematch events that were cleaned above ──
+  if (stalePrematch && stalePrematch.length > 0) {
+    for (const ev of stalePrematch) {
+      try {
+        await deactivateEvent(supabase, ev.id);
+        deactivated++;
+      } catch { /* ignore */ }
     }
   }
 
@@ -95,6 +112,7 @@ export async function POST(req: NextRequest) {
     finished: toFinish.length,
     stale_prematch_cleaned: staleMarked || undefined,
     settled,
+    deactivated: deactivated || undefined,
     settle_errors: settleErrors.length > 0 ? settleErrors.slice(0, 10) : undefined,
   });
 }
