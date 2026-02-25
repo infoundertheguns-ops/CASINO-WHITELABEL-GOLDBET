@@ -232,11 +232,15 @@ export async function POST(req: NextRequest) {
       if (ev.stats) liveData.stats = ev.stats;
       if (ev.match_events) liveData.matchEvents = ev.match_events;
 
+      // Detect ended events by period
+      const endedPeriods = ['ENDED', 'FINISHED', 'FULL_TIME', 'AFTER_EXTRA_TIME', 'AFTER_PENALTIES'];
+      const isEnded = endedPeriods.includes(ev.period || '');
+
       await supabase
         .from("events")
         .update({
-          status: ev.status || "live",
-          is_live: true,
+          status: isEnded ? "finished" : (ev.status || "live"),
+          is_live: !isEnded,
           minute: ev.minute ?? null,
           score_home: ev.home_score ?? null,
           score_away: ev.away_score ?? null,
