@@ -38,22 +38,21 @@ export async function POST(req: NextRequest) {
   const currentSet = new Set(currentIds);
   const toFinish = staleEvents.filter((e) => !currentSet.has(e.external_id));
 
-  if (toFinish.length === 0) {
-    return NextResponse.json({ finished: 0 });
-  }
+  // Mark stale live events as finished
+  if (toFinish.length > 0) {
+    const ids = toFinish.map((e) => e.id);
+    const { error: updateErr } = await supabase
+      .from("events")
+      .update({
+        is_live: false,
+        status: "finished",
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", ids);
 
-  const ids = toFinish.map((e) => e.id);
-  const { error: updateErr } = await supabase
-    .from("events")
-    .update({
-      is_live: false,
-      status: "finished",
-      updated_at: new Date().toISOString(),
-    })
-    .in("id", ids);
-
-  if (updateErr) {
-    return NextResponse.json({ finished: 0, error: updateErr.message });
+    if (updateErr) {
+      return NextResponse.json({ finished: 0, error: updateErr.message });
+    }
   }
 
   // ── Cleanup stale prematch events (started 3+ hours ago, never went live) ──
@@ -75,7 +74,7 @@ export async function POST(req: NextRequest) {
     if (!staleErr) staleMarked = stalePrematch.length;
   }
 
-  // ── Auto-settle finished events (max 20 per cycle to avoid timeout) ──
+  // ── Auto-settle newly finished events (max 20) ──
   const toSettle = toFinish.slice(0, 20);
   let settled = 0;
   let deactivated = 0;
@@ -86,7 +85,6 @@ export async function POST(req: NextRequest) {
       const res = await settleEvent(supabase, ev.id);
       if (res.success) settled++;
       else if (res.skipped_no_scores) {
-        // No scores — still deactivate markets/outcomes to save egress
         await deactivateEvent(supabase, ev.id);
         deactivated++;
       } else if (res.error) {
@@ -108,11 +106,44 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Process backlog: finished events from previous cycles (max 30) ──
+  const backlogThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data: backlogEvents } = await supabase
+    .from("events")
+    .select("id, external_id, score_home")
+    .eq("status", "finished")
+    .lt("updated_at", backlogThreshold)
+    .order("updated_at", { ascending: true })
+    .limit(30);
+
+  let backlogSettled = 0;
+  let backlogDeactivated = 0;
+
+  if (backlogEvents && backlogEvents.length > 0) {
+    for (const ev of backlogEvents) {
+      try {
+        if (ev.score_home != null) {
+          const res = await settleEvent(supabase, ev.id);
+          if (res.success) backlogSettled++;
+          else {
+            await deactivateEvent(supabase, ev.id);
+            backlogDeactivated++;
+          }
+        } else {
+          await deactivateEvent(supabase, ev.id);
+          backlogDeactivated++;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
   return NextResponse.json({
     finished: toFinish.length,
     stale_prematch_cleaned: staleMarked || undefined,
     settled,
     deactivated: deactivated || undefined,
+    backlog_settled: backlogSettled || undefined,
+    backlog_deactivated: backlogDeactivated || undefined,
     settle_errors: settleErrors.length > 0 ? settleErrors.slice(0, 10) : undefined,
   });
 }
