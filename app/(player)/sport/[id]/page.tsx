@@ -871,7 +871,7 @@ export default function EventDetail() {
                     msgType === "ok" ? "bg-emerald-50 text-emerald-600" : msgType === "warn" ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-600"
                   )}>{msgText}</div>
                 )}
-                {!user && <p className="text-[10px] text-red-500 text-center mt-2">Accedi per scommettere</p>}
+                {!user && <a href="/login" className="block text-[10px] text-red-500 text-center mt-2 underline hover:text-red-700">Accedi per scommettere</a>}
                 <button onClick={handlePlaceBet} disabled={placingBet || !user || !stake || parseFloat(stake) <= 0}
                   className={cn("w-full mt-2 py-2.5 rounded-xl text-white text-sm font-bold transition-all",
                     placingBet ? "bg-gray-400" : "bg-brand hover:bg-brand-dark",

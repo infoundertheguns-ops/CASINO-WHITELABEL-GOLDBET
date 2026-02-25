@@ -294,8 +294,10 @@ export default function MyBetsPage() {
 
   if (!user) {
     return (
-      <div className="p-6 text-center text-gray-400">
-        Accedi per vedere le scommesse
+      <div className="p-6 text-center">
+        <a href="/login" className="text-brand font-semibold underline hover:text-brand-dark">
+          Accedi per vedere le scommesse
+        </a>
       </div>
     );
   }

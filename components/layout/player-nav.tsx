@@ -57,9 +57,9 @@ export function PlayerNavbar({ desktop = false }: { desktop?: boolean }) {
               </Link>
             </>
           ) : (
-            <Link href="/login" className="text-sm font-semibold text-brand">
+            <a href="/login" className="text-sm font-semibold text-brand hover:underline">
               Accedi
-            </Link>
+            </a>
           )}
         </div>
       </div>

@@ -12,6 +12,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
 
   const { signIn } = useAuth();
   const router = useRouter();
@@ -21,21 +22,31 @@ function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setStatus("Connessione...");
     setLoading(true);
 
-    const result = await signIn(email, password);
+    try {
+      setStatus("Autenticazione...");
+      const result = await signIn(email, password);
 
-    if (result.error) {
-      setError(
-        result.error.includes("Invalid")
-          ? "Email o password non corretti"
-          : result.error
-      );
+      if (result.error) {
+        setError(
+          result.error.includes("Invalid")
+            ? "Email o password non corretti"
+            : result.error
+        );
+        setLoading(false);
+        setStatus("");
+        return;
+      }
+
+      setStatus("Accesso riuscito, reindirizzamento...");
+      window.location.href = redirect;
+    } catch (err: any) {
+      setError(err?.message || "Errore di connessione. Riprova.");
       setLoading(false);
-      return;
+      setStatus("");
     }
-
-    router.push(redirect);
   };
 
   return (
@@ -65,6 +76,12 @@ function LoginForm() {
           required
           autoComplete="current-password"
         />
+
+        {status && !error && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-sm text-blue-600">
+            {status}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-sm text-red-600">

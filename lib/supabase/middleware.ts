@@ -37,9 +37,14 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  } catch {
+    // Auth check failed (network timeout, etc.) — allow request to proceed
+    return supabaseResponse;
+  }
 
   // Protected player routes (wallet, account, bets require login)
   if (!user && path.match(/^\/(wallet|account|bets)/)) {
