@@ -2,495 +2,490 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>VinciTu — Guida Risk Management System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VinciTu — Guida Completa Risk Management v2.0</title>
 <style>
-  @page { size: A4; margin: 18mm 15mm; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-break { break-inside: avoid; } }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 10.5pt; line-height: 1.55; color: #1a1a2e; background: #fff; }
-  header { background: #0a1929; color: #fff; padding: 32px 40px; margin-bottom: 28px; }
-  header h1 { font-size: 22pt; font-weight: 800; letter-spacing: -0.5px; }
-  header p { color: #94a3b8; font-size: 10pt; margin-top: 6px; }
-  .container { max-width: 780px; margin: 0 auto; padding: 0 20px 40px; }
-  h2 { font-size: 14pt; font-weight: 700; color: #0a1929; border-bottom: 2.5px solid #3b82f6; padding-bottom: 5px; margin: 28px 0 12px; }
-  h3 { font-size: 11pt; font-weight: 700; color: #1e3a5f; margin: 16px 0 6px; }
-  p, li { margin-bottom: 5px; }
-  ul, ol { padding-left: 22px; }
-  ol > li { margin-bottom: 4px; }
-  ul > li { list-style: disc; }
-  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 9.5pt; }
-  th { background: #0f172a; color: #fff; text-align: left; padding: 6px 10px; font-weight: 600; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.5px; }
-  td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; }
-  tr:nth-child(even) td { background: #f8fafc; }
-  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 9.5pt; font-family: 'Cascadia Code', 'Fira Code', monospace; }
-  pre { background: #0f172a; color: #e2e8f0; padding: 12px 16px; border-radius: 6px; font-size: 9pt; overflow-x: auto; margin: 8px 0 14px; line-height: 1.5; }
-  pre code { background: none; padding: 0; color: inherit; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 8pt; font-weight: 700; }
-  .badge-low { background: #dcfce7; color: #166534; }
-  .badge-med { background: #fef9c3; color: #854d0e; }
-  .badge-high { background: #fed7aa; color: #9a3412; }
-  .badge-crit { background: #fecaca; color: #991b1b; }
-  .callout { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; margin: 10px 0 14px; border-radius: 0 4px 4px 0; font-size: 9.5pt; }
-  .callout-warn { background: #fefce8; border-left-color: #eab308; }
-  .callout-danger { background: #fef2f2; border-left-color: #ef4444; }
-  .flow { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 16px; margin: 10px 0; font-size: 9.5pt; }
-  .flow span { display: inline-block; padding: 2px 8px; background: #0f172a; color: #fff; border-radius: 4px; margin: 2px; font-size: 8.5pt; }
-  .flow .arrow { background: none; color: #64748b; font-weight: bold; }
-  .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 24px; margin: 0 0 24px; }
-  .toc h3 { margin: 0 0 8px; font-size: 11pt; }
-  .toc ol { font-size: 9.5pt; }
-  .toc li { margin-bottom: 2px; }
-  .toc a { color: #2563eb; text-decoration: none; }
-  footer { text-align: center; color: #94a3b8; font-size: 8pt; margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0a1929; color: #e0e6ed; line-height: 1.7; }
+  .container { max-width: 1000px; margin: 0 auto; padding: 40px 30px; }
+  h1 { font-size: 2.2rem; color: #4fc3f7; border-bottom: 3px solid #1565c0; padding-bottom: 12px; margin-bottom: 30px; }
+  h2 { font-size: 1.6rem; color: #81d4fa; margin-top: 50px; margin-bottom: 16px; border-left: 4px solid #1565c0; padding-left: 14px; }
+  h3 { font-size: 1.2rem; color: #b3e5fc; margin-top: 30px; margin-bottom: 10px; }
+  p { margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 0.92rem; }
+  th { background: #1565c0; color: #fff; padding: 10px 12px; text-align: left; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
+  td { padding: 9px 12px; border-bottom: 1px solid #1e3a5f; }
+  tr:hover { background: #0d2137; }
+  code { background: #1e3a5f; padding: 2px 6px; border-radius: 3px; font-size: 0.88rem; color: #4fc3f7; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+  .badge-critical { background: #d32f2f; color: #fff; }
+  .badge-high { background: #f57c00; color: #fff; }
+  .badge-medium { background: #fbc02d; color: #1a1a1a; }
+  .badge-low { background: #388e3c; color: #fff; }
+  .info-box { background: #0d2137; border: 1px solid #1565c0; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+  .warn-box { background: #1a0e00; border: 1px solid #f57c00; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+  ul, ol { margin: 8px 0 16px 24px; }
+  li { margin-bottom: 6px; }
+  .flow { background: #0d2137; border-radius: 8px; padding: 20px; margin: 20px 0; font-family: monospace; font-size: 0.88rem; white-space: pre; line-height: 1.5; overflow-x: auto; }
+  .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #1e3a5f; color: #607d8b; font-size: 0.85rem; }
+  hr { border: none; border-top: 1px solid #1e3a5f; margin: 40px 0; }
 </style>
 </head>
 <body>
-
-<header>
-  <h1>VinciTu — Risk Management System</h1>
-  <p>Guida completa al sistema di gestione rischio, liability e trading | v1.0 — Febbraio 2026</p>
-</header>
-
 <div class="container">
 
-<div class="toc">
-  <h3>Indice</h3>
-  <ol>
-    <li><a href="#s1">Panoramica Sistema</a></li>
-    <li><a href="#s2">Piazzamento Scommesse</a></li>
-    <li><a href="#s3">Risk Engine — Regole</a></li>
-    <li><a href="#s4">Analisi AI (Claude)</a></li>
-    <li><a href="#s5">Liability Management</a></li>
-    <li><a href="#s6">Sistema di Accettazione</a></li>
-    <li><a href="#s7">Trading Queue</a></li>
-    <li><a href="#s8">AI Odds Optimizer</a></li>
-    <li><a href="#s9">Pannello Admin — Risk &amp; Trading</a></li>
-    <li><a href="#s10">Pagina Dettaglio Giocatore</a></li>
-    <li><a href="#s11">Notifiche Admin</a></li>
-    <li><a href="#s12">Cron Jobs</a></li>
-    <li><a href="#s13">Database — Migrations</a></li>
-    <li><a href="#s14">Configurazione</a></li>
-    <li><a href="#s15">Glossario</a></li>
-  </ol>
-</div>
+<h1>VinciTu — Guida Completa Risk Management</h1>
+<p style="color:#90a4ae; margin-bottom:30px;">Aggiornata: 25 Febbraio 2026 | Versione 2.0 | Tutte le Fasi Complete</p>
 
-<!-- ═══ 1. PANORAMICA ═══ -->
-<h2 id="s1">1. Panoramica Sistema</h2>
-<p>Il sistema di Risk Management di VinciTu gestisce l'intero ciclo di vita di una scommessa dal punto di vista del rischio e della liability. Ogni bet passa attraverso validazione, analisi rischio, controllo liability e sistema di accettazione prima di essere confermata.</p>
+<!-- ═══ 1 ═══ -->
+<h2>1. Architettura Generale</h2>
 
-<h3>Componenti principali</h3>
-<table>
-  <tr><th>Componente</th><th>Descrizione</th><th>File</th></tr>
-  <tr><td>Bet Placement API</td><td>Piazzamento server-side sicuro</td><td><code>/api/player/place-bet</code></td></tr>
-  <tr><td>Risk Engine</td><td>12 regole + 4 batch + AI Claude</td><td><code>lib/risk/engine.ts</code></td></tr>
-  <tr><td>Liability Engine</td><td>Esposizione per outcome/market/evento</td><td><code>lib/risk/engine.ts</code></td></tr>
-  <tr><td>Acceptance Engine</td><td>Auto/manuale/parziale</td><td><code>lib/risk/engine.ts</code></td></tr>
-  <tr><td>Trading Queue</td><td>Coda bet per review admin</td><td><code>/api/admin/trading-queue</code></td></tr>
-  <tr><td>AI Odds Optimizer</td><td>Claude suggerisce aggiustamenti quote</td><td><code>lib/risk/engine.ts</code></td></tr>
-  <tr><td>Admin Panel</td><td>6 tab: dashboard, alert, queue, liability, utenti, AI</td><td><code>/admin/risk</code></td></tr>
-  <tr><td>Notifiche</td><td>Realtime + browser push per alert critici</td><td><code>admin_notifications</code></td></tr>
-  <tr><td>Cron Scanner</td><td>Batch pattern detection orario</td><td><code>/api/cron/risk-scan</code></td></tr>
-</table>
+<p>Il sistema opera su tre livelli: <strong>rule engine</strong> (12 regole real-time + 4 batch), <strong>AI analysis</strong> (Claude Sonnet) e <strong>liability engine</strong>. Ogni scommessa viene analizzata in tempo reale al momento del piazzamento.</p>
 
-<div class="callout">
-  <strong>Architettura:</strong> Tutte le operazioni di scrittura avvengono server-side tramite API routes. Il frontend non ha accesso diretto in scrittura a Supabase per le bet. Questo previene manipolazioni client-side.
-</div>
-
-<!-- ═══ 2. PIAZZAMENTO ═══ -->
-<h2 id="s2">2. Piazzamento Scommesse</h2>
-<p><strong>Endpoint:</strong> <code>POST /api/player/place-bet</code></p>
-
-<h3>Flusso completo</h3>
 <div class="flow">
-  <span>Auth (cookie)</span> <span class="arrow">&rarr;</span>
-  <span>User check</span> <span class="arrow">&rarr;</span>
-  <span>Limiti utente</span> <span class="arrow">&rarr;</span>
-  <span>Validazione quote</span> <span class="arrow">&rarr;</span>
-  <span>Liability check</span> <span class="arrow">&rarr;</span>
-  <span>Acceptance engine</span> <span class="arrow">&rarr;</span>
-  <span>Insert bet</span> <span class="arrow">&rarr;</span>
-  <span>Risk analysis</span> <span class="arrow">&rarr;</span>
-  <span>Wallet deduction</span> <span class="arrow">&rarr;</span>
-  <span>Response</span>
+Giocatore piazza scommessa
+        |
+        v
+  /api/player/place-bet
+        |
+        +---> Validazione (auth, wallet, odds, limiti)
+        |
+        +---> Rule Engine (12 regole) --> score 0-100
+        |
+        +---> AI Claude (se score >= 60) --> player_classification
+        |
+        +---> Acceptance Engine (liability check)
+        |
+        +---> Auto-Actions (block / flag / reduce limits)
+        |
+        v
+  Decisione: accept | partial_accept | manual_review | reject
+        |
+        +---> Trading Queue (se manual_review)
+        +---> Wallet debit + bet record (se accept)
+        +---> Risk alert + notification (se flag/block)
 </div>
 
-<h3>Request body</h3>
-<pre><code>{
-  "stake": 50,
-  "selections": [
-    { "eventId": "uuid", "marketId": "uuid", "outcomeId": "uuid", "odds": 2.9 }
-  ],
-  "fingerprint": "optional-device-id"
-}</code></pre>
-
-<h3>Risposte possibili</h3>
+<h3>File Principali</h3>
 <table>
-  <tr><th>Code</th><th>Situazione</th><th>Azione</th></tr>
-  <tr><td><code>AUTH_REQUIRED</code></td><td>Utente non autenticato</td><td>Redirect a login</td></tr>
-  <tr><td><code>ACCOUNT_BLOCKED</code></td><td>Account sospeso/bannato</td><td>Mostrare errore</td></tr>
-  <tr><td><code>LIMIT_EXCEEDED</code></td><td>Stake supera limite utente</td><td>Mostrare max consentito</td></tr>
-  <tr><td><code>DAILY_LIMIT_EXCEEDED</code></td><td>Limite giornaliero raggiunto</td><td>Mostrare residuo</td></tr>
-  <tr><td><code>ODDS_CHANGED</code></td><td>Quote cambiate oltre tolleranza (&#177;0.05)</td><td>Aggiornare schedina con nuove quote</td></tr>
-  <tr><td><code>OUTCOME_SUSPENDED</code></td><td>Esito sospeso</td><td>Rimuovere dalla schedina</td></tr>
-  <tr><td><code>BET_REJECTED</code></td><td>Liability massima raggiunta</td><td>Mostrare errore</td></tr>
-  <tr><td><code>RISK_BLOCKED</code></td><td>Risk score &ge; 85</td><td>Bet cancellata automaticamente</td></tr>
-  <tr><td><code>success + pending_acceptance</code></td><td>Bet in attesa di approvazione</td><td>Mostrare "in attesa"</td></tr>
-  <tr><td><code>success + open</code></td><td>Bet accettata</td><td>Conferma + nuovo saldo</td></tr>
+  <tr><th>File</th><th>Descrizione</th></tr>
+  <tr><td><code>lib/risk/engine.ts</code></td><td>Motore rischio: 16 regole + AI + liability + acceptance + odds optimizer (~862 righe)</td></tr>
+  <tr><td><code>app/api/player/place-bet/route.ts</code></td><td>Piazzamento scommessa server-side (auth, risk, wallet)</td></tr>
+  <tr><td><code>app/api/admin/trading-queue/route.ts</code></td><td>Accept / partial / reject con audit trail</td></tr>
+  <tr><td><code>app/api/admin/liability/route.ts</code></td><td>Tracking liability per evento</td></tr>
+  <tr><td><code>app/api/admin/risk/route.ts</code></td><td>Dashboard API: overview, alerts, users, stats, bulk actions</td></tr>
+  <tr><td><code>app/api/risk-agent/route.ts</code></td><td>Analisi AI manuale (supporta bet ID parziali)</td></tr>
+  <tr><td><code>app/api/cron/risk-scan/route.ts</code></td><td>Scan proattivo orario (pattern detection)</td></tr>
+  <tr><td><code>app/api/cron/daily-stats/route.ts</code></td><td>Statistiche giornaliere (00:15 UTC)</td></tr>
+  <tr><td><code>lib/settlement.ts</code></td><td>Settlement engine (15 tipi mercato) + deactivateEvent()</td></tr>
 </table>
 
-<div class="callout-warn callout">
-  <strong>Optimistic Concurrency:</strong> Il wallet viene detratto con <code>WHERE balance = expected_value</code>. Se il saldo cambia tra il check e la deduzione (race condition), il sistema riprova una volta con il saldo aggiornato.
+<!-- ═══ 2 ═══ -->
+<h2>2. Tipologie Utente e Classificazioni</h2>
+
+<p>Il sistema usa <strong>due livelli di classificazione</strong>: il campo <code>user_class</code> nella tabella <code>users</code> (persistente, impostato manualmente o dall'AI) e il campo <code>classification</code> nella tabella <code>player_profiles</code> (calcolato dall'AI ad ogni analisi).</p>
+
+<h3>2.1 User Class (tabella <code>users</code>)</h3>
+<table>
+  <tr><th>Classe</th><th>Quando si Imposta</th><th>Descrizione</th><th>Impatto</th></tr>
+  <tr><td><code>new</code></td><td>Default alla registrazione</td><td>Account appena creato, non ancora depositato</td><td>Regole 3-4 attive (new/young account), soglie stake ridotte</td></tr>
+  <tr><td><code>standard</code></td><td>Dopo primo deposito / manuale</td><td>Giocatore regolare verificato</td><td>Nessuna restrizione aggiuntiva</td></tr>
+  <tr><td><code>sharp</code></td><td>AI detection o admin manuale</td><td>Scommettitore professionista</td><td><span class="badge badge-high">MANUAL REVIEW</span> su tutte le bet</td></tr>
+  <tr><td><code>syndicate</code></td><td>AI detection o admin manuale</td><td>Sospetto membro di sindacato</td><td><span class="badge badge-critical">MANUAL REVIEW</span> forzato o blocco</td></tr>
+  <tr><td><code>vip</code></td><td>Solo admin manuale</td><td>Giocatore VIP ad alto valore</td><td>Badge viola nell'admin, nessuna restrizione automatica</td></tr>
+</table>
+
+<div class="info-box">
+  <strong>Configurazione:</strong> Le classi che forzano la revisione manuale sono in <code>risk_config.acceptance.always_manual_classes</code> (default: <code>["sharp", "syndicate"]</code>). Il comportamento e' controllato da <code>sharp_player_mode</code>: <code>"manual"</code> (revisione) o <code>"block"</code> (rifiuto diretto).
 </div>
 
-<!-- ═══ 3. RISK ENGINE ═══ -->
-<h2 id="s3">3. Risk Engine — Regole</h2>
-<p>Il motore di rischio analizza ogni scommessa con 12 regole in tempo reale + 4 regole batch eseguite dal cron orario.</p>
-
-<h3>Regole per-bet (tempo reale)</h3>
+<h3>2.2 Player Classification (tabella <code>player_profiles</code>)</h3>
+<p>Calcolata dall'AI Claude ad ogni analisi di rischio. Rappresenta il profilo comportamentale.</p>
 <table>
-  <tr><th>#</th><th>Flag</th><th>Condizione</th><th>Score</th></tr>
-  <tr><td>1</td><td><code>STAKE_SPIKE</code></td><td>Stake &gt; 5&times; media storica</td><td>+25</td></tr>
-  <tr><td>2</td><td><code>HIGH_STAKE</code></td><td>Stake &gt; $1,000</td><td>+15</td></tr>
-  <tr><td>3</td><td><code>VERY_HIGH_STAKE</code></td><td>Stake &gt; $5,000</td><td>+20</td></tr>
-  <tr><td>4</td><td><code>NEW_ACCOUNT_HIGH_STAKE</code></td><td>Account &lt; 1 giorno + stake &gt; $100</td><td>+30</td></tr>
-  <tr><td>5</td><td><code>YOUNG_ACCOUNT_HIGH_STAKE</code></td><td>Account &lt; 7 giorni + stake &gt; $500</td><td>+20</td></tr>
-  <tr><td>6</td><td><code>HIGH_ODDS</code></td><td>Quote totali &gt; 20</td><td>+15</td></tr>
-  <tr><td>7</td><td><code>EXTREME_ODDS</code></td><td>Quote totali &gt; 50</td><td>+25</td></tr>
-  <tr><td>8</td><td><code>HIGH_VELOCITY</code></td><td>&gt; 10 bet nell'ultima ora</td><td>+20</td></tr>
-  <tr><td>9</td><td><code>EXTREME_VELOCITY</code></td><td>&gt; 25 bet nell'ultima ora</td><td>+30</td></tr>
-  <tr><td>10</td><td><code>FREE_BET_HIGH_ODDS</code></td><td>Free bet su quote &gt; 10</td><td>+20</td></tr>
-  <tr><td>11</td><td><code>HIGH_WIN_RATE</code></td><td>Win rate &gt; 70% con min 20 bet</td><td>+25</td></tr>
-  <tr><td>12</td><td><code>UNVERIFIED_HIGH_STAKE</code></td><td>KYC non verificato + stake &gt; $200</td><td>+15</td></tr>
+  <tr><th>Classificazione</th><th>Descrizione</th><th>Come viene Rilevata</th></tr>
+  <tr><td><code>recreational</code></td><td>Giocatore ricreativo, basso rischio</td><td>Default iniziale; confermato da AI se pattern normali</td></tr>
+  <tr><td><code>semi_pro</code></td><td>Semi-professionale, puntate mirate</td><td>AI rileva win rate 50-70%, stake consistenti, focus su mercati specifici</td></tr>
+  <tr><td><code>sharp</code></td><td>Scommettitore sharp / professionista</td><td>AI rileva win rate >70%, arbitraggio, late odds exploitation</td></tr>
+  <tr><td><code>syndicate</code></td><td>Membro di sindacato / organizzazione</td><td>AI rileva multi-account IP, pattern bot, correlazione con altri utenti</td></tr>
 </table>
 
-<h3>Regole batch (cron orario)</h3>
+<h3>2.3 Colonne Utente Rilevanti (tabella <code>users</code>)</h3>
 <table>
-  <tr><th>#</th><th>Flag</th><th>Condizione</th><th>Score</th></tr>
-  <tr><td>13</td><td><code>MULTI_ACCOUNT_IP</code></td><td>Stesso IP su &ge; 2 utenti diversi</td><td>+35</td></tr>
-  <tr><td>14</td><td><code>BOT_PATTERN</code></td><td>Intervalli bet regolari (std dev &lt; 5s, media &lt; 60s)</td><td>+30</td></tr>
-  <tr><td>15</td><td><code>LEAGUE_SPECIALIST</code></td><td>&gt; 80% bet su una lega non-top (min 20 bet)</td><td>+20</td></tr>
-  <tr><td>16</td><td><code>LATE_ODDS_EXPLOITATION</code></td><td>&ge; 3 bet entro 2min dal kickoff a quote &gt; 3.0</td><td>+25</td></tr>
+  <tr><th>Colonna</th><th>Tipo</th><th>Default</th><th>Descrizione</th></tr>
+  <tr><td><code>user_class</code></td><td>text</td><td><code>'new'</code></td><td>Classe utente (new, standard, sharp, syndicate, vip)</td></tr>
+  <tr><td><code>risk_score</code></td><td>integer</td><td><code>0</code></td><td>Ultimo risk score calcolato (0-100)</td></tr>
+  <tr><td><code>kyc_status</code></td><td>text</td><td><code>'unverified'</code></td><td>unverified, pending, verified, rejected</td></tr>
+  <tr><td><code>is_active</code></td><td>boolean</td><td><code>true</code></td><td>Account attivo / disattivato</td></tr>
+  <tr><td><code>is_blocked</code></td><td>boolean</td><td><code>false</code></td><td>Blocco scommesse (soft block, reversibile)</td></tr>
+  <tr><td><code>is_banned</code></td><td>boolean</td><td><code>false</code></td><td>Ban completo dell'account</td></tr>
+  <tr><td><code>ban_reason</code></td><td>text</td><td>null</td><td>Motivo del ban (auto o manuale)</td></tr>
+  <tr><td><code>banned_at</code></td><td>timestamptz</td><td>null</td><td>Data del ban</td></tr>
+  <tr><td><code>ip_address</code></td><td>text</td><td>null</td><td>Ultimo IP (usato per syndicate detection)</td></tr>
+  <tr><td><code>login_count</code></td><td>integer</td><td><code>0</code></td><td>Conteggio login</td></tr>
+  <tr><td><code>country</code></td><td>text</td><td>null</td><td>Paese (geolocalizzazione)</td></tr>
+  <tr><td><code>language</code></td><td>text</td><td><code>'it'</code></td><td>Lingua preferita</td></tr>
+  <tr><td><code>currency</code></td><td>text</td><td><code>'USDT'</code></td><td>Valuta wallet</td></tr>
+  <tr><td><code>referred_by</code></td><td>uuid</td><td>null</td><td>Referrer user ID</td></tr>
+  <tr><td><code>agent_id</code></td><td>uuid</td><td>null</td><td>Agente / affiliato associato</td></tr>
 </table>
 
-<h3>Livelli di rischio</h3>
+<h3>2.4 Player Profiles (tabella <code>player_profiles</code>)</h3>
 <table>
-  <tr><th>Score</th><th>Livello</th><th>Azione automatica</th></tr>
-  <tr><td>0 — 25</td><td><span class="badge badge-low">LOW</span></td><td>Nessuna — bet nella norma</td></tr>
-  <tr><td>26 — 50</td><td><span class="badge badge-med">MEDIUM</span></td><td>Flag creato, monitoraggio</td></tr>
-  <tr><td>51 — 75</td><td><span class="badge badge-high">HIGH</span></td><td>Alert admin, riduzione limiti, richiesta KYC</td></tr>
-  <tr><td>76 — 100</td><td><span class="badge badge-crit">CRITICAL</span></td><td>Account bloccato, bet cancellata</td></tr>
+  <tr><th>Campo</th><th>Tipo</th><th>Descrizione</th></tr>
+  <tr><td><code>user_id</code></td><td>uuid (PK)</td><td>Riferimento all'utente</td></tr>
+  <tr><td><code>classification</code></td><td>text</td><td>recreational / semi_pro / sharp / syndicate (aggiornato da AI)</td></tr>
+  <tr><td><code>risk_score</code></td><td>integer</td><td>Ultimo score calcolato (0-100)</td></tr>
+  <tr><td><code>total_bets</code></td><td>integer</td><td>Numero totale scommesse</td></tr>
+  <tr><td><code>total_stake</code></td><td>numeric</td><td>Totale puntato ($)</td></tr>
+  <tr><td><code>total_won</code></td><td>numeric</td><td>Totale vinto ($)</td></tr>
+  <tr><td><code>total_lost</code></td><td>numeric</td><td>Totale perso ($)</td></tr>
+  <tr><td><code>win_rate</code></td><td>numeric</td><td>Tasso vittoria (0.0 - 1.0)</td></tr>
+  <tr><td><code>avg_stake</code></td><td>numeric</td><td>Stake medio ($)</td></tr>
+  <tr><td><code>avg_odds</code></td><td>numeric</td><td>Quote medie giocate</td></tr>
+  <tr><td><code>max_stake</code></td><td>numeric</td><td>Stake massimo ($)</td></tr>
+  <tr><td><code>lifetime_ggr</code></td><td>numeric</td><td>GGR lifetime (stake - vincite)</td></tr>
+  <tr><td><code>flags_count</code></td><td>integer</td><td>Numero flag ricevuti</td></tr>
 </table>
 
-<h3>Soglie auto-actions (configurabili)</h3>
+<h3>2.5 Dove si Vedono nell'Admin</h3>
 <table>
-  <tr><th>Azione</th><th>Soglia default</th></tr>
-  <tr><td>Richiesta KYC</td><td>&ge; 40</td></tr>
-  <tr><td>Flag + alert admin</td><td>&ge; 50</td></tr>
-  <tr><td>Riduzione limiti</td><td>&ge; 60</td></tr>
-  <tr><td>Blocco account + bet cancellata</td><td>&ge; 85</td></tr>
+  <tr><th>Pagina Admin</th><th>Info Utente Mostrate</th></tr>
+  <tr><td><code>/admin/management</code></td><td>Username, email, KYC status, user_class, balance, bonus, totale bet, toggle active/blocked</td></tr>
+  <tr><td><code>/admin/risk</code> > tab Users</td><td>Username, email, risk_score, classification, flags_count, link a player detail</td></tr>
+  <tr><td><code>/admin/risk/player/[id]</code></td><td>Header con classification badge (colore), risk score, is_blocked stato + 5 sotto-sezioni</td></tr>
+  <tr><td><code>/admin/risk</code> > tab Alerts</td><td>Username in ogni alert, link al profilo giocatore</td></tr>
+  <tr><td><code>/admin/dashboard</code></td><td>Recent bets con risk score color-coded, recent users con KYC status</td></tr>
 </table>
 
-<!-- ═══ 4. AI ═══ -->
-<h2 id="s4">4. Analisi AI (Claude)</h2>
-<p>Quando il risk score supera la soglia (default: 60), viene attivata l'analisi AI tramite Claude per una valutazione avanzata.</p>
+<div class="warn-box">
+  <strong>Nota:</strong> Attualmente c'e' 1 solo utente nel sistema (<code>nicolo_test</code>, classe <code>standard</code>, risk_score 0, <code>is_blocked=true</code>). Le classificazioni AI si popoleranno man mano che vengono piazzate scommesse e il sistema analizza i pattern.
+</div>
 
-<h3>Input all'AI</h3>
+<!-- ═══ 3 ═══ -->
+<h2>3. Rule Engine — 16 Regole</h2>
+
+<h3>3.1 Regole Real-Time (12 regole, eseguite ad ogni bet)</h3>
+<table>
+  <tr><th>#</th><th>Regola</th><th>Condizione</th><th>Punti</th><th>Flag</th></tr>
+  <tr><td>1</td><td>Stake Spike</td><td>Stake > media * 5x</td><td>+25</td><td><code>STAKE_SPIKE</code></td></tr>
+  <tr><td>2</td><td>High Stake</td><td>Stake > $1,000 / $5,000</td><td>+15 / +20</td><td><code>HIGH_STAKE</code> / <code>VERY_HIGH_STAKE</code></td></tr>
+  <tr><td>3</td><td>New Account</td><td>Account &lt; 1 giorno + stake > $100</td><td>+30</td><td><code>NEW_ACCOUNT_HIGH_STAKE</code></td></tr>
+  <tr><td>4</td><td>Young Account</td><td>Account &lt; 7 giorni + stake > $500</td><td>+20</td><td><code>YOUNG_ACCOUNT_HIGH_STAKE</code></td></tr>
+  <tr><td>5</td><td>High Odds</td><td>Quota > 20 / > 50</td><td>+15 / +25</td><td><code>HIGH_ODDS</code> / <code>EXTREME_ODDS</code></td></tr>
+  <tr><td>6</td><td>Velocity</td><td>> 10 bet/h / > 25 bet/h</td><td>+20 / +30</td><td><code>HIGH_VELOCITY</code> / <code>EXTREME_VELOCITY</code></td></tr>
+  <tr><td>7</td><td>Free Bet Abuse</td><td>Free bet + quota > 10</td><td>+20</td><td><code>FREE_BET_HIGH_ODDS</code></td></tr>
+  <tr><td>8</td><td>Win Rate Anomaly</td><td>Win rate > 70% su 20+ bet</td><td>+25</td><td><code>HIGH_WIN_RATE</code></td></tr>
+  <tr><td>9</td><td>KYC Unverified</td><td>Non verificato + stake > $200</td><td>+15</td><td><code>UNVERIFIED_HIGH_STAKE</code></td></tr>
+  <tr><td>10</td><td>Arbitrage Pattern</td><td>Bet sullo stesso evento nelle ultime 2h</td><td>+30</td><td><code>POSSIBLE_ARB</code></td></tr>
+  <tr><td>11</td><td>Syndicate Detection</td><td>Stesso IP + alta velocity (>5 bet/h)</td><td>+10</td><td><code>VELOCITY_IP_CHECK</code></td></tr>
+  <tr><td>12a</td><td>Deposit Ratio</td><td>Turnover/depositi > 10x</td><td>+15</td><td><code>HIGH_TURNOVER_RATIO</code></td></tr>
+  <tr><td>12b</td><td>Large Win</td><td>Vincita potenziale > $10K / $50K</td><td>+10 / +20</td><td><code>LARGE_POTENTIAL_WIN</code> / <code>VERY_LARGE_POTENTIAL_WIN</code></td></tr>
+</table>
+
+<h3>3.2 Regole Batch (4 regole, cron orario)</h3>
+<p>Eseguite da <code>/api/cron/risk-scan</code> ogni ora (XX:15). Analizzano pattern su finestra piu' ampia.</p>
+<table>
+  <tr><th>#</th><th>Regola</th><th>Condizione</th><th>Punti</th><th>Flag</th></tr>
+  <tr><td>13</td><td>Multi-Account IP</td><td>>= 2 utenti diversi dallo stesso IP (<code>login_fingerprints</code>)</td><td>+35</td><td><code>MULTI_ACCOUNT_IP</code></td></tr>
+  <tr><td>14</td><td>Bot Detection</td><td>10+ bet con intervallo std dev &lt; 5s e media &lt; 60s</td><td>+30</td><td><code>BOT_PATTERN</code></td></tr>
+  <tr><td>15</td><td>League Specialist</td><td>> 80% bet su una lega non-top (20+ bet totali)</td><td>+20</td><td><code>LEAGUE_SPECIALIST</code></td></tr>
+  <tr><td>16</td><td>Late Odds Exploitation</td><td>3+ bet entro 2min dal kickoff con quota > 3.0</td><td>+25</td><td><code>LATE_ODDS_EXPLOITATION</code></td></tr>
+</table>
+
+<!-- ═══ 4 ═══ -->
+<h2>4. Livelli di Rischio e Azioni Automatiche</h2>
+
+<table>
+  <tr><th>Score</th><th>Livello</th><th>Azione Automatica</th><th>SLA Alert</th></tr>
+  <tr><td>0 - 25</td><td><span class="badge badge-low">LOW</span></td><td>Accettazione automatica</td><td>—</td></tr>
+  <tr><td>26 - 50</td><td><span class="badge badge-medium">MEDIUM</span></td><td>Accettazione + monitoraggio + alert creato</td><td>72 ore</td></tr>
+  <tr><td>51 - 75</td><td><span class="badge badge-high">HIGH</span></td><td>Flag + riduzione limiti ($50 max) + notifica admin</td><td>24 ore</td></tr>
+  <tr><td>76 - 100</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Blocco account + alert critico + beep sonoro</td><td>4 ore</td></tr>
+</table>
+
+<h3>Soglie Configurabili (<code>risk_config.thresholds</code>)</h3>
+<table>
+  <tr><th>Chiave</th><th>Default</th><th>Descrizione</th></tr>
+  <tr><td><code>auto_block</code></td><td>85</td><td>Score >= X: blocco automatico account + ban</td></tr>
+  <tr><td><code>auto_flag</code></td><td>50</td><td>Score >= X: crea alert + notifica admin</td></tr>
+  <tr><td><code>auto_reduce_limits</code></td><td>60</td><td>Score >= X: riduce limite scommessa a $50</td></tr>
+  <tr><td><code>auto_kyc</code></td><td>40</td><td>Score >= X: richiede verifica KYC</td></tr>
+  <tr><td><code>ai_threshold</code></td><td>60</td><td>Score >= X: attiva analisi AI Claude automatica</td></tr>
+</table>
+
+<!-- ═══ 5 ═══ -->
+<h2>5. Analisi AI (Claude Sonnet)</h2>
+
+<p>L'AI viene invocata automaticamente quando lo score >= <code>ai_threshold</code> (60), oppure manualmente dal tab "AI Analysis".</p>
+
+<h3>Input per Claude</h3>
 <ul>
-  <li>Dati bet corrente: stake, quote, tipo, vincita potenziale</li>
-  <li>Profilo utente: KYC, classe, paese, et&agrave; account</li>
-  <li>Player profile: classificazione, totali, win rate, GGR</li>
-  <li>Storico ultime 50 scommesse</li>
-  <li>Flags del rule engine</li>
+  <li>Dati scommessa: stake, odds, tipo, vincita potenziale</li>
+  <li>Profilo utente: KYC, classe, eta' account, paese</li>
+  <li>Player profile: classificazione, totali, win rate, GGR, flags</li>
+  <li>Ultimi 50 bet (stake, odds, status, timestamp, tipo)</li>
+  <li>Flag del rule engine</li>
 </ul>
 
 <h3>Output AI</h3>
-<pre><code>{
-  "score": 0-100,
-  "level": "low" | "medium" | "high" | "critical",
-  "flags": ["detected issues"],
-  "player_classification": "recreational" | "semi_pro" | "sharp" | "syndicate",
-  "confidence": 0.0-1.0,
-  "recommended_actions": ["actions"],
-  "reasoning": "spiegazione"
-}</code></pre>
+<table>
+  <tr><th>Campo</th><th>Tipo</th><th>Descrizione</th></tr>
+  <tr><td><code>score</code></td><td>0-100</td><td>Risk score AI (si usa il max tra rule e AI score)</td></tr>
+  <tr><td><code>level</code></td><td>low/medium/high/critical</td><td>Livello rischio AI</td></tr>
+  <tr><td><code>player_classification</code></td><td>string</td><td>recreational / semi_pro / sharp / syndicate</td></tr>
+  <tr><td><code>confidence</code></td><td>0.0-1.0</td><td>Confidenza nella classificazione</td></tr>
+  <tr><td><code>flags</code></td><td>array</td><td>Issue rilevati dall'AI (uniti ai flag rule engine)</td></tr>
+  <tr><td><code>recommended_actions</code></td><td>array</td><td>Azioni suggerite</td></tr>
+  <tr><td><code>reasoning</code></td><td>string</td><td>Spiegazione del ragionamento</td></tr>
+</table>
 
-<p>Il <strong>score finale</strong> &egrave; il massimo tra score regole e score AI. La classificazione AI aggiorna il player profile.</p>
-
-<div class="callout">
-  <strong>Modello:</strong> <code>claude-sonnet-4-20250514</code> — configurabile in <code>risk_config.ai_settings</code>. Se l'API AI fallisce, la bet non viene bloccata (fail-open).
+<div class="info-box">
+  <strong>Modello:</strong> <code>claude-sonnet-4-20250514</code> | Max tokens: 1500 | System prompt specializzato per iGaming italiano | Analisi: arbitrage, stake manipulation, bonus abuse, syndicate activity, money laundering, sharp betting
 </div>
 
-<!-- ═══ 5. LIABILITY ═══ -->
-<h2 id="s5">5. Liability Management</h2>
-<p>La liability (esposizione) rappresenta quanto il bookmaker rischia di pagare se un esito si verifica.</p>
+<!-- ═══ 6 ═══ -->
+<h2>6. Liability Engine</h2>
 
-<h3>Formula</h3>
-<pre><code>Liability per outcome = SUM(stake &times; (odds - 1))  per tutte le bet aperte su quell'esito</code></pre>
-
-<h3>Limiti default</h3>
+<h3>6.1 Limiti</h3>
 <table>
-  <tr><th>Livello</th><th>Max Liability</th></tr>
-  <tr><td>Per outcome</td><td>$50,000</td></tr>
-  <tr><td>Per market</td><td>$75,000</td></tr>
-  <tr><td>Per evento</td><td>$100,000</td></tr>
-  <tr><td>Globale</td><td>$500,000</td></tr>
+  <tr><th>Parametro</th><th>Default</th></tr>
+  <tr><td>Max liability per outcome</td><td>$50,000</td></tr>
+  <tr><td>Max liability per market</td><td>$75,000</td></tr>
+  <tr><td>Max liability per event</td><td>$100,000</td></tr>
+  <tr><td>Global max liability</td><td>$500,000</td></tr>
+  <tr><td>Alert threshold</td><td>80% del max</td></tr>
+  <tr><td>Auto-suspend market</td><td>95% del max</td></tr>
 </table>
 
-<h3>SQL Functions</h3>
+<h3>6.2 Acceptance Engine</h3>
+<div class="flow">
+Bet in arrivo (stake=$X, odds=Y)
+    |
+    v
+  Liability impact = $X * (Y - 1)
+    |
+    +---> Player class in always_manual_classes?
+    |       Si --> manual_review (o reject se mode=block)
+    |
+    +---> Stake > $5,000 (manual_review_threshold)?
+    |       Si + mode=manual/hybrid --> manual_review
+    |
+    +---> Liability would exceed max?
+    |       Si + partial enabled --> partial_accept (stake ridotto)
+    |       Si + partial disabled --> reject
+    |
+    +---> Auto-accept (stake=$X, completo)
+</div>
+
+<h3>6.3 AI Odds Optimizer</h3>
+<p>Quando la liability su un esito supera il 70% (<code>rebalance_trigger_pct</code>), Claude suggerisce aggiustamenti:</p>
 <ul>
-  <li><code>compute_outcome_liability(p_outcome_id)</code> &mdash; calcola liability su un singolo esito</li>
-  <li><code>compute_event_liability(p_event_id)</code> &mdash; calcola liability per tutti gli esiti di un evento</li>
+  <li>Abbassare quote su esiti sovraesposti, alzare su sottoesposti</li>
+  <li>Margine minimo 2.5%, aggiustamenti piccoli (0.05-0.20)</li>
+  <li>Log in tabella <code>odds_adjustments</code> con audit trail</li>
 </ul>
 
-<h3>Soglie di allerta</h3>
-<table>
-  <tr><th>% utilizzata</th><th>Azione</th></tr>
-  <tr><td>&gt; 70%</td><td>Trigger rebalance (AI optimizer)</td></tr>
-  <tr><td>&gt; 80%</td><td>Alert admin</td></tr>
-  <tr><td>&gt; 95%</td><td>Sospensione automatica esito</td></tr>
-  <tr><td>100%</td><td>Bet rifiutata o accettazione parziale</td></tr>
-</table>
+<!-- ═══ 7 ═══ -->
+<h2>7. Trading Queue</h2>
 
-<!-- ═══ 6. ACCETTAZIONE ═══ -->
-<h2 id="s6">6. Sistema di Accettazione</h2>
+<p>Le bet in <code>manual_review</code> finiscono nella Trading Queue (tab "Trading" nell'admin).</p>
 
-<h3>Modalit&agrave;</h3>
-<table>
-  <tr><th>Modalit&agrave;</th><th>Descrizione</th></tr>
-  <tr><td><strong>AUTO</strong> (default)</td><td>Tutte le bet accettate automaticamente, tranne se bloccate da liability o risk</td></tr>
-  <tr><td><strong>MANUAL</strong></td><td>Tutte le bet vanno in trading queue per approvazione</td></tr>
-  <tr><td><strong>HYBRID</strong></td><td>Bet sotto soglia &rarr; auto. Sopra soglia &rarr; manual review</td></tr>
-</table>
-
-<h3>Configurazione (<code>risk_config.acceptance</code>)</h3>
-<pre><code>{
-  "mode": "auto",
-  "auto_accept_max_stake": 1000,
-  "manual_review_stake_threshold": 5000,
-  "partial_accept_enabled": true,
-  "odds_change_tolerance": 0.05,
-  "live_bet_delay_seconds": 5,
-  "always_manual_classes": ["sharp", "syndicate"],
-  "sharp_player_mode": "manual",
-  "max_liability_per_outcome": 50000,
-  "max_liability_per_market": 75000,
-  "max_liability_per_event": 100000
-}</code></pre>
-
-<h3>Flusso decisionale</h3>
-<ol>
-  <li><strong>Classe giocatore</strong> in <code>always_manual_classes</code>?
-    <ul>
-      <li><code>sharp_player_mode = "block"</code> &rarr; <span class="badge badge-crit">RIFIUTATA</span></li>
-      <li><code>sharp_player_mode = "manual"</code> &rarr; <span class="badge badge-med">MANUAL REVIEW</span></li>
-    </ul>
-  </li>
-  <li><strong>Stake &gt; soglia manuale</strong> (in hybrid/manual)? &rarr; <span class="badge badge-med">MANUAL REVIEW</span></li>
-  <li><strong>Liability superata</strong>?
-    <ul>
-      <li>Spazio rimasto &gt; $1 + partial enabled &rarr; <span class="badge badge-high">PARZIALE</span> (stake ridotto al max consentito)</li>
-      <li>Spazio = 0 &rarr; <span class="badge badge-crit">RIFIUTATA</span></li>
-    </ul>
-  </li>
-  <li>Nessun problema &rarr; <span class="badge badge-low">ACCETTATA</span></li>
-</ol>
-
-<!-- ═══ 7. TRADING QUEUE ═══ -->
-<h2 id="s7">7. Trading Queue</h2>
-<p><strong>Endpoint:</strong> <code>/api/admin/trading-queue</code></p>
-
-<p>Le bet con status <code>pending_acceptance</code> finiscono nella trading queue. Il wallet del giocatore <strong>non viene detratto</strong> fino all'approvazione.</p>
-
-<h3>API</h3>
-<table>
-  <tr><th>Metodo</th><th>Descrizione</th></tr>
-  <tr><td><code>GET</code></td><td>Lista bet pending con info utente, evento, quote, risk score</td></tr>
-  <tr><td><code>PATCH</code></td><td>Accetta, rifiuta o accetta parzialmente una bet</td></tr>
-</table>
-
-<h3>Azioni admin</h3>
 <table>
   <tr><th>Azione</th><th>Effetto</th></tr>
-  <tr><td><strong>Accetta</strong></td><td>Status &rarr; <code>open</code>, wallet detratto, transazione creata</td></tr>
-  <tr><td><strong>Accetta parziale</strong></td><td>Stake ridotto, wallet detratto per importo ridotto</td></tr>
-  <tr><td><strong>Rifiuta</strong></td><td>Status &rarr; <code>rejected</code>, wallet invariato</td></tr>
+  <tr><td><strong>Accept</strong></td><td>Accetta la bet, debita wallet, crea record</td></tr>
+  <tr><td><strong>Partial Accept</strong></td><td>Accetta con stake ridotto, rimborsa differenza al wallet</td></tr>
+  <tr><td><strong>Reject</strong></td><td>Rifiuta la bet, rimborsa intero stake al wallet</td></tr>
 </table>
 
-<p>Ogni azione viene registrata nella tabella <code>risk_actions</code> (audit trail) con il campo <code>performed_by</code> che identifica il trader.</p>
+<p>Ogni azione e' loggata in <code>risk_actions</code> con: chi ha agito, quando, note, azione eseguita.</p>
 
-<!-- ═══ 8. AI OPTIMIZER ═══ -->
-<h2 id="s8">8. AI Odds Optimizer</h2>
-<p>L'ottimizzatore AI analizza la liability per evento e suggerisce aggiustamenti alle quote per bilanciare il book.</p>
+<!-- ═══ 8 ═══ -->
+<h2>8. Cron Jobs Proattivi</h2>
 
-<h3>Come funziona</h3>
-<ol>
-  <li>Raccoglie tutti i mercati + esiti + liability per un evento</li>
-  <li>Calcola margine implicito e distribuzione esposizione</li>
-  <li>Invia a Claude con regole: margine min 2.5%, aggiustamenti conservativi (0.05-0.20)</li>
-  <li>Claude restituisce suggerimenti: outcome_id, current_odds, suggested_odds, reason</li>
-  <li>Admin pu&ograve; applicare i suggerimenti (log in <code>odds_adjustments</code>)</li>
-</ol>
-
-<h3>Trigger</h3>
+<h3>8.1 Risk Scan — ogni ora (XX:15)</h3>
 <ul>
-  <li><strong>Manuale:</strong> bottone "AI Optimize" nella tab Liability dell'admin panel</li>
-  <li><strong>Automatico:</strong> cron orario su eventi con liability &gt; 70% del limite</li>
+  <li>Trova utenti con >= 10 bet nelle ultime 24h</li>
+  <li>Esegue le 4 regole batch (13-16) su ciascun utente</li>
+  <li>Crea alert per utenti con score >= <code>auto_flag</code></li>
+  <li>Aggiorna <code>player_profiles</code></li>
 </ul>
 
-<!-- ═══ 9. ADMIN PANEL ═══ -->
-<h2 id="s9">9. Pannello Admin — Risk &amp; Trading</h2>
-<p><strong>Percorso:</strong> <code>/admin/risk</code></p>
-
-<h3>Tab disponibili</h3>
-<table>
-  <tr><th>Tab</th><th>Contenuto</th></tr>
-  <tr><td><strong>Dashboard</strong></td><td>4 KPI: alert aperti, risk score medio, bet pending, liability totale. Top utenti a rischio.</td></tr>
-  <tr><td><strong>Alert</strong></td><td>Tabella risk_flags con checkbox bulk, SLA badge, filtri severit&agrave;. Link a dettaglio giocatore.</td></tr>
-  <tr><td><strong>Trading Queue</strong></td><td>Card per ogni bet pending con info evento, quote, risk. Bottoni Accetta / Parziale / Rifiuta.</td></tr>
-  <tr><td><strong>Liability</strong></td><td>Overview eventi ordinati per esposizione. Drill-down per outcome. Heatmap + bottone AI optimizer.</td></tr>
-  <tr><td><strong>Utenti</strong></td><td>Lista utenti flaggati con classificazione, risk score, bet totali. Link a pagina dettaglio.</td></tr>
-  <tr><td><strong>AI</strong></td><td>Trigger analisi AI manuale su una bet specifica.</td></tr>
-</table>
-
-<h3>Bulk Actions (tab Alert)</h3>
+<h3>8.2 Daily Stats — ogni giorno (00:15 UTC)</h3>
 <ul>
-  <li>Seleziona multipli alert con checkbox</li>
-  <li>Azioni: Risolvi tutti, Dismetti tutti, Blocca utenti, Riduci limiti, Esporta</li>
-  <li>Modal di conferma con textarea note</li>
-  <li>Ogni azione &rarr; audit trail in <code>risk_actions</code></li>
+  <li>Calcola KPI: total stake, GGR, numero bet, utenti attivi</li>
+  <li>Aggiorna statistiche aggregate per dashboard</li>
 </ul>
 
-<!-- ═══ 10. PLAYER DETAIL ═══ -->
-<h2 id="s10">10. Pagina Dettaglio Giocatore</h2>
-<p><strong>Percorso:</strong> <code>/admin/risk/player/[id]</code></p>
+<div class="warn-box">
+  <strong>Attenzione Deploy:</strong> Il <code>CRON_SECRET</code> nel <code>.env.local</code> viene sovrascritto ad ogni deploy. Dopo ogni deploy, verificare che sia presente nel file sul VPS.
+</div>
 
-<h3>Sezioni</h3>
+<!-- ═══ 9 ═══ -->
+<h2>9. Admin UI — Risk Panel (<code>/admin/risk</code>)</h2>
+
+<h3>9.1 Tab Dashboard</h3>
 <ul>
-  <li><strong>Header:</strong> risk score meter (SVG semicerchio colorato), 6 stat card (bet totali, stake, win rate, GGR, depositi, prelievi), limiti attivi</li>
-  <li><strong>Storico stake:</strong> bar chart CSS con stake e conteggio bet per giorno (ultimi 30 giorni)</li>
-  <li><strong>Trend risk score:</strong> line chart SVG con andamento score nel tempo</li>
-  <li><strong>Alert:</strong> lista flags con SLA badge, bottoni risolvi/dismetti</li>
-  <li><strong>Quick actions:</strong> Blocca account, Riduci limiti, Richiedi analisi AI, Richiedi KYC</li>
-  <li><strong>Scommesse recenti:</strong> tabella ultime 20 bet con dettagli</li>
+  <li><strong>KPIs:</strong> Alert aperti, critici, blocked oggi, bet in pending</li>
+  <li><strong>Risk Score Distribution:</strong> Grafico a barre low/medium/high/critical</li>
+  <li><strong>Alerts per Day:</strong> Trend ultimi 14 giorni con barre colorate (rosso >5, arancio >2, blu 1-2)</li>
+  <li><strong>Sport Risk:</strong> Rischio per sport</li>
+  <li><strong>Live Bet Ticker:</strong> Feed realtime scommesse con badge LIVE, risk score colorato, subscription Supabase</li>
 </ul>
 
-<!-- ═══ 11. NOTIFICHE ═══ -->
-<h2 id="s11">11. Notifiche Admin</h2>
-
-<h3>Componenti</h3>
+<h3>9.2 Tab Alerts</h3>
 <ul>
-  <li><strong>NotificationBell:</strong> campanella nella topbar con conteggio non lette (badge rosso)</li>
-  <li><strong>NotificationDropdown:</strong> dropdown con lista notifiche, icona severit&agrave;, time ago, tipo</li>
+  <li>Tabella paginata con filtri per severity e status</li>
+  <li><strong>Bulk Actions:</strong> checkbox + azioni di massa (block users, reduce limits)</li>
+  <li><strong>SLA Badge:</strong> countdown con colore (verde &gt; 1h, arancio &lt; 1h, rosso = scaduto)</li>
+  <li><strong>Assignment Dropdown:</strong> assegna alert a admin specifico</li>
+  <li><strong>Resolve Modal:</strong> 5 azioni (resolve, dismiss, escalate, block users, reduce limits) + note + audit trail</li>
 </ul>
 
-<h3>Tipi di notifica</h3>
-<table>
-  <tr><th>Tipo</th><th>Quando</th><th>Severit&agrave;</th></tr>
-  <tr><td><code>risk_alert</code></td><td>Risk score &ge; 50 su una bet</td><td>warning / critical</td></tr>
-  <tr><td><code>bet_review</code></td><td>Bet accettata/rifiutata dalla trading queue</td><td>info</td></tr>
-  <tr><td><code>liability_warning</code></td><td>Liability supera 80% su un esito</td><td>warning</td></tr>
-  <tr><td><code>odds_suggestion</code></td><td>AI suggerisce aggiustamento quote</td><td>info</td></tr>
-  <tr><td><code>system</code></td><td>Eventi di sistema</td><td>info</td></tr>
-</table>
-
-<h3>Browser Notification API</h3>
+<h3>9.3 Tab Users</h3>
 <ul>
-  <li>Alert <strong>critical</strong>: notifica browser push + suono</li>
-  <li>Alert <strong>warning</strong>: suono</li>
-  <li>Richiede permesso utente al primo accesso</li>
-  <li>Subscription realtime su tabella <code>admin_notifications</code></li>
+  <li>Lista utenti con risk score, classification, flags count</li>
+  <li>Click apre <strong>Player Detail Page</strong> (<code>/admin/risk/player/[id]</code>)</li>
+  <li>5 sotto-componenti: player-header (con badge classificazione colorato), bet history, alert history, wallet, azioni</li>
+  <li>Badge colori: sharp=arancio, syndicate=rosso, vip=viola, altri=default</li>
 </ul>
 
-<!-- ═══ 12. CRON ═══ -->
-<h2 id="s12">12. Cron Jobs</h2>
+<h3>9.4 Tab AI Analysis</h3>
+<ul>
+  <li>Input: Bet ID (anche parziale, min 4 caratteri)</li>
+  <li>Esegue analisi completa rule + AI con flag <code>use_ai: true</code></li>
+  <li>Mostra: score, livello, classificazione, confidence, flags, azioni raccomandate, reasoning</li>
+</ul>
 
-<h3>Risk Scanner (ogni ora)</h3>
-<p><strong>Endpoint:</strong> <code>POST /api/cron/risk-scan</code><br>
-<strong>Auth:</strong> header <code>x-cron-key</code> = <code>CRON_SECRET</code></p>
-<ol>
-  <li>Trova utenti con &ge; 10 bet nelle ultime 24 ore</li>
-  <li>Ricalcola <code>player_profiles</code> per ciascuno</li>
-  <li>Esegue batch pattern detection (regole 13-16)</li>
-  <li>Crea <code>risk_flags</code> per anomalie trovate</li>
-  <li>Crea <code>admin_notifications</code> per alert critici</li>
-  <li>Esegue AI odds optimizer su eventi ad alta liability</li>
-</ol>
+<h3>9.5 Tab Trading Queue</h3>
+<ul>
+  <li>Bet in <code>pending_acceptance</code></li>
+  <li>Mostra: bet ID (copiabile), utente, stake, odds, risk score, flags</li>
+  <li>Azioni: Accept, Partial, Reject con audit trail</li>
+</ul>
 
-<h3>Daily Stats (ogni giorno alle 00:15)</h3>
-<p><strong>Endpoint:</strong> <code>POST /api/cron/daily-stats</code><br>
-<strong>Auth:</strong> header <code>x-cron-key</code> = <code>CRON_SECRET</code></p>
-<p>Aggrega per il giorno precedente: bet_count, total_stake, total_payout, GGR, margin_pct, deposit/withdrawal count+volume, active_users, new_users, risk_alerts, sport_breakdown. Upsert in <code>daily_stats</code>.</p>
+<h3>9.6 Tab Liability</h3>
+<ul>
+  <li>Ricerca per nome squadra o event ID</li>
+  <li>Barra percentuale per ogni outcome (colore rosso se >80%)</li>
+  <li>Suggerimenti AI per ribilanciamento odds</li>
+</ul>
 
-<h3>Setup VPS (crontab)</h3>
-<pre><code># Risk scan ogni ora
-0 * * * * curl -s -X POST http://localhost:3000/api/cron/risk-scan -H "x-cron-key: $CRON_SECRET"
-
-# Daily stats alle 00:15
-15 0 * * * curl -s -X POST http://localhost:3000/api/cron/daily-stats -H "x-cron-key: $CRON_SECRET"</code></pre>
-
-<!-- ═══ 13. DATABASE ═══ -->
-<h2 id="s13">13. Database — Migrations</h2>
-
-<h3>Migration 005 — Admin Upgrade</h3>
-<p>Tabelle: <code>risk_flags</code>, <code>player_profiles</code>, <code>risk_config</code>, <code>daily_stats</code>, <code>user_limits</code></p>
-
-<h3>Migration 006 — Risk Upgrade</h3>
-<table>
-  <tr><th>Tabella nuova</th><th>Descrizione</th></tr>
-  <tr><td><code>risk_actions</code></td><td>Audit trail: chi ha fatto cosa, quando, perch&eacute;</td></tr>
-  <tr><td><code>login_fingerprints</code></td><td>IP + fingerprint per multi-account detection</td></tr>
-  <tr><td><code>admin_notifications</code></td><td>Notifiche admin con realtime subscription</td></tr>
-  <tr><td><code>odds_adjustments</code></td><td>Log aggiustamenti quote (AI o manuali)</td></tr>
-</table>
-
-<h3>Colonne aggiunte a <code>bets</code></h3>
-<p><code>requested_stake</code>, <code>accepted_stake</code>, <code>acceptance_mode</code>, <code>accepted_by</code>, <code>acceptance_note</code>, <code>reviewed_at</code>, <code>placed_ip</code>, <code>placed_fingerprint</code>, <code>time_to_kickoff_minutes</code></p>
-
-<h3>Colonne aggiunte a <code>outcomes</code> / <code>markets</code></h3>
-<p><code>max_liability</code> (default $50,000 per outcome, $100,000 per market)</p>
-
-<h3>SQL Functions</h3>
-<p><code>compute_outcome_liability(p_outcome_id)</code>, <code>compute_event_liability(p_event_id)</code></p>
-
-<h3>Migration 007 — Fix UUID&rarr;TEXT</h3>
-<p>Colonne <code>accepted_by</code>, <code>performed_by</code>, <code>assigned_to</code>, <code>resolved_by</code> cambiate da UUID (con FK a admin_users) a TEXT per flessibilit&agrave;.</p>
-
-<!-- ═══ 14. CONFIG ═══ -->
-<h2 id="s14">14. Configurazione</h2>
-<p>Tutta la configurazione &egrave; nella tabella <code>risk_config</code> con 6 chiavi JSON:</p>
+<!-- ═══ 10 ═══ -->
+<h2>10. Notifiche Admin</h2>
 
 <table>
-  <tr><th>Chiave</th><th>Contenuto</th></tr>
-  <tr><td><code>thresholds</code></td><td>Soglie auto-actions: auto_block (85), auto_flag (50), auto_reduce_limits (60), auto_kyc (40)</td></tr>
-  <tr><td><code>auto_actions</code></td><td>Toggle: block_account, reduce_limits, require_kyc, notify_admin</td></tr>
-  <tr><td><code>rules</code></td><td>Parametri regole: stake thresholds, odds limits, velocity limits, win rate</td></tr>
-  <tr><td><code>ai_settings</code></td><td>Modello Claude, max_tokens, soglia attivazione AI</td></tr>
-  <tr><td><code>acceptance</code></td><td>Modalit&agrave;, soglie, partial accept, classi manuali</td></tr>
-  <tr><td><code>liability</code></td><td>Limiti globali, soglie alert/suspend, AI optimizer settings</td></tr>
+  <tr><th>Componente</th><th>Descrizione</th></tr>
+  <tr><td>Campanella (topbar)</td><td>Icona con badge conteggio non letti (max "99+")</td></tr>
+  <tr><td>Dropdown notifiche</td><td>Lista con icona severity, titolo, messaggio, tempo, mark as read</td></tr>
+  <tr><td>Browser Notification</td><td>Push native del browser per critical/warning</td></tr>
+  <tr><td>Supabase Realtime</td><td>Subscription su <code>admin_notifications</code> per aggiornamenti live</td></tr>
+  <tr><td>Audio Alert</td><td>Beep 880Hz WAV (30% volume) per critical/warning</td></tr>
 </table>
 
-<p>Modificabile dalla pagina <code>/admin/config</code>. Ogni chiave ha valori default hardcoded nel codice come fallback.</p>
+<p>Tipi notifica: <code>risk_alert</code>, <code>bet_review</code>, <code>liability_warning</code>, <code>odds_suggestion</code>, <code>system</code></p>
 
-<!-- ═══ 15. GLOSSARIO ═══ -->
-<h2 id="s15">15. Glossario</h2>
+<!-- ═══ 11 ═══ -->
+<h2>11. Settlement e Cleanup</h2>
+
+<h3>Settlement Engine (15 tipi mercato)</h3>
+<p>1X2, Under/Over (qualsiasi linea), GG/NG, Doppia Chance, Draw No Bet, Risultato Esatto, Handicap, Somma Gol, combo 1X2+U/O, combo GG/NG+U/O, HT/FT, Pari/Dispari, Prossimo Gol.</p>
+<ul>
+  <li>Trigger: <code>/api/scraper/results</code> quando evento finisce</li>
+  <li>Optimistic lock con <code>settled_at</code> per evitare doppio settlement</li>
+  <li>Verdetti: won, lost, void, push (push = void per settlement)</li>
+  <li>Accredita vincite / rimborsa void automaticamente</li>
+</ul>
+
+<h3>Cleanup Pipeline</h3>
+<ul>
+  <li><code>/api/admin/cleanup</code> — Bulk: trova eventi finished, disattiva markets/outcomes, setta ended</li>
+  <li><code>/api/scraper/live/cleanup</code> — Integrato nel ciclo live: marca finiti + disattiva stale prematch</li>
+  <li><code>deactivateEvent()</code> — Funzione condivisa in <code>lib/settlement.ts</code></li>
+  <li><strong>Non interferisce</strong> con settlement: il settlement usa join per ID, non per is_active</li>
+</ul>
+
+<!-- ═══ 12 ═══ -->
+<h2>12. Live Odds Pipeline</h2>
+
+<h3>Trigger Database (Migration 008)</h3>
+<p><code>trg_outcomes_track_odds</code> — BEFORE UPDATE su <code>outcomes</code>:</p>
+<ul>
+  <li>Quando <code>odds</code> cambia: copia valore corrente in <code>previous_odds</code></li>
+  <li>Su ogni update: imposta <code>updated_at = now()</code></li>
+  <li>Frontend puo' mostrare frecce (su/giu) e colori (rosso/verde)</li>
+</ul>
+
+<h3>Statistiche Live (25/02/2026)</h3>
 <table>
-  <tr><th>Termine</th><th>Definizione</th></tr>
-  <tr><td><strong>GGR</strong></td><td>Gross Gaming Revenue = total_stake &minus; total_payout</td></tr>
-  <tr><td><strong>Liability</strong></td><td>Esposizione: quanto il bookmaker rischia di pagare su un esito</td></tr>
-  <tr><td><strong>Sharp</strong></td><td>Scommettitore professionista con win rate anomalo</td></tr>
-  <tr><td><strong>Syndicate</strong></td><td>Gruppo organizzato di scommettitori (multi-account)</td></tr>
-  <tr><td><strong>SLA</strong></td><td>Service Level Agreement: tempo max per gestire un alert (critico 4h, alto 24h, medio 72h)</td></tr>
-  <tr><td><strong>Trading Queue</strong></td><td>Coda di bet in attesa di approvazione manuale dal trader</td></tr>
-  <tr><td><strong>Acceptance</strong></td><td>Sistema di accettazione bet: auto, manuale o ibrido</td></tr>
-  <tr><td><strong>Partial Accept</strong></td><td>Accettazione parziale: stake ridotto per rispettare limiti liability</td></tr>
-  <tr><td><strong>Arb/Arbitrage</strong></td><td>Scommesse su esiti opposti per garantire profitto senza rischio</td></tr>
-  <tr><td><strong>KYC</strong></td><td>Know Your Customer: verifica identit&agrave; del giocatore</td></tr>
-  <tr><td><strong>Optimistic Concurrency</strong></td><td>Tecnica per evitare race condition: aggiorna solo se il valore non &egrave; cambiato</td></tr>
+  <tr><td><strong>442,050</strong></td><td>outcomes attive nel database</td></tr>
+  <tr><td><strong>~8,500</strong></td><td>outcomes aggiornate al minuto</td></tr>
+  <tr><td><strong>~130</strong></td><td>eventi live monitorati contemporaneamente</td></tr>
+  <tr><td><strong>~30s</strong></td><td>intervallo aggiornamento quote live</td></tr>
 </table>
 
-<footer>
-  VinciTu Risk Management System v1.0 &mdash; Generato il 24 Febbraio 2026 &mdash; Documento riservato
-</footer>
+<!-- ═══ 13 ═══ -->
+<h2>13. Configurazione Completa (<code>risk_config</code>)</h2>
+
+<p>Tabella key/value con valori JSON:</p>
+<table>
+  <tr><th>Key</th><th>Contenuto</th></tr>
+  <tr><td><code>thresholds</code></td><td>auto_block=85, auto_flag=50, auto_reduce_limits=60, auto_kyc=40, ai_threshold=60</td></tr>
+  <tr><td><code>rules</code></td><td>stake_spike_multiplier=5, high_stake=1000, very_high_stake=5000, new_account_days=1, young_account_days=7, high_odds=20, extreme_odds=50, velocity_1h=10, extreme_velocity_1h=25, win_rate_threshold=0.7, win_rate_min_bets=20, unverified_stake=200, free_bet_high_odds=10</td></tr>
+  <tr><td><code>ai_settings</code></td><td>enabled=true, model=claude-sonnet-4-20250514, max_tokens=1500, auto_analyze_above=60</td></tr>
+  <tr><td><code>acceptance</code></td><td>mode=auto, partial_accept_enabled=true, manual_review_stake_threshold=5000, always_manual_classes=[sharp, syndicate], sharp_player_mode=manual, max_liability_per_outcome=50000, auto_accept_max_stake=1000, odds_change_tolerance=0.05</td></tr>
+  <tr><td><code>liability</code></td><td>global_max_liability=500000, alert_threshold_pct=80, auto_suspend_threshold_pct=95, rebalance_trigger_pct=70, ai_optimizer_enabled=true, min_margin_pct=2.5</td></tr>
+</table>
+
+<!-- ═══ 14 ═══ -->
+<h2>14. API Endpoints</h2>
+
+<table>
+  <tr><th>Endpoint</th><th>Metodo</th><th>Auth</th><th>Descrizione</th></tr>
+  <tr><td><code>/api/player/place-bet</code></td><td>POST</td><td>Session</td><td>Piazza scommessa con risk analysis integrato</td></tr>
+  <tr><td><code>/api/admin/risk</code></td><td>GET</td><td>Admin</td><td>Dashboard: overview, alerts, users, stats, player detail</td></tr>
+  <tr><td><code>/api/admin/risk</code></td><td>PATCH</td><td>Admin</td><td>Update alert (single/bulk): status, notes, assignment</td></tr>
+  <tr><td><code>/api/admin/trading-queue</code></td><td>GET/POST</td><td>Admin</td><td>Lista e gestione bet in pending_acceptance</td></tr>
+  <tr><td><code>/api/admin/liability</code></td><td>GET</td><td>Admin</td><td>Liability per evento</td></tr>
+  <tr><td><code>/api/admin/cleanup</code></td><td>POST</td><td>Internal</td><td>Cleanup bulk finished events</td></tr>
+  <tr><td><code>/api/risk-agent</code></td><td>POST</td><td>Internal</td><td>AI analysis manuale (bet ID parziali)</td></tr>
+  <tr><td><code>/api/cron/risk-scan</code></td><td>POST</td><td>CRON_SECRET</td><td>Scan proattivo orario</td></tr>
+  <tr><td><code>/api/cron/daily-stats</code></td><td>POST</td><td>CRON_SECRET</td><td>Statistiche giornaliere</td></tr>
+  <tr><td><code>/api/settlement</code></td><td>POST</td><td>Internal</td><td>Settlement bet per evento (15 market types)</td></tr>
+  <tr><td><code>/api/scraper/results</code></td><td>POST</td><td>Scraper key</td><td>Risultati + trigger settlement</td></tr>
+  <tr><td><code>/api/scraper/live</code></td><td>POST</td><td>Scraper key</td><td>Aggiornamento live (scores, quote, status)</td></tr>
+  <tr><td><code>/api/scraper/prematch</code></td><td>POST</td><td>Scraper key</td><td>Ingestion prematch (events, markets, outcomes)</td></tr>
+</table>
+
+<!-- ═══ 15 ═══ -->
+<h2>15. Tabelle Database</h2>
+
+<table>
+  <tr><th>Tabella</th><th>Scopo</th></tr>
+  <tr><td><code>users</code></td><td>Profili utente: user_class, risk_score, is_blocked, is_banned, kyc_status</td></tr>
+  <tr><td><code>player_profiles</code></td><td>Profili aggregati: classification, stats, win_rate, GGR</td></tr>
+  <tr><td><code>bets</code></td><td>Scommesse: risk_score, risk_flags, status (open/won/lost/void/pending_acceptance)</td></tr>
+  <tr><td><code>bet_selections</code></td><td>Selezioni individuali per bet (legs)</td></tr>
+  <tr><td><code>wallets</code></td><td>Saldi utente: balance, bonus_balance, locked_balance</td></tr>
+  <tr><td><code>transactions</code></td><td>Ledger finanziario: deposit, withdrawal, bet, win, refund</td></tr>
+  <tr><td><code>risk_flags</code></td><td>Alert: severity, status (open/resolved/dismissed/escalated), sla_deadline, assigned_to</td></tr>
+  <tr><td><code>risk_actions</code></td><td>Audit trail: azioni su alert con note e timestamp</td></tr>
+  <tr><td><code>risk_config</code></td><td>Configurazione key/value JSON (5 chiavi)</td></tr>
+  <tr><td><code>admin_notifications</code></td><td>Notifiche admin: tipo, severity, link, read status</td></tr>
+  <tr><td><code>user_limits</code></td><td>Limiti personalizzati per utente</td></tr>
+  <tr><td><code>login_fingerprints</code></td><td>IP e fingerprint per multi-account detection</td></tr>
+  <tr><td><code>odds_adjustments</code></td><td>Log aggiustamenti quote (AI o admin)</td></tr>
+  <tr><td><code>settlement_log</code></td><td>Audit trail settlement per evento</td></tr>
+</table>
+
+<p><strong>Migrations:</strong> 001 (schema base) → 002 (promotions) → 003 (scraper indexes) → 004 (admin RLS) → 005 (admin upgrade + player_profiles + risk_flags) → 006 (risk upgrade) → 007 (UUID→TEXT) → 008 (odds tracking trigger)</p>
+
+<hr>
+
+<div class="footer">
+  <p>VinciTu Risk Management System v2.0 — 25 Febbraio 2026</p>
+  <p>16 regole + AI Claude + Liability + Acceptance + Odds Optimizer</p>
+  <p>Cron: risk-scan (orario) + daily-stats (giornaliero) | Notifiche: realtime + browser + audio</p>
+</div>
 
 </div>
 </body>
