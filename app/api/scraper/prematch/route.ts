@@ -162,7 +162,20 @@ export async function POST(req: NextRequest) {
       let event: { id: string } | null = existingEvents?.[0] || null;
 
       if (event) {
-        // Update existing event
+        // Check if event is already live — don't overwrite live status from prematch
+        const { data: currentEvent } = await supabase
+          .from("events")
+          .select("is_live")
+          .eq("id", event.id)
+          .single();
+
+        if (currentEvent?.is_live) {
+          // Skip prematch update for live events — live scraper handles these
+          processed++;
+          continue;
+        }
+
+        // Update existing prematch event
         await supabase
           .from("events")
           .update({
@@ -236,7 +249,34 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ── 5. Upsert outcomes (deduplicate by market_id+name) ──
+      // ── 5. Deactivate markets NOT in incoming payload ──
+      const incomingTypes = new Set(dedupMarkets.keys());
+      const { data: allEventMarkets } = await supabase
+        .from("markets")
+        .select("id, market_type")
+        .eq("event_id", event!.id)
+        .eq("is_active", true);
+
+      if (allEventMarkets) {
+        const staleIds = allEventMarkets
+          .filter((m) => !incomingTypes.has(m.market_type))
+          .map((m) => m.id);
+
+        if (staleIds.length > 0) {
+          for (const idBatch of chunk(staleIds, 500)) {
+            await supabase
+              .from("markets")
+              .update({ is_active: false, is_suspended: true })
+              .in("id", idBatch);
+            await supabase
+              .from("outcomes")
+              .update({ is_active: false, is_suspended: true })
+              .in("market_id", idBatch);
+          }
+        }
+      }
+
+      // ── 6. Upsert outcomes (deduplicate by market_id+name) ──
       const dedupOutcomes = new Map<string, Record<string, unknown>>();
 
       for (const m of ev.markets) {

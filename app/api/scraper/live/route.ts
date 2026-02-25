@@ -283,7 +283,34 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ── 4. Suspend all existing outcomes for these markets ──
+      // ── 4a. Deactivate markets NOT in the live payload (stale prematch markets) ──
+      const liveMarketTypes = new Set(dedupMarkets.keys());
+      const { data: allEventMarkets } = await supabase
+        .from("markets")
+        .select("id, market_type")
+        .eq("event_id", event!.id)
+        .eq("is_active", true);
+
+      if (allEventMarkets) {
+        const staleIds = allEventMarkets
+          .filter((m) => !liveMarketTypes.has(m.market_type))
+          .map((m) => m.id);
+
+        if (staleIds.length > 0) {
+          for (const idBatch of chunk(staleIds, 500)) {
+            await supabase
+              .from("markets")
+              .update({ is_active: false, is_suspended: true })
+              .in("id", idBatch);
+            await supabase
+              .from("outcomes")
+              .update({ is_active: false, is_suspended: true })
+              .in("market_id", idBatch);
+          }
+        }
+      }
+
+      // ── 4b. Suspend all existing outcomes for active markets (will be unsuspended by upsert) ──
       const marketIds = [...marketMap.values()];
       if (marketIds.length > 0) {
         for (const idBatch of chunk(marketIds, 500)) {

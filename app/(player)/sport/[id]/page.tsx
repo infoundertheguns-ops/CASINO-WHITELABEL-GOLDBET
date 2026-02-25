@@ -482,7 +482,7 @@ export default function EventDetail() {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
       return;
     }
-    intervalRef.current = setInterval(() => fetchFullEvent(false), 15_000);
+    intervalRef.current = setInterval(() => fetchFullEvent(false), 5_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [directEvent?.live, hookEvent?.live, eventId, fetchFullEvent]);
 
@@ -524,6 +524,23 @@ export default function EventDetail() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "outcomes" }, (payload) => {
         const updated = payload.new as Record<string, any>;
         if (!marketIdsRef.current.has(updated.market_id)) return;
+
+        // Remove deactivated/suspended outcomes
+        if (!updated.is_active || updated.is_suspended) {
+          setDirectEvent((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              markets: prev.markets.map((m) =>
+                m.id === updated.market_id
+                  ? { ...m, selections: m.selections.filter((sel) => sel.id !== updated.id) }
+                  : m
+              ),
+            };
+          });
+          return;
+        }
+
         const newOdds = parseFloat(updated.odds);
         setDirectEvent((prev) => {
           if (!prev) return prev;
@@ -541,6 +558,22 @@ export default function EventDetail() {
           };
         });
         debouncedRefetch();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "markets" }, (payload) => {
+        const updated = payload.new as Record<string, any>;
+        if (!marketIdsRef.current.has(updated.id)) return;
+
+        // Remove deactivated/suspended markets
+        if (!updated.is_active || updated.is_suspended) {
+          setDirectEvent((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              markets: prev.markets.filter((m) => m.id !== updated.id),
+            };
+          });
+          marketIdsRef.current.delete(updated.id);
+        }
       })
       .subscribe();
     return () => { supabaseDetail.removeChannel(channel); if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current); };

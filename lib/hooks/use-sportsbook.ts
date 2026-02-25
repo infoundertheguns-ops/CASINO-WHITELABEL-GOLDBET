@@ -255,45 +255,26 @@ export function useSportsbook() {
   const [placingBet, setPlacingBet] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // ── Fetch events from Supabase ──
+  // ── Fetch events from Supabase (via RPC for performance) ──
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Exclude prematch events that already started (with 30min buffer)
       const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data, error: fetchErr } = await supabase
-        .from("events")
-        .select(`
-          *,
-          sport:sports(name, slug, icon),
-          league:leagues(name, slug, country, logo_url),
-          markets(
-            id, name, slug, market_type, line, sort_order, is_active, is_suspended,
-            outcomes(id, name, odds, previous_odds, is_active, is_suspended)
-          )
-        `)
-        .in("status", ["prematch", "live"])
-        .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
-        .in("markets.market_type", [
-          "1X2", "U/O 2.5", "GG/NG",                                          // Calcio
-          "T/T Risultato", "Testa A Testa", "1X2 Tempi Reg.",                  // Basket
-          "Vincente Incontro (escl. ritiro)", "Vincente Incontro",             // Tennis/Volley/TT/Snooker
-          "Esito Finale 1X2", "Gol/No Gol",                                   // Hockey
-          "T/T Match",                                                          // Cricket
-        ])
-        .order("is_live", { ascending: false })
-        .order("starts_at", { ascending: true });
+      const { data, error: fetchErr } = await supabase.rpc("get_sportsbook_events", {
+        p_limit: 200,
+        p_cutoff: cutoff,
+      });
 
       if (fetchErr) throw fetchErr;
 
-      if (!data || data.length === 0) {
+      const rows = Array.isArray(data) ? data : [];
+      if (rows.length === 0) {
         setEvents(SEED_EVENTS);
         setIsMockData(true);
       } else {
-        // Deduplicate events by home+away+league (API can create dupes with different external_ids)
-        const mapped = data.map((row) => mapDbToSportEvent(row));
+        const mapped = rows.map((row: any) => mapDbToSportEvent(row));
         const seen = new Set<string>();
         const deduped = mapped.filter((e) => {
           const key = `${e.home}|${e.away}|${e.league}`.toLowerCase();
@@ -325,6 +306,22 @@ export function useSportsbook() {
         { event: "UPDATE", schema: "public", table: "outcomes" },
         (payload) => {
           const updated = payload.new as Record<string, any>;
+
+          // If outcome deactivated or suspended, remove from UI + betslip
+          if (!updated.is_active || updated.is_suspended) {
+            setEvents((prev) =>
+              prev.map((event) => ({
+                ...event,
+                markets: event.markets.map((market) => ({
+                  ...market,
+                  selections: market.selections.filter((sel) => sel.id !== updated.id),
+                })),
+              }))
+            );
+            setBetslip((prev) => prev.filter((item) => item.outcomeId !== updated.id));
+            return;
+          }
+
           const newOdds = parseFloat(updated.odds);
 
           // Update odds inside events
@@ -350,6 +347,29 @@ export function useSportsbook() {
                 : item
             )
           );
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "markets" },
+        (payload) => {
+          const updated = payload.new as Record<string, any>;
+
+          // If market deactivated or suspended, remove it + its betslip items
+          if (!updated.is_active || updated.is_suspended) {
+            setEvents((prev) =>
+              prev.map((event) => ({
+                ...event,
+                markets: event.markets.filter((m) => m.id !== updated.id),
+              }))
+            );
+            setBetslip((prev) => prev.filter((item) => {
+              const event = events.find((e) => e.markets.some((m) => m.id === updated.id));
+              if (!event) return true;
+              const market = event.markets.find((m) => m.id === updated.id);
+              return !market || item.marketName !== market.name;
+            }));
+          }
         }
       )
       .on(
@@ -461,6 +481,19 @@ export function useSportsbook() {
 
     if (isMockData) {
       return { success: false, error: "Modalita' demo — connetti il database per piazzare scommesse" };
+    }
+
+    // Validate betslip — remove items with disappeared markets/outcomes
+    const validBetslip = betslip.filter((item) => {
+      const ev = events.find((e) => e.id === item.eventId);
+      if (!ev) return false;
+      const market = ev.markets.find((m) => m.name === item.marketName);
+      if (!market) return false;
+      return market.selections.some((s) => s.id === item.outcomeId);
+    });
+    if (validBetslip.length !== betslip.length) {
+      setBetslip(validBetslip);
+      return { success: false, error: "Alcune selezioni non sono più disponibili e sono state rimosse." };
     }
 
     setPlacingBet(true);
