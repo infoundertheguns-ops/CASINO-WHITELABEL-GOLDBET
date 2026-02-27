@@ -26,10 +26,13 @@ export async function POST(req: NextRequest) {
   const errors: string[] = [];
 
   // ── 1. Process finished events backlog (oldest first, max 50) ──
+  // Delay 30 min to let verify-results cron settle with verified BetExplorer data first
+  const finishedDelay = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const { data: finishedEvents } = await supabase
     .from("events")
     .select("id, external_id, score_home")
     .eq("status", "finished")
+    .lt("updated_at", finishedDelay)
     .order("updated_at", { ascending: true })
     .limit(50);
 
