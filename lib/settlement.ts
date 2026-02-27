@@ -991,7 +991,7 @@ export async function settleEvent(
 
 // ═══ resolveBet — check if all legs settled, determine bet outcome ═══
 
-async function resolveBet(
+export async function resolveBet(
   supabase: SupabaseClient,
   betId: string
 ): Promise<number | null> {
@@ -1003,8 +1003,10 @@ async function resolveBet(
 
   if (!allLegs) return null;
 
-  // If any leg still unsettled → skip (wait for other events)
-  if (allLegs.some((l) => l.result == null)) return null;
+  // Early termination: if any leg is lost, multi/sistema is lost immediately
+  const hasLostEarly = allLegs.some((l) => l.result === "lost");
+  // If no leg lost yet and some still unsettled → wait for other events
+  if (!hasLostEarly && allLegs.some((l) => l.result == null)) return null;
 
   // Fetch the bet itself
   const { data: bet } = await supabase
@@ -1016,8 +1018,8 @@ async function resolveBet(
   if (!bet || bet.status !== "open") return null;
 
   // Determine outcome
-  const hasLost = allLegs.some((l) => l.result === "lost");
-  const allVoid = allLegs.every((l) => l.result === "void");
+  const allSettled = allLegs.every((l) => l.result != null);
+  const allVoid = allSettled && allLegs.every((l) => l.result === "void");
   const wonLegs = allLegs.filter((l) => l.result === "won");
 
   let betStatus: string;
@@ -1025,7 +1027,7 @@ async function resolveBet(
 
   if (allVoid) {
     betStatus = "void";
-  } else if (hasLost) {
+  } else if (hasLostEarly) {
     betStatus = "lost";
   } else {
     betStatus = "won";

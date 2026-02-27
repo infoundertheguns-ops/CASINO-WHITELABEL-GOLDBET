@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { settleEvent, deactivateEvent } from "@/lib/settlement";
+import { settleEvent, deactivateEvent, resolveBet } from "@/lib/settlement";
 
 // ═══════════════════════════════════════════════════
 // CRON: Cleanup finished events + fix stale data
@@ -103,12 +103,31 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── 4. Resolve stale multi/sistema bets with at least one lost leg ──
+  let multisResolved = 0;
+  const { data: staleBets } = await supabase
+    .from("bets")
+    .select("id")
+    .in("bet_type", ["multi", "sistema_combo"])
+    .eq("status", "open")
+    .limit(100);
+
+  if (staleBets && staleBets.length > 0) {
+    for (const bet of staleBets) {
+      try {
+        const payout = await resolveBet(supabase, bet.id);
+        if (payout !== null) multisResolved++;
+      } catch { /* ignore */ }
+    }
+  }
+
   return NextResponse.json({
     finished_remaining: finishedEvents?.length || 0,
     settled,
     deactivated,
     stale_live_finished: staleLiveFinished || undefined,
     ended_fixed: endedFixed || undefined,
+    multis_resolved: multisResolved || undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   });
 }

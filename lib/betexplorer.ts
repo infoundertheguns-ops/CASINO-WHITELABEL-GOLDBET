@@ -84,61 +84,66 @@ export async function fetchResults(
 }
 
 // ═══ PARSE RESULTS PAGE ═══
+//
+// BetExplorer HTML structure (verified 2026-02-27):
+//   <td class="table-main__tt">
+//     <span class="table-main__time">11:00</span>
+//     <a href="/football/.../">Zambia W - <strong>Namibia W</strong></a>
+//   </td>
+//   <td class="table-main__result"><a href="..."><strong>0:1</strong></a></td>
+//   <td class="table-main__partial" colspan="3">(0:0, 0:1)</td>
 
-function parseResultsPage(html: string, sport: string): BetExplorerResult[] {
+function parseResultsPage(html: string, _sport: string): BetExplorerResult[] {
   const $ = cheerio.load(html);
   const results: BetExplorerResult[] = [];
 
-  // BetExplorer uses table.table-main with rows containing a.in-match
-  $("table.table-main tr, table.table-main tbody tr").each((_i, row) => {
+  // Each row is a <tr> inside table.table-main
+  $("table.table-main tr").each((_i, row) => {
     const $row = $(row);
-    const $matchLink = $row.find("a.in-match");
-    if ($matchLink.length === 0) return;
 
-    // Extract teams
-    const teamText = $matchLink.text().trim();
-    const teams = teamText.split(/\s*-\s*/);
-    if (teams.length < 2) return;
+    // Team names are in td.table-main__tt > a
+    const $teamCell = $row.find("td.table-main__tt");
+    if ($teamCell.length === 0) return;
 
-    const homeTeam = cleanTeamName(teams[0]);
-    const awayTeam = cleanTeamName(teams.slice(1).join(" - "));
+    const $teamLink = $teamCell.find("a[href]");
+    if ($teamLink.length === 0) return;
+
+    // Extract teams: "Zambia W - Namibia W" (strong = winner)
+    const teamText = $teamLink.text().trim();
+    const dashIdx = teamText.indexOf(" - ");
+    if (dashIdx < 0) return;
+
+    const homeTeam = cleanTeamName(teamText.substring(0, dashIdx));
+    const awayTeam = cleanTeamName(teamText.substring(dashIdx + 3));
     if (!homeTeam || !awayTeam) return;
 
-    // Extract match URL
-    const href = $matchLink.attr("href") || "";
+    // Match URL
+    const href = $teamLink.attr("href") || "";
     const matchUrl = href.startsWith("http")
       ? href
       : `https://www.betexplorer.com${href}`;
 
-    // Extract score from the score cell (h-text-center)
-    const $scoreCells = $row.find("td.h-text-center");
-    let scoreText = "";
-    $scoreCells.each((_j, cell) => {
-      const txt = $(cell).text().trim();
-      if (/\d+:\d+/.test(txt) && !scoreText) {
-        scoreText = txt;
-      }
-    });
+    // Score from td.table-main__result
+    const $resultCell = $row.find("td.table-main__result");
+    if ($resultCell.length === 0) return;
 
-    // Also try the link inside score cell
-    if (!scoreText) {
-      $scoreCells.find("a").each((_j, a) => {
-        const txt = $(a).text().trim();
-        if (/\d+:\d+/.test(txt) && !scoreText) {
-          scoreText = txt;
-        }
-      });
-    }
+    const scoreText = $resultCell.text().trim();
+    if (!scoreText || !/\d+:\d+/.test(scoreText)) return;
 
-    if (!scoreText) return;
+    // Period scores from td.table-main__partial
+    const $partialCell = $row.find("td.table-main__partial");
+    const partialText = $partialCell.length > 0 ? $partialCell.text().trim() : "";
 
-    // Extract date from last cell
-    const $dateTd = $row.find("td.h-text-right, td:last-child");
-    const dateText = $dateTd.text().trim();
+    // Combine score + partial for parsing: "0:1 (0:0, 0:1)"
+    const fullScoreText = partialText
+      ? `${scoreText} ${partialText}`
+      : scoreText;
 
-    // Parse the score text
-    const parsed = parseScoreText(scoreText);
+    const parsed = parseScoreText(fullScoreText);
     if (!parsed) return;
+
+    // Time from span.table-main__time
+    const timeText = $teamCell.find("span.table-main__time").text().trim();
 
     results.push({
       homeTeam,
@@ -147,42 +152,10 @@ function parseResultsPage(html: string, sport: string): BetExplorerResult[] {
       scoreAway: parsed.away,
       periods: parsed.periods,
       status: parsed.status,
-      date: dateText,
+      date: timeText, // store time; date is implicit from URL
       matchUrl,
     });
   });
-
-  // If table.table-main didn't work, try alternative selectors
-  if (results.length === 0) {
-    // Try div-based layout (newer BetExplorer pages)
-    $("[class*='match']").each((_i, el) => {
-      const $el = $(el);
-      const text = $el.text();
-      // Look for patterns like "Team A - Team B 2:1 (1:0, 1:1)"
-      const match = text.match(
-        /(.+?)\s*-\s*(.+?)\s+(\d+:\d+(?:\s*(?:AET|AfP))?\s*(?:\([^)]+\))?)/
-      );
-      if (match) {
-        const parsed = parseScoreText(match[3].trim());
-        if (parsed) {
-          const href =
-            $el.find("a").first().attr("href") || "";
-          results.push({
-            homeTeam: cleanTeamName(match[1]),
-            awayTeam: cleanTeamName(match[2]),
-            scoreHome: parsed.home,
-            scoreAway: parsed.away,
-            periods: parsed.periods,
-            status: parsed.status,
-            date: "",
-            matchUrl: href.startsWith("http")
-              ? href
-              : `https://www.betexplorer.com${href}`,
-          });
-        }
-      }
-    });
-  }
 
   return results;
 }
@@ -416,27 +389,12 @@ export function matchEvents(
 
 // ═══ DATE MATCHING ═══
 
-function datesMatch(startsAt: string, beDate: string): boolean {
-  // startsAt is ISO string, beDate is "DD.MM." format
-  const evDate = new Date(startsAt);
-  const beParts = beDate.match(/(\d{1,2})\.(\d{1,2})\./);
-  if (!beParts) return true; // If can't parse, allow match
-
-  const beDay = parseInt(beParts[1], 10);
-  const beMonth = parseInt(beParts[2], 10);
-
-  // Allow ±1 day tolerance (timezone differences)
-  const evDay = evDate.getUTCDate();
-  const evMonth = evDate.getUTCMonth() + 1;
-
-  if (evMonth === beMonth && Math.abs(evDay - beDay) <= 1) return true;
-
-  // Month boundary: e.g. Jan 31 vs Feb 1
-  if (Math.abs(evMonth - beMonth) === 1 && (evDay <= 2 || beDay <= 2)) {
-    return true;
-  }
-
-  return false;
+function datesMatch(_startsAt: string, _beDate: string): boolean {
+  // Date matching is now implicit: we fetch results for today/yesterday,
+  // so all results on the page are from the requested date.
+  // The beDate field now contains the match time (e.g. "11:00"), not a date.
+  // Always return true — filtering by date is handled at the fetch level.
+  return true;
 }
 
 // ═══ BUILD HALF SCORES ═══

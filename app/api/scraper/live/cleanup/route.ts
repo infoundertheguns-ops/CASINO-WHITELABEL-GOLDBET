@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { settleEvent, deactivateEvent } from "@/lib/settlement";
+import { deactivateEvent } from "@/lib/settlement";
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-scraper-key");
@@ -74,27 +74,12 @@ export async function POST(req: NextRequest) {
     if (!staleErr) staleMarked = stalePrematch.length;
   }
 
-  // ── Auto-settle newly finished events (max 20) ──
-  const toSettle = toFinish.slice(0, 20);
-  let settled = 0;
-  let deactivated = 0;
-  const settleErrors: string[] = [];
+  // Settlement is handled by:
+  // - verify-results cron (every 5 min) — BetExplorer verified scores
+  // - cleanup cron (every 10 min, 30-min delay) — fallback with scraper scores
+  // This route only marks events as finished; it does NOT settle.
 
-  for (const ev of toSettle) {
-    try {
-      const res = await settleEvent(supabase, ev.id);
-      if (res.success) settled++;
-      else if (res.skipped_no_scores) {
-        await deactivateEvent(supabase, ev.id);
-        deactivated++;
-      } else if (res.error) {
-        settleErrors.push(`${ev.external_id}: ${res.error}`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      settleErrors.push(`${ev.external_id}: ${msg}`);
-    }
-  }
+  let deactivated = 0;
 
   // ── Deactivate stale prematch events that were cleaned above ──
   if (stalePrematch && stalePrematch.length > 0) {
@@ -106,44 +91,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Process backlog: finished events from previous cycles (max 30) ──
-  const backlogThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  const { data: backlogEvents } = await supabase
-    .from("events")
-    .select("id, external_id, score_home")
-    .eq("status", "finished")
-    .lt("updated_at", backlogThreshold)
-    .order("updated_at", { ascending: true })
-    .limit(30);
-
-  let backlogSettled = 0;
-  let backlogDeactivated = 0;
-
-  if (backlogEvents && backlogEvents.length > 0) {
-    for (const ev of backlogEvents) {
-      try {
-        if (ev.score_home != null) {
-          const res = await settleEvent(supabase, ev.id);
-          if (res.success) backlogSettled++;
-          else {
-            await deactivateEvent(supabase, ev.id);
-            backlogDeactivated++;
-          }
-        } else {
-          await deactivateEvent(supabase, ev.id);
-          backlogDeactivated++;
-        }
-      } catch { /* ignore */ }
-    }
-  }
-
   return NextResponse.json({
     finished: toFinish.length,
     stale_prematch_cleaned: staleMarked || undefined,
-    settled,
     deactivated: deactivated || undefined,
-    backlog_settled: backlogSettled || undefined,
-    backlog_deactivated: backlogDeactivated || undefined,
-    settle_errors: settleErrors.length > 0 ? settleErrors.slice(0, 10) : undefined,
   });
 }

@@ -58,9 +58,13 @@ interface Snapshot {
 }
 
 // ═══ IN-MEMORY STORE (circular buffer, last ~60 snapshots = ~1 hour at 1/min) ═══
+// Use globalThis to survive Next.js module re-evaluation
 
 const MAX_SNAPSHOTS = 60;
-const snapshots: Snapshot[] = [];
+
+const g = globalThis as any;
+if (!g.__scraperSnapshots) g.__scraperSnapshots = [] as Snapshot[];
+const snapshots: Snapshot[] = g.__scraperSnapshots;
 
 function addSnapshot(snap: Snapshot) {
   snapshots.push(snap);
