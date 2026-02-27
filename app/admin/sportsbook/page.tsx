@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Toaster, toast } from "sonner";
@@ -23,6 +23,19 @@ interface BetRow {
   created_at: string;
   settled_at: string | null;
   username: string;
+  legs: LegRow[];
+  combo_type?: string;
+  combo_count?: number;
+  combos_won?: number;
+  children?: ChildComboRow[];
+}
+
+interface ChildComboRow {
+  id: string;
+  stake: number;
+  total_odds: number;
+  potential_win: number;
+  status: string;
   legs: LegRow[];
 }
 
@@ -82,26 +95,43 @@ function fmtDate(iso: string): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase();
   const styles: Record<string, string> = {
-    open: "bg-yellow-500/20 text-yellow-400",
-    won: "bg-emerald-500/20 text-emerald-400",
-    lost: "bg-red-500/20 text-red-400",
-    void: "bg-gray-500/20 text-gray-400",
-    cashout: "bg-blue-500/20 text-blue-400",
-    prematch: "bg-blue-500/20 text-blue-400",
-    live: "bg-red-500/20 text-red-400",
-    ended: "bg-emerald-500/20 text-emerald-400",
-    cancelled: "bg-gray-500/20 text-gray-400",
-    postponed: "bg-orange-500/20 text-orange-400",
+    open: "bg-yellow-500/20 text-yellow-600",
+    won: "bg-emerald-500/20 text-emerald-600",
+    lost: "bg-red-500/20 text-red-600",
+    void: "bg-gray-500/20 text-gray-500",
+    cashout: "bg-blue-500/20 text-blue-600",
+    pending_acceptance: "bg-orange-500/20 text-orange-600",
+    rejected: "bg-red-500/20 text-red-600",
+    prematch: "bg-blue-500/20 text-blue-600",
+    live: "bg-red-500/20 text-red-600",
+    ended: "bg-emerald-500/20 text-emerald-600",
+    cancelled: "bg-gray-500/20 text-gray-500",
+    postponed: "bg-orange-500/20 text-orange-600",
+  };
+  const labels: Record<string, string> = {
+    open: "APERTA",
+    won: "VINTA",
+    lost: "PERSA",
+    void: "VOID",
+    cashout: "CASHOUT",
+    pending_acceptance: "IN ATTESA",
+    rejected: "RIFIUTATA",
+    prematch: "PREMATCH",
+    live: "LIVE",
+    ended: "CONCLUSO",
+    cancelled: "ANNULLATO",
+    postponed: "POSTICIPATO",
   };
   return (
     <span
       className={cn(
-        "px-2 py-0.5 rounded text-[9px] font-bold",
-        styles[status] || "bg-gray-500/20 text-gray-400"
+        "px-2 py-0.5 rounded text-[9px] font-bold whitespace-nowrap",
+        styles[s] || "bg-gray-500/20 text-gray-500"
       )}
     >
-      {status.toUpperCase()}
+      {labels[s] || status.toUpperCase()}
     </span>
   );
 }
@@ -169,6 +199,9 @@ export default function AdminSportsbook() {
               created_at: b.created_at as string,
               settled_at: b.settled_at as string | null,
               username: (b.username as string) || "—",
+              combo_type: b.combo_type as string | undefined,
+              combo_count: b.combo_count as number | undefined,
+              combos_won: b.combos_won as number | undefined,
               legs: sels.map((s: Record<string, unknown>) => {
                 const ev = s.event as Record<string, string> | null;
                 return {
@@ -178,6 +211,27 @@ export default function AdminSportsbook() {
                   result: s.result as string | null,
                   home_team: ev?.home_team || "—",
                   away_team: ev?.away_team || "—",
+                };
+              }),
+              children: ((b.children as Record<string, unknown>[] | undefined) || []).map((c: Record<string, unknown>) => {
+                const cSels = (c.bet_selections as Record<string, unknown>[] | null) || [];
+                return {
+                  id: c.id as string,
+                  stake: c.stake as number,
+                  total_odds: c.total_odds as number,
+                  potential_win: c.potential_win as number,
+                  status: c.status as string,
+                  legs: cSels.map((s: Record<string, unknown>) => {
+                    const ev = s.event as Record<string, string> | null;
+                    return {
+                      id: s.id as string,
+                      event_id: s.event_id as string,
+                      odds_at_placement: s.odds_at_placement as number,
+                      result: s.result as string | null,
+                      home_team: ev?.home_team || "—",
+                      away_team: ev?.away_team || "—",
+                    };
+                  }),
                 };
               }),
             };
@@ -451,40 +505,40 @@ export default function AdminSportsbook() {
 
       {/* ═══ HEADER ═══ */}
       <div className="mb-6">
-        <h1 className="text-2xl font-black text-white">Sportsbook</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-black" style={{ color: "var(--admin-text)" }}>Sportsbook</h1>
+        <p className="text-sm" style={{ color: "var(--admin-text4)" }}>
           Gestione scommesse, eventi e settlement
         </p>
       </div>
 
       {/* ═══ KPIs ═══ */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-          <div className="text-[10px] text-gray-500 font-semibold">
+        <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
+          <div className="text-[10px] font-semibold" style={{ color: "var(--admin-text4)" }}>
             TOT. SCOMMESSO
           </div>
-          <div className="text-lg font-black font-mono text-white">
+          <div className="text-lg font-black font-mono" style={{ color: "var(--admin-text)" }}>
             ${kpis.staked.toFixed(2)}
           </div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-          <div className="text-[10px] text-gray-500 font-semibold">
+        <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
+          <div className="text-[10px] font-semibold" style={{ color: "var(--admin-text4)" }}>
             LIABILITY APERTA
           </div>
           <div className="text-lg font-black font-mono text-red-400">
             ${kpis.liability.toFixed(2)}
           </div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-          <div className="text-[10px] text-gray-500 font-semibold">
+        <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
+          <div className="text-[10px] font-semibold" style={{ color: "var(--admin-text4)" }}>
             SCOMMESSE APERTE
           </div>
           <div className="text-lg font-black font-mono text-yellow-400">
             {kpis.openBets}
           </div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-          <div className="text-[10px] text-gray-500 font-semibold">
+        <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
+          <div className="text-[10px] font-semibold" style={{ color: "var(--admin-text4)" }}>
             MARGIN %
           </div>
           <div
@@ -496,8 +550,8 @@ export default function AdminSportsbook() {
             {kpis.margin.toFixed(1)}%
           </div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
-          <div className="text-[10px] text-gray-500 font-semibold">
+        <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
+          <div className="text-[10px] font-semibold" style={{ color: "var(--admin-text4)" }}>
             EVENTI APERTI
           </div>
           <div className="text-lg font-black font-mono text-blue-400">
@@ -507,7 +561,7 @@ export default function AdminSportsbook() {
       </div>
 
       {/* ═══ TAB NAVIGATION ═══ */}
-      <div className="flex gap-1 mb-5 border-b border-gray-800">
+      <div className="flex gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -515,9 +569,10 @@ export default function AdminSportsbook() {
             className={cn(
               "px-4 py-2.5 text-xs font-bold transition-all border-b-2 -mb-px",
               activeTab === tab.id
-                ? "text-white border-brand"
-                : "text-gray-500 border-transparent hover:text-gray-300"
+                ? "border-brand"
+                : "border-transparent"
             )}
+            style={{ color: activeTab === tab.id ? "var(--admin-text)" : "var(--admin-text4)" }}
           >
             {tab.label}
           </button>
@@ -541,8 +596,9 @@ export default function AdminSportsbook() {
                     "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
                     betDateRange === d.id
                       ? "bg-brand text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      : "hover:opacity-80"
                   )}
+                  style={betDateRange !== d.id ? { background: "var(--admin-surface3)", color: "var(--admin-text3)" } : undefined}
                 >
                   {d.label}
                 </button>
@@ -559,8 +615,9 @@ export default function AdminSportsbook() {
                     "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
                     betStatus === s.id
                       ? "bg-brand text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      : "hover:opacity-80"
                   )}
+                  style={betStatus !== s.id ? { background: "var(--admin-surface3)", color: "var(--admin-text3)" } : undefined}
                 >
                   {s.label}
                 </button>
@@ -573,141 +630,163 @@ export default function AdminSportsbook() {
               value={betSearch}
               onChange={(e) => setBetSearch(e.target.value)}
               placeholder="Cerca utente o ID..."
-              className="px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand w-48"
+              className="px-3 py-1.5 rounded-lg text-xs placeholder-gray-400 focus:outline-none focus:border-brand w-48"
+              style={{ background: "var(--admin-input)", border: "1px solid var(--admin-border)", color: "var(--admin-text)" }}
             />
           </div>
 
           {/* Table */}
-          <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
             {betsLoading ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
                 Caricamento...
               </div>
             ) : filteredBets.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
                 Nessuna scommessa trovata
               </div>
             ) : (
-              <table className="w-full text-xs">
+              <table className="w-full text-xs table-fixed">
+                <colgroup>
+                  <col style={{ width: "120px" }} />
+                  <col style={{ width: "90px" }} />
+                  <col />
+                  <col style={{ width: "90px" }} />
+                  <col style={{ width: "65px" }} />
+                  <col style={{ width: "100px" }} />
+                  <col style={{ width: "110px" }} />
+                  <col style={{ width: "110px" }} />
+                  <col style={{ width: "28px" }} />
+                </colgroup>
                 <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
-                    <th className="text-left px-4 py-3 font-semibold">
-                      Utente
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold">Tipo</th>
-                    <th className="text-left px-4 py-3 font-semibold">
-                      Evento
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold">
-                      Stake
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold">
-                      Quota
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold">
-                      Vincita pot.
-                    </th>
-                    <th className="text-center px-4 py-3 font-semibold">
-                      Stato
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold">
-                      Data
-                    </th>
-                    <th className="w-8" />
+                  <tr style={{ color: "var(--admin-text4)", borderBottom: "1px solid var(--admin-border)" }}>
+                    <th className="text-left px-3 py-3 font-semibold">Utente</th>
+                    <th className="text-left px-3 py-3 font-semibold">Tipo</th>
+                    <th className="text-left px-3 py-3 font-semibold">Evento</th>
+                    <th className="text-right px-3 py-3 font-semibold">Stake</th>
+                    <th className="text-right px-3 py-3 font-semibold">Quota</th>
+                    <th className="text-right px-3 py-3 font-semibold">Vincita pot.</th>
+                    <th className="text-center px-3 py-3 font-semibold">Stato</th>
+                    <th className="text-right px-3 py-3 font-semibold">Data</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
                   {filteredBets.map((bet) => {
                     const isExpanded = expandedBet === bet.id;
-                    const legSummary =
-                      bet.legs.length > 0
-                        ? bet.legs
-                            .map((l) => `${l.home_team} vs ${l.away_team}`)
-                            .filter(
-                              (v, i, a) => a.indexOf(v) === i
-                            )
-                            .join(", ")
-                        : "—";
+                    const isSistema = bet.bet_type === "sistema";
+
+                    // For sistema bets, gather event names from children
+                    const legSummary = (() => {
+                      if (isSistema && bet.children && bet.children.length > 0) {
+                        const allLegs = bet.children.flatMap((c) => c.legs);
+                        const names = allLegs
+                          .map((l) => `${l.home_team} vs ${l.away_team}`)
+                          .filter((v, i, a) => a.indexOf(v) === i);
+                        return names.join(", ");
+                      }
+                      if (bet.legs.length > 0) {
+                        return bet.legs
+                          .map((l) => `${l.home_team} vs ${l.away_team}`)
+                          .filter((v, i, a) => a.indexOf(v) === i)
+                          .join(", ");
+                      }
+                      return "—";
+                    })();
+
+                    // Type label
+                    const typeLabel = isSistema
+                      ? (bet.combo_type ? `Sistema ${bet.combo_type}` : "Sistema")
+                      : bet.bet_type === "singola" ? "Singola"
+                      : bet.bet_type === "multipla" || bet.bet_type === "multi" ? "Multipla"
+                      : bet.bet_type.charAt(0).toUpperCase() + bet.bet_type.slice(1);
+
+                    const hasExpandable = isSistema
+                      ? (bet.children && bet.children.length > 0)
+                      : bet.legs.length > 0;
 
                     return (
-                      <tr key={bet.id} className="group">
-                        <td colSpan={9} className="p-0">
-                          {/* Main row */}
-                          <div
-                            className={cn(
-                              "grid grid-cols-[1fr_60px_1fr_80px_60px_80px_70px_90px_32px] items-center px-4 py-3 border-b border-gray-800/50 hover:bg-white/5 cursor-pointer",
-                              isExpanded && "bg-white/5"
-                            )}
-                            onClick={() =>
-                              setExpandedBet(isExpanded ? null : bet.id)
-                            }
-                          >
-                            <span className="text-white font-medium truncate">
-                              {bet.username}
-                            </span>
-                            <span className="text-gray-400 capitalize">
-                              {bet.bet_type}
-                            </span>
-                            <span className="text-gray-300 truncate text-[10px]">
-                              {legSummary}
-                            </span>
-                            <span className="text-right font-mono text-white">
-                              ${bet.stake?.toFixed(2)}
-                            </span>
-                            <span className="text-right font-mono text-gray-300">
-                              {bet.total_odds?.toFixed(2)}
-                            </span>
-                            <span className="text-right font-mono text-emerald-400">
-                              ${bet.potential_win?.toFixed(2)}
-                            </span>
-                            <span className="text-center">
-                              <StatusBadge status={bet.status} />
-                            </span>
-                            <span className="text-right text-gray-500">
-                              {fmtDate(bet.created_at)}
-                            </span>
-                            <span className="text-center text-gray-600">
-                              {bet.legs.length > 0 && (
-                                <span
-                                  className={cn(
-                                    "inline-block transition-transform",
-                                    isExpanded ? "rotate-180" : ""
-                                  )}
-                                >
-                                  ▾
-                                </span>
-                              )}
-                            </span>
-                          </div>
-
-                          {/* Expanded legs */}
-                          {isExpanded && bet.legs.length > 0 && (
-                            <div className="bg-black/20 border-b border-gray-800/50 px-6 py-2">
-                              <div className="text-[9px] text-gray-500 font-semibold mb-1">
-                                SELEZIONI ({bet.legs.length})
+                      <React.Fragment key={bet.id}>
+                      <tr
+                        className="cursor-pointer"
+                        style={{
+                          borderBottom: "1px solid var(--admin-border)",
+                          background: isExpanded ? "var(--admin-card-hover)" : undefined,
+                        }}
+                        onMouseEnter={(e) => { if (!isExpanded) e.currentTarget.style.background = "var(--admin-card-hover)"; }}
+                        onMouseLeave={(e) => { if (!isExpanded) e.currentTarget.style.background = ""; }}
+                        onClick={() => setExpandedBet(isExpanded ? null : bet.id)}
+                      >
+                        <td className="px-3 py-3 font-bold truncate" style={{ color: "var(--admin-text, #111827)" }}>{bet.username || "—"}</td>
+                        <td className={cn("px-3 py-3 text-[10px] font-semibold truncate", isSistema ? "text-purple-500" : "")} style={!isSistema ? { color: "var(--admin-text3)" } : undefined}>{typeLabel}</td>
+                        <td className="px-3 py-3 text-[10px] truncate max-w-0" style={{ color: "var(--admin-text2)" }}>{legSummary}</td>
+                        <td className="px-3 py-3 text-right font-mono font-bold whitespace-nowrap" style={{ color: "var(--admin-text, #111827)" }}>${bet.stake != null ? bet.stake.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-3 text-right font-mono font-semibold whitespace-nowrap" style={{ color: "var(--admin-text2)" }}>{bet.total_odds?.toFixed(2)}</td>
+                        <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold whitespace-nowrap">${bet.potential_win?.toFixed(2)}</td>
+                        <td className="px-3 py-3 text-center whitespace-nowrap overflow-hidden"><StatusBadge status={bet.status} /></td>
+                        <td className="px-3 py-3 text-right whitespace-nowrap" style={{ color: "var(--admin-text4)" }}>{fmtDate(bet.created_at)}</td>
+                        <td className="px-1 py-3 text-center" style={{ color: "var(--admin-text4)" }}>
+                          {hasExpandable && (
+                            <span className={cn("inline-block transition-transform", isExpanded ? "rotate-180" : "")}>▾</span>
+                          )}
+                        </td>
+                      </tr>
+                      {/* Expanded: sistema combos */}
+                      {isExpanded && isSistema && bet.children && bet.children.length > 0 && (
+                        <tr>
+                          <td colSpan={9} className="p-0">
+                            <div className="px-6 py-2" style={{ background: "var(--admin-card-hover)", borderBottom: "1px solid var(--admin-border)" }}>
+                              <div className="text-[9px] font-semibold mb-1" style={{ color: "var(--admin-text4)" }}>
+                                COMBO ({bet.children.length}) — {bet.combo_type}
+                                {bet.combos_won != null && bet.combos_won > 0 && (
+                                  <span className="text-emerald-600 ml-2">{bet.combos_won} vinte</span>
+                                )}
                               </div>
+                              {bet.children.map((child, ci) => (
+                                <div key={child.id} className="mb-1.5 last:mb-0">
+                                  <div className="flex items-center justify-between py-1 text-[10px]">
+                                    <span className="font-semibold" style={{ color: "var(--admin-text3)" }}>Combo {ci + 1}</span>
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-mono" style={{ color: "var(--admin-text4)" }}>${child.stake?.toFixed(2)} @ {child.total_odds?.toFixed(2)}</span>
+                                      <span className="text-emerald-600 font-mono font-bold">${child.potential_win?.toFixed(2)}</span>
+                                      <StatusBadge status={child.status} />
+                                    </div>
+                                  </div>
+                                  {child.legs.map((leg) => (
+                                    <div key={leg.id} className="flex items-center justify-between py-1 pl-4 last:border-0" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                                      <span className="text-[10px]" style={{ color: "var(--admin-text3)" }}>{leg.home_team} vs {leg.away_team}</span>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-[9px] font-mono" style={{ color: "var(--admin-text4)" }}>@{leg.odds_at_placement?.toFixed(2)}</span>
+                                        {leg.result && <StatusBadge status={leg.result} />}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {/* Expanded: normal legs (singola/multipla) */}
+                      {isExpanded && !isSistema && bet.legs.length > 0 && (
+                        <tr>
+                          <td colSpan={9} className="p-0">
+                            <div className="px-6 py-2" style={{ background: "var(--admin-card-hover)", borderBottom: "1px solid var(--admin-border)" }}>
+                              <div className="text-[9px] font-semibold mb-1" style={{ color: "var(--admin-text4)" }}>SELEZIONI ({bet.legs.length})</div>
                               {bet.legs.map((leg) => (
-                                <div
-                                  key={leg.id}
-                                  className="flex items-center justify-between py-1.5 border-b border-gray-800/30 last:border-0"
-                                >
-                                  <span className="text-[11px] text-gray-300">
-                                    {leg.home_team} vs {leg.away_team}
-                                  </span>
+                                <div key={leg.id} className="flex items-center justify-between py-1.5 last:border-0" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                                  <span className="text-[11px]" style={{ color: "var(--admin-text2)" }}>{leg.home_team} vs {leg.away_team}</span>
                                   <div className="flex items-center gap-3">
-                                    <span className="text-[10px] text-gray-500 font-mono">
-                                      @{leg.odds_at_placement?.toFixed(2)}
-                                    </span>
-                                    {leg.result && (
-                                      <StatusBadge status={leg.result} />
-                                    )}
+                                    <span className="text-[10px] font-mono" style={{ color: "var(--admin-text4)" }}>@{leg.odds_at_placement?.toFixed(2)}</span>
+                                    {leg.result && <StatusBadge status={leg.result} />}
                                   </div>
                                 </div>
                               ))}
                             </div>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -728,7 +807,8 @@ export default function AdminSportsbook() {
             <select
               value={eventSportFilter}
               onChange={(e) => setEventSportFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-white focus:outline-none focus:border-brand"
+              className="px-3 py-1.5 rounded-lg text-xs focus:outline-none focus:border-brand"
+              style={{ background: "var(--admin-input)", border: "1px solid var(--admin-border)", color: "var(--admin-text)" }}
             >
               <option value="all">Tutti gli sport</option>
               {sportsList.map((s) => (
@@ -748,8 +828,9 @@ export default function AdminSportsbook() {
                     "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
                     eventStatusFilter === s.id
                       ? "bg-brand text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      : "hover:opacity-80"
                   )}
+                  style={eventStatusFilter !== s.id ? { background: "var(--admin-surface3)", color: "var(--admin-text3)" } : undefined}
                 >
                   {s.label}
                 </button>
@@ -766,8 +847,9 @@ export default function AdminSportsbook() {
                     "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
                     eventDateRange === d.id
                       ? "bg-brand text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      : "hover:opacity-80"
                   )}
+                  style={eventDateRange !== d.id ? { background: "var(--admin-surface3)", color: "var(--admin-text3)" } : undefined}
                 >
                   {d.label}
                 </button>
@@ -776,19 +858,19 @@ export default function AdminSportsbook() {
           </div>
 
           {/* Table */}
-          <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
             {eventsLoading ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
                 Caricamento...
               </div>
             ) : filteredEvents.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
                 Nessun evento trovato
               </div>
             ) : (
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
+                  <tr style={{ color: "var(--admin-text4)", borderBottom: "1px solid var(--admin-border)" }}>
                     <th className="text-left px-4 py-3 font-semibold">
                       Evento
                     </th>
@@ -817,29 +899,30 @@ export default function AdminSportsbook() {
                     return (
                       <tr
                         key={ev.id}
-                        className="border-b border-gray-800/50 hover:bg-white/5"
+                        style={{ borderBottom: "1px solid var(--admin-border)" }}
+                        className="hover:opacity-80"
                       >
                         <td className="px-4 py-3">
-                          <div className="text-white font-medium">
+                          <div className="font-bold" style={{ color: "var(--admin-text)" }}>
                             {ev.home_team} vs {ev.away_team}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-400">
+                        <td className="px-4 py-3" style={{ color: "var(--admin-text3)" }}>
                           {ev.sport_name}
                         </td>
-                        <td className="px-4 py-3 text-gray-400">
+                        <td className="px-4 py-3" style={{ color: "var(--admin-text3)" }}>
                           {ev.league_name}
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-500">
+                        <td className="px-4 py-3 text-right" style={{ color: "var(--admin-text4)" }}>
                           {fmtDate(ev.starts_at)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           {ev.score_home !== null && ev.score_away !== null ? (
-                            <span className="font-mono font-bold text-white">
+                            <span className="font-mono font-bold" style={{ color: "var(--admin-text)" }}>
                               {ev.score_home} - {ev.score_away}
                             </span>
                           ) : (
-                            <span className="text-gray-600">—</span>
+                            <span style={{ color: "var(--admin-text4)" }}>—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -855,12 +938,12 @@ export default function AdminSportsbook() {
                                   awayScore: ev.score_away ?? 0,
                                 })
                               }
-                              className="px-3 py-1 rounded bg-gold-500/20 text-yellow-400 text-[9px] font-bold hover:bg-yellow-500/30 transition-colors"
+                              className="px-3 py-1 rounded bg-yellow-500/20 text-yellow-600 text-[9px] font-bold hover:bg-yellow-500/30 transition-colors"
                             >
                               Settle
                             </button>
                           ) : (
-                            <span className="text-gray-600">—</span>
+                            <span style={{ color: "var(--admin-text4)" }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -878,19 +961,19 @@ export default function AdminSportsbook() {
       {/* ═══════════════════════════════════════════ */}
       {activeTab === "settlement" && (
         <div>
-          <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
             {settledLoading ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
                 Caricamento...
               </div>
             ) : settledBets.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 text-sm">
+              <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
                 Nessun settlement trovato
               </div>
             ) : (
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
+                  <tr style={{ color: "var(--admin-text4)", borderBottom: "1px solid var(--admin-border)" }}>
                     <th className="text-left px-4 py-3 font-semibold">
                       Bet ID
                     </th>
@@ -918,18 +1001,19 @@ export default function AdminSportsbook() {
                   {settledBets.map((bet) => (
                     <tr
                       key={bet.id}
-                      className="border-b border-gray-800/50 hover:bg-white/5"
+                      style={{ borderBottom: "1px solid var(--admin-border)" }}
+                      className="hover:opacity-80"
                     >
-                      <td className="px-4 py-3 font-mono text-gray-400">
+                      <td className="px-4 py-3 font-mono" style={{ color: "var(--admin-text3)" }}>
                         {bet.id.slice(0, 8)}...
                       </td>
-                      <td className="px-4 py-3 text-white font-medium">
+                      <td className="px-4 py-3 font-bold" style={{ color: "var(--admin-text)" }}>
                         {bet.username}
                       </td>
-                      <td className="px-4 py-3 text-gray-300 max-w-[200px] truncate">
+                      <td className="px-4 py-3 max-w-[200px] truncate" style={{ color: "var(--admin-text2)" }}>
                         {bet.event_names}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-white">
+                      <td className="px-4 py-3 text-right font-mono font-bold" style={{ color: "var(--admin-text)" }}>
                         ${bet.stake?.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -939,13 +1023,14 @@ export default function AdminSportsbook() {
                         className={cn(
                           "px-4 py-3 text-right font-mono font-bold",
                           getPayout(bet) > 0
-                            ? "text-emerald-400"
-                            : "text-gray-500"
+                            ? "text-emerald-500"
+                            : ""
                         )}
+                        style={getPayout(bet) <= 0 ? { color: "var(--admin-text4)" } : undefined}
                       >
                         ${getPayout(bet).toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-500">
+                      <td className="px-4 py-3 text-right" style={{ color: "var(--admin-text4)" }}>
                         {bet.settled_at ? fmtDate(bet.settled_at) : "—"}
                       </td>
                     </tr>
@@ -966,19 +1051,20 @@ export default function AdminSportsbook() {
           onClick={() => !settling && setSettleModal(null)}
         >
           <div
-            className="bg-[#12111a] rounded-2xl border border-gray-700 p-6 w-full max-w-md shadow-2xl"
+            className="rounded-2xl p-6 w-full max-w-md shadow-2xl"
+            style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-white mb-1">
+            <h3 className="text-lg font-bold mb-1" style={{ color: "var(--admin-text)" }}>
               Settlement Evento
             </h3>
-            <p className="text-sm text-gray-400 mb-5">
+            <p className="text-sm mb-5" style={{ color: "var(--admin-text3)" }}>
               {settleModal.event.home_team} vs {settleModal.event.away_team}
             </p>
 
             <div className="flex gap-4 mb-6">
               <div className="flex-1">
-                <label className="block text-[10px] text-gray-500 font-semibold mb-1">
+                <label className="block text-[10px] font-semibold mb-1" style={{ color: "var(--admin-text4)" }}>
                   {settleModal.event.home_team} (HOME)
                 </label>
                 <input
@@ -991,14 +1077,15 @@ export default function AdminSportsbook() {
                       homeScore: parseInt(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-3 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-center text-lg font-mono font-bold focus:outline-none focus:border-brand"
+                  className="w-full px-3 py-2.5 rounded-lg text-center text-lg font-mono font-bold focus:outline-none focus:border-brand"
+                  style={{ background: "var(--admin-input)", border: "1px solid var(--admin-border)", color: "var(--admin-text)" }}
                 />
               </div>
-              <div className="flex items-end pb-3 text-gray-500 font-bold">
+              <div className="flex items-end pb-3 font-bold" style={{ color: "var(--admin-text4)" }}>
                 —
               </div>
               <div className="flex-1">
-                <label className="block text-[10px] text-gray-500 font-semibold mb-1">
+                <label className="block text-[10px] font-semibold mb-1" style={{ color: "var(--admin-text4)" }}>
                   {settleModal.event.away_team} (AWAY)
                 </label>
                 <input
@@ -1011,7 +1098,8 @@ export default function AdminSportsbook() {
                       awayScore: parseInt(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-3 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-white text-center text-lg font-mono font-bold focus:outline-none focus:border-brand"
+                  className="w-full px-3 py-2.5 rounded-lg text-center text-lg font-mono font-bold focus:outline-none focus:border-brand"
+                  style={{ background: "var(--admin-input)", border: "1px solid var(--admin-border)", color: "var(--admin-text)" }}
                 />
               </div>
             </div>
@@ -1020,7 +1108,8 @@ export default function AdminSportsbook() {
               <button
                 onClick={() => setSettleModal(null)}
                 disabled={settling}
-                className="flex-1 py-2.5 rounded-xl border border-gray-700 text-gray-400 text-sm font-bold hover:bg-gray-800 transition-colors"
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                style={{ border: "1px solid var(--admin-border)", color: "var(--admin-text3)" }}
               >
                 Annulla
               </button>
