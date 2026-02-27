@@ -29,11 +29,11 @@ export default function PlayerDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="text-gray-400 text-sm">Caricamento...</div></div>;
+    return <div className="flex items-center justify-center h-64"><div className="text-sm" style={{ color: "var(--admin-text4)" }}>Caricamento...</div></div>;
   }
 
   if (!data?.user) {
-    return <div className="text-center py-12 text-gray-400">Giocatore non trovato</div>;
+    return <div className="text-center py-12" style={{ color: "var(--admin-text4)" }}>Giocatore non trovato</div>;
   }
 
   return (
@@ -80,8 +80,8 @@ export default function PlayerDetailPage() {
             </thead>
             <tbody>
               {(data.bets || []).slice(0, 30).map((b: any) => (
-                <tr key={b.id} className="border-b border-gray-800/50 hover:bg-white/5">
-                  <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
+                <tr key={b.id} style={{ borderBottom: "1px solid var(--admin-border)" }} className="hover:opacity-80">
+                  <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--admin-text4)" }}>
                     {new Date(b.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </td>
                   <td className="px-4 py-2" style={{ color: "var(--admin-text3)" }}>{b.bet_type}</td>

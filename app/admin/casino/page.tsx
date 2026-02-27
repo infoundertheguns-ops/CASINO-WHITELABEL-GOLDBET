@@ -33,25 +33,25 @@ export default function AdminCasino() {
       <p className="text-sm text-gray-500 mb-6">Sessioni di gioco e performance</p>
 
       <div className="grid grid-cols-4 gap-3 mb-6">
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">SESSIONI</div>
           <div className="text-lg font-black font-mono text-white">{sessions.length}</div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">TOTAL BET</div>
           <div className="text-lg font-black font-mono text-brand">${totalBet.toFixed(2)}</div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">TOTAL WIN</div>
           <div className="text-lg font-black font-mono text-emerald-400">${totalWin.toFixed(2)}</div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">GGR</div>
           <div className={cn("text-lg font-black font-mono", ggr >= 0 ? "text-emerald-400" : "text-red-400")}>${ggr.toFixed(2)}</div>
         </div>
       </div>
 
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Caricamento...</div>
         ) : sessions.length === 0 ? (

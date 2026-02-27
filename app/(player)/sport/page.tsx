@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useSportsbook, type SportEvent, type Selection } from "@/lib/hooks/use-sportsbook";
 import { useAuth } from "@/lib/hooks/use-auth";
+import { BetslipPanel } from "@/components/sportsbook/betslip-panel";
 
 // ═══ LIVE TIMER — auto-increments minute between server pushes ═══
 function LiveTimer({ minute, receivedAt }: { minute: number; receivedAt: number }) {
@@ -50,11 +51,15 @@ export default function SportPage() {
     totalOdds,
     placeBet,
     placingBet,
+    betMode,
+    setBetMode,
+    systemComboSize,
+    setSystemComboSize,
   } = useSportsbook();
-  const { wallet, refreshWallet } = useAuth();
+  const { user, wallet, refreshWallet } = useAuth();
   const [stake, setStake] = useState("");
   const [showMobileBetslip, setShowMobileBetslip] = useState(false);
-  const [betResult, setBetResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [betResult, setBetResult] = useState<{ type: "success" | "error" | "warn"; text: string } | null>(null);
 
   // Derive unique sports from all events
   const sports = useMemo(() => {
@@ -74,23 +79,29 @@ export default function SportPage() {
   // Only prematch events (live has its own page)
   const displayEvents = filteredEvents.filter((e) => !e.live);
 
-  const potentialWin = stake ? parseFloat(stake) * totalOdds : 0;
+  const isSystem = betMode === "sistema" && betslip.length >= 3;
+  const systemType = isSystem ? `${systemComboSize}/${betslip.length}` : undefined;
 
   const handlePlaceBet = async () => {
     if (!stake || parseFloat(stake) <= 0) return;
     setBetResult(null);
-    const result = await placeBet(parseFloat(stake));
+    const result = await placeBet(parseFloat(stake), systemType);
     if (result.success) {
-      setBetResult({
-        type: "success",
-        msg: result.flagged ? "Scommessa piazzata (in verifica)" : "Scommessa piazzata!",
-      });
+      const msg = result.combo_count
+        ? `Sistema piazzato! ${result.combo_count} combo`
+        : result.flagged ? "Scommessa piazzata (in verifica)" : "Scommessa piazzata!";
+      setBetResult({ type: "success", text: msg });
       setStake("");
       refreshWallet();
       setTimeout(() => setBetResult(null), 4000);
     } else {
-      setBetResult({ type: "error", msg: result.error || "Errore" });
+      setBetResult({ type: "error", text: result.error || "Errore" });
     }
+  };
+
+  const handleRemoveItem = (b: typeof betslip[0]) => {
+    const ev = allEvents.find((e) => e.id === b.eventId);
+    if (ev) toggleBet(ev, b.marketName, { label: b.selection, odds: b.odds });
   };
 
   // Market lookup by name — supports Italian aliases from Goldbet scraper
@@ -359,75 +370,32 @@ export default function SportPage() {
         <div className="hidden lg:block w-72 flex-shrink-0">
           <div className="sticky top-20 bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="bg-gray-900 text-white px-4 py-3 flex justify-between items-center">
-              <span className="text-sm font-bold">🎫 Schedina</span>
+              <span className="text-sm font-bold">Schedina</span>
               {betslip.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="bg-brand text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{betslip.length}</span>
-                  <button onClick={clearBetslip} className="text-gray-400 hover:text-white text-xs">✕</button>
+                  <button onClick={clearBetslip} className="text-gray-400 hover:text-white text-xs">&times;</button>
                 </div>
               )}
             </div>
-            {betslip.length === 0 ? (
-              <div className="p-6 text-center">
-                <span className="text-2xl block mb-1">🎯</span>
-                <p className="text-xs text-gray-400">Clicca sulle quote</p>
-              </div>
-            ) : (
-              <div className="p-3">
-                <div className="max-h-[280px] overflow-y-auto">
-                  {betslip.map((b, i) => (
-                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="min-w-0 flex-1 mr-2">
-                        <div className="text-[11px] font-semibold text-gray-800 truncate">{b.match}</div>
-                        <div className="text-[9px] text-gray-400">{b.marketName}: {b.selection}</div>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-xs font-bold text-brand font-mono">{b.odds.toFixed(2)}</span>
-                        <button onClick={() => {
-                          const ev = allEvents.find((e) => e.id === b.eventId);
-                          if (ev) toggleBet(ev, b.marketName, { label: b.selection, odds: b.odds });
-                        }} className="text-gray-300 hover:text-red-400 text-[10px]">✕</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {betslip.length > 1 && (
-                  <div className="flex justify-between text-xs mt-2 pt-2 border-t border-gray-200">
-                    <span className="text-gray-500">{betslip.length === 2 ? "Doppia" : betslip.length === 3 ? "Tripla" : `Multipla (${betslip.length})`}</span>
-                    <span className="font-bold font-mono">{totalOdds.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="mt-3">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                    <input type="number" value={stake} onChange={(e) => setStake(e.target.value)} placeholder="Importo"
-                      className="w-full pl-6 pr-3 py-2 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
-                  </div>
-                  <div className="flex gap-1 mt-1.5">
-                    {[5, 10, 25, 50, 100].map((v) => (
-                      <button key={v} onClick={() => setStake(String(v))}
-                        className="flex-1 py-1 rounded bg-gray-100 text-[9px] font-bold text-gray-500 hover:bg-gray-200">${v}</button>
-                    ))}
-                  </div>
-                </div>
-                {stake && parseFloat(stake) > 0 && (
-                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
-                    <span className="text-[10px] text-gray-500">Vincita</span>
-                    <span className="text-base font-black text-emerald-500 font-mono">${potentialWin.toFixed(2)}</span>
-                  </div>
-                )}
-                {betResult && (
-                  <div className={cn("mt-2 px-2 py-1.5 rounded text-[10px] font-semibold text-center",
-                    betResult.type === "success" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-                  )}>{betResult.msg}</div>
-                )}
-                <button onClick={handlePlaceBet} disabled={placingBet || !stake || parseFloat(stake) <= 0}
-                  className={cn("w-full mt-2 py-2.5 rounded-xl text-white text-sm font-bold transition-all",
-                    placingBet ? "bg-gray-400" : "bg-brand hover:bg-brand-dark",
-                    (!stake || parseFloat(stake) <= 0) && "opacity-50"
-                  )}>{placingBet ? "⏳ Piazzando..." : "Piazza Scommessa"}</button>
-              </div>
-            )}
+            <BetslipPanel
+              betslip={betslip}
+              allEvents={allEvents}
+              totalOdds={totalOdds}
+              placingBet={placingBet}
+              stake={stake}
+              setStake={setStake}
+              onPlaceBet={handlePlaceBet}
+              onRemoveItem={handleRemoveItem}
+              onClear={clearBetslip}
+              betMode={betMode}
+              setBetMode={setBetMode}
+              systemComboSize={systemComboSize}
+              setSystemComboSize={setSystemComboSize}
+              user={user}
+              wallet={wallet}
+              msg={betResult}
+            />
           </div>
         </div>
       </div>
@@ -446,23 +414,28 @@ export default function SportPage() {
         <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileBetslip(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-bold">🎫 Schedina ({betslip.length})</span>
-              <button onClick={() => setShowMobileBetslip(false)} className="text-gray-400">✕</button>
+              <span className="text-sm font-bold">Schedina ({betslip.length})</span>
+              <button onClick={() => setShowMobileBetslip(false)} className="text-gray-400">&times;</button>
             </div>
-            {betslip.map((b, i) => (
-              <div key={i} className="flex justify-between py-2 border-b border-gray-100">
-                <div><div className="text-xs font-semibold">{b.match}</div><div className="text-[10px] text-gray-400">{b.marketName}: {b.selection}</div></div>
-                <span className="text-sm font-bold text-brand">{b.odds.toFixed(2)}</span>
-              </div>
-            ))}
-            <div className="flex justify-between text-xs mt-2"><span>Quota</span><span className="font-bold font-mono">{totalOdds.toFixed(2)}</span></div>
-            <input type="number" value={stake} onChange={(e) => setStake(e.target.value)} placeholder="$ Importo"
-              className="w-full mt-3 px-3 py-2.5 rounded-lg border border-gray-200 text-sm font-mono" />
-            {stake && parseFloat(stake) > 0 && (
-              <div className="flex justify-between text-xs mt-2"><span className="text-gray-500">Vincita</span><span className="font-bold text-emerald-500">${potentialWin.toFixed(2)}</span></div>
-            )}
-            <button onClick={handlePlaceBet} disabled={placingBet || !stake}
-              className="w-full mt-3 py-3 rounded-xl bg-brand text-white font-bold text-sm">{placingBet ? "⏳" : "Piazza Scommessa"}</button>
+            <BetslipPanel
+              betslip={betslip}
+              allEvents={allEvents}
+              totalOdds={totalOdds}
+              placingBet={placingBet}
+              stake={stake}
+              setStake={setStake}
+              onPlaceBet={handlePlaceBet}
+              onRemoveItem={handleRemoveItem}
+              onClear={clearBetslip}
+              betMode={betMode}
+              setBetMode={setBetMode}
+              systemComboSize={systemComboSize}
+              setSystemComboSize={setSystemComboSize}
+              user={user}
+              wallet={wallet}
+              msg={betResult}
+              compact
+            />
           </div>
         </div>
       )}

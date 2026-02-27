@@ -253,6 +253,8 @@ export function useSportsbook() {
   const [isMockData, setIsMockData] = useState(false);
   const [betslip, setBetslip] = useState<BetslipItem[]>([]);
   const [placingBet, setPlacingBet] = useState(false);
+  const [betMode, setBetMode] = useState<"auto" | "sistema">("auto");
+  const [systemComboSize, setSystemComboSize] = useState(2);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Fetch events from Supabase (via RPC for performance) ──
@@ -464,7 +466,7 @@ export function useSportsbook() {
   const totalOdds = betslip.reduce((acc, b) => acc * b.odds, 1);
 
   // ── Place bet via server-side API ──
-  const placeBet = async (stake: number): Promise<{
+  const placeBet = async (stake: number, systemType?: string): Promise<{
     success: boolean;
     error?: string;
     flagged?: boolean;
@@ -472,6 +474,8 @@ export function useSportsbook() {
     accepted_stake?: number;
     pending_acceptance?: boolean;
     updated_selections?: any[];
+    combo_count?: number;
+    stake_per_combo?: number;
   }> => {
     if (!user) return { success: false, error: "Devi accedere per scommettere" };
     if (!wallet || wallet.balance < stake) return { success: false, error: "Saldo insufficiente" };
@@ -499,18 +503,21 @@ export function useSportsbook() {
     setPlacingBet(true);
 
     try {
+      const payload: any = {
+        stake,
+        selections: betslip.map((b) => ({
+          eventId: b.eventId,
+          marketId: b.marketId,
+          outcomeId: b.outcomeId,
+          odds: b.odds,
+        })),
+      };
+      if (systemType) payload.systemType = systemType;
+
       const res = await fetch("/api/player/place-bet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stake,
-          selections: betslip.map((b) => ({
-            eventId: b.eventId,
-            marketId: b.marketId,
-            outcomeId: b.outcomeId,
-            odds: b.odds,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -544,6 +551,7 @@ export function useSportsbook() {
       }
 
       setBetslip([]);
+      setBetMode("auto");
       setPlacingBet(false);
 
       return {
@@ -552,6 +560,8 @@ export function useSportsbook() {
         partial: data.partial,
         accepted_stake: data.stake,
         pending_acceptance: data.status === "pending_acceptance",
+        combo_count: data.combo_count,
+        stake_per_combo: data.stake_per_combo,
       };
     } catch (err: any) {
       setPlacingBet(false);
@@ -581,5 +591,9 @@ export function useSportsbook() {
     clearBetslip,
     totalOdds,
     placeBet,
+    betMode,
+    setBetMode,
+    systemComboSize,
+    setSystemComboSize,
   };
 }

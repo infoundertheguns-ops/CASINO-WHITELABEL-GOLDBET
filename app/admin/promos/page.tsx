@@ -32,21 +32,21 @@ export default function AdminPromos() {
       <p className="text-sm text-gray-500 mb-6">Gestione bonus e promozioni</p>
 
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">PROMOZIONI ATTIVE</div>
           <div className="text-lg font-black font-mono text-white">{promos.filter(p => p.status === "active").length}</div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">BONUS CLAIM</div>
           <div className="text-lg font-black font-mono text-purple-400">{userPromos.length}</div>
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">BONUS EROGATI</div>
           <div className="text-lg font-black font-mono text-brand">${totalBonusIssued.toFixed(2)}</div>
         </div>
       </div>
 
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-800">
           <span className="text-sm font-bold text-white">Bonus Riscossi</span>
         </div>

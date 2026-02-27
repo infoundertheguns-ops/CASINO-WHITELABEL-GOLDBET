@@ -8,6 +8,7 @@ import { settleEvent, deactivateEvent } from "@/lib/settlement";
 // - Audits event status, markets, outcomes health
 // - Auto-fixes: finished backlog, ended with active markets,
 //   stale prematch, orphan markets
+// - Detects scraper downtime and creates risk_events alert
 // - Returns full health report
 // ═══════════════════════════════════════════════════
 
@@ -23,31 +24,55 @@ export async function POST(req: NextRequest) {
   );
 
   const fixes: Record<string, number> = {};
+  const alerts: string[] = [];
   const errors: string[] = [];
 
   // ═══ AUDIT: Collect metrics ═══
-
+  // Single RPC call for all heavy counts (avoids PostgREST parallel count bug + timeout)
   const [
     { data: statusCounts },
-    { count: activeMarkets },
-    { count: inactiveMarkets },
-    { count: activeOutcomes },
-    { count: inactiveOutcomes },
-    { count: updatedOutcomes5m },
-    { count: oddsChanged5m },
+    { data: auditCounts },
     { count: finishedCount },
     { count: prematchTotal },
   ] = await Promise.all([
     supabase.rpc("get_event_status_counts"),
-    supabase.from("markets").select("id", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("markets").select("id", { count: "exact", head: true }).eq("is_active", false),
-    supabase.from("outcomes").select("id", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("outcomes").select("id", { count: "exact", head: true }).eq("is_active", false),
-    supabase.from("outcomes").select("id", { count: "exact", head: true }).gt("updated_at", new Date(Date.now() - 5 * 60 * 1000).toISOString()),
-    supabase.from("outcomes").select("id", { count: "exact", head: true }).gt("updated_at", new Date(Date.now() - 5 * 60 * 1000).toISOString()).not("previous_odds", "is", null).neq("previous_odds", 0),
+    supabase.rpc("get_audit_counts"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "finished"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "prematch"),
   ]);
+
+  const ac = auditCounts || {};
+  const approxMarkets = ac.approx_total_markets ?? 0;
+  const approxOutcomes = ac.approx_total_outcomes ?? 0;
+  const updatedOutcomes5m = ac.updated_outcomes_5m ?? 0;
+  const oddsChanged5m = ac.odds_changed_5m ?? 0;
+  const liveCnt = ac.live_events ?? 0;
+  const latestOutcomeUpdate = ac.latest_outcome_update as string | null;
+
+  const lastUpdateAge = latestOutcomeUpdate
+    ? Math.floor((Date.now() - new Date(latestOutcomeUpdate).getTime()) / 60000)
+    : null;
+
+  const scraperAlive = updatedOutcomes5m > 0;
+
+  // ═══ SCRAPER HEALTH CHECK ═══
+
+  if (!scraperAlive && liveCnt > 0 && (lastUpdateAge === null || lastUpdateAge > 10)) {
+    alerts.push(
+      `SCRAPER DOWN: ${liveCnt} live events but no outcome updates in ${lastUpdateAge ?? "unknown"} minutes`
+    );
+
+    await supabase.from("risk_events").insert({
+      event_type: "scraper_down",
+      severity: "critical",
+      description: `Scraper non attivo: ${liveCnt} eventi live ma nessun aggiornamento outcomes da ${lastUpdateAge ?? "?"} minuti`,
+      metadata: { liveEventCount: liveCnt, lastUpdateAge, approxOutcomes, updatedOutcomes5m },
+      status: "open",
+      created_at: new Date().toISOString(),
+    });
+  } else if (!scraperAlive && liveCnt === 0) {
+    alerts.push(`SCRAPER IDLE: no live events, last update ${lastUpdateAge ?? "unknown"} min ago`);
+  }
 
   // ═══ FIX 1: Process ALL finished events (loop until done, max 500) ═══
 
@@ -81,8 +106,11 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`settle ${ev.external_id}: ${msg}`);
-        // Force deactivate on error to prevent stuck events
-        try { await deactivateEvent(supabase, ev.id); } catch { /* ignore */ }
+        try {
+          await deactivateEvent(supabase, ev.id);
+        } catch {
+          /* ignore */
+        }
       }
       processed++;
     }
@@ -111,7 +139,7 @@ export async function POST(req: NextRequest) {
     .limit(200);
 
   if (stalePrematch && stalePrematch.length > 0) {
-    const staleIds = stalePrematch.map((e) => e.id);
+    const staleIds = stalePrematch.map((e: { id: string }) => e.id);
     await supabase
       .from("events")
       .update({ status: "finished", updated_at: new Date().toISOString() })
@@ -121,13 +149,14 @@ export async function POST(req: NextRequest) {
     for (const ev of stalePrematch) {
       try {
         await deactivateEvent(supabase, ev.id);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }
 
   // ═══ BUILD REPORT ═══
 
-  // Parse status counts (from RPC or fallback)
   let eventStatus: Record<string, number> = {};
   if (Array.isArray(statusCounts)) {
     for (const r of statusCounts) eventStatus[r.status] = r.count;
@@ -136,18 +165,21 @@ export async function POST(req: NextRequest) {
   const report = {
     timestamp: new Date().toISOString(),
     events: eventStatus,
-    markets: { active: activeMarkets || 0, inactive: inactiveMarkets || 0 },
-    outcomes: { active: activeOutcomes || 0, inactive: inactiveOutcomes || 0 },
+    markets: { approx_total: approxMarkets },
+    outcomes: { approx_total: approxOutcomes },
     pipeline: {
-      outcomes_updated_5min: updatedOutcomes5m || 0,
-      odds_changed_5min: oddsChanged5m || 0,
-      scraper_alive: (updatedOutcomes5m || 0) > 0,
+      outcomes_updated_5min: updatedOutcomes5m,
+      odds_changed_5min: oddsChanged5m,
+      scraper_alive: scraperAlive,
+      last_update_minutes_ago: lastUpdateAge,
+      live_events: liveCnt,
     },
     health: {
-      finished_backlog: (finishedCount || 0) - processed,
-      prematch_count: prematchTotal || 0,
+      finished_backlog: (finishedCount ?? 0) - processed,
+      prematch_count: prematchTotal ?? 0,
     },
     fixes: Object.keys(fixes).length > 0 ? fixes : "none",
+    alerts: alerts.length > 0 ? alerts : undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   };
 

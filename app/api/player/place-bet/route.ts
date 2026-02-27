@@ -12,6 +12,7 @@ import {
 // PLACE BET API — Secure server-side bet placement
 // Handles: auth, limits, odds validation, liability,
 // acceptance (auto/manual/partial), risk analysis, wallet
+// Supports: singola, multipla, sistema (system bets)
 // ═══════════════════════════════════════════════════
 
 function getAdminSupabase() {
@@ -19,6 +20,17 @@ function getAdminSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+}
+
+function combinations<T>(arr: T[], k: number): T[][] {
+  if (k === 0) return [[]];
+  if (k > arr.length) return [];
+  const result: T[][] = [];
+  for (let i = 0; i <= arr.length - k; i++) {
+    const rest = combinations(arr.slice(i + 1), k - 1);
+    for (const combo of rest) result.push([arr[i], ...combo]);
+  }
+  return result;
 }
 
 export async function POST(req: NextRequest) {
@@ -48,6 +60,7 @@ export async function POST(req: NextRequest) {
       stake,
       selections, // [{ eventId, marketId, outcomeId, odds }]
       fingerprint,
+      systemType, // e.g. "2/3", "3/5" — optional, triggers sistema bet
     } = body;
 
     if (!stake || !selections || selections.length === 0) {
@@ -95,7 +108,14 @@ export async function POST(req: NextRequest) {
     // ── 4. Validate odds & markets ──
     const config = await loadRiskConfig(supabase);
     const tolerance = config.acceptance.odds_change_tolerance || 0.05;
-    const validatedSelections = [];
+    const validatedSelections: {
+      outcome_id: string;
+      market_id: string;
+      event_id: string;
+      odds: number;
+      outcome_name: string;
+      time_to_kickoff: number | null;
+    }[] = [];
     let totalOdds = 1;
     let hasLive = false;
 
@@ -167,7 +187,27 @@ export async function POST(req: NextRequest) {
 
     totalOdds = parseFloat(totalOdds.toFixed(4));
     const potentialWin = parseFloat((stake * totalOdds).toFixed(2));
-    const betType = selections.length === 1 ? "singola" : selections.length <= 3 ? "multi" : "sistema";
+
+    // ── Validate systemType if provided ──
+    const isSystem = !!systemType;
+    let comboK = 0, comboN = 0, numCombos = 0;
+    if (isSystem) {
+      const parts = systemType.split("/");
+      if (parts.length !== 2) {
+        return NextResponse.json({ error: "Formato sistema non valido (es. 2/3)", code: "INVALID_SYSTEM" }, { status: 400 });
+      }
+      comboK = parseInt(parts[0], 10);
+      comboN = parseInt(parts[1], 10);
+      if (isNaN(comboK) || isNaN(comboN) || comboK < 2 || comboN < 3 || comboK >= comboN) {
+        return NextResponse.json({ error: "Sistema non valido: K deve essere >= 2, N >= 3, K < N", code: "INVALID_SYSTEM" }, { status: 400 });
+      }
+      if (comboN !== selections.length) {
+        return NextResponse.json({ error: `Sistema ${systemType} richiede ${comboN} selezioni, ricevute ${selections.length}`, code: "INVALID_SYSTEM" }, { status: 400 });
+      }
+      numCombos = combinations(validatedSelections, comboK).length;
+    }
+
+    const betType = isSystem ? "sistema" : selections.length === 1 ? "singola" : "multi";
 
     // ── 5. Get player profile ──
     const profile = await getOrComputeProfile(supabase, authUser.id);
@@ -221,6 +261,216 @@ export async function POST(req: NextRequest) {
       .map(s => s.time_to_kickoff)
       .filter((t): t is number => t !== null)
       .reduce((min, t) => Math.min(min, t), 9999);
+
+    // ═══════════════════════════════════════════════════
+    // SISTEMA PATH — parent bet + child combo bets
+    // ═══════════════════════════════════════════════════
+    if (isSystem) {
+      const comboIndices = combinations(
+        validatedSelections.map((_, i) => i),
+        comboK
+      );
+      const stakePerCombo = Math.floor((finalStake * 100) / numCombos) / 100;
+      const totalSystemStake = parseFloat((stakePerCombo * numCombos).toFixed(2));
+
+      // Re-check wallet for actual system stake
+      if (!wallet || wallet.balance < totalSystemStake) {
+        return NextResponse.json({
+          error: `Saldo insufficiente per sistema (necessario: $${totalSystemStake.toFixed(2)})`,
+          code: "INSUFFICIENT_BALANCE",
+        }, { status: 400 });
+      }
+
+      // Calculate potential win per combo and total
+      let totalPotentialWin = 0;
+      const comboDetails: { indices: number[]; comboOdds: number; potentialWin: number }[] = [];
+      for (const indices of comboIndices) {
+        const comboOdds = parseFloat(
+          indices.reduce((acc: number, i: number) => acc * validatedSelections[i].odds, 1).toFixed(4)
+        );
+        const pw = parseFloat((stakePerCombo * comboOdds).toFixed(2));
+        totalPotentialWin += pw;
+        comboDetails.push({ indices, comboOdds, potentialWin: pw });
+      }
+      totalPotentialWin = parseFloat(totalPotentialWin.toFixed(2));
+
+      // Insert parent bet
+      const { data: parentBet, error: parentError } = await supabase
+        .from("bets")
+        .insert({
+          user_id: authUser.id,
+          bet_type: "sistema",
+          total_odds: totalOdds,
+          stake: totalSystemStake,
+          requested_stake: stake,
+          accepted_stake: totalSystemStake,
+          potential_win: totalPotentialWin,
+          status: betStatus,
+          is_live: hasLive,
+          selections_count: selections.length,
+          combo_type: systemType,
+          combo_count: numCombos,
+          combos_won: 0,
+          acceptance_mode: acceptance.decision === "partial_accept" ? "partial"
+            : acceptance.decision === "manual_review" ? "manual" : "auto",
+          acceptance_note: acceptance.reason,
+          placed_ip: ip,
+          placed_fingerprint: fingerprint || null,
+          time_to_kickoff_minutes: minTimeToKickoff < 9999 ? minTimeToKickoff : null,
+        })
+        .select("id")
+        .single();
+
+      if (parentError || !parentBet) {
+        return NextResponse.json({ error: "Errore inserimento sistema: " + (parentError?.message || ""), code: "INSERT_ERROR" }, { status: 500 });
+      }
+
+      // Insert child bets + their selections
+      const comboIds: string[] = [];
+      for (const combo of comboDetails) {
+        const { data: childBet, error: childError } = await supabase
+          .from("bets")
+          .insert({
+            user_id: authUser.id,
+            bet_type: "sistema_combo",
+            parent_bet_id: parentBet.id,
+            total_odds: combo.comboOdds,
+            stake: stakePerCombo,
+            requested_stake: stakePerCombo,
+            accepted_stake: stakePerCombo,
+            potential_win: combo.potentialWin,
+            status: betStatus,
+            is_live: hasLive,
+            selections_count: comboK,
+            acceptance_mode: "auto",
+            placed_ip: ip,
+            placed_fingerprint: fingerprint || null,
+            time_to_kickoff_minutes: minTimeToKickoff < 9999 ? minTimeToKickoff : null,
+          })
+          .select("id")
+          .single();
+
+        if (childError || !childBet) {
+          // Rollback: delete parent + any already-created children
+          await supabase.from("bet_selections").delete().in("bet_id", comboIds);
+          await supabase.from("bets").delete().in("id", comboIds);
+          await supabase.from("bets").delete().eq("id", parentBet.id);
+          return NextResponse.json({ error: "Errore inserimento combo: " + (childError?.message || ""), code: "INSERT_ERROR" }, { status: 500 });
+        }
+
+        comboIds.push(childBet.id);
+
+        // Insert selections for this combo
+        const comboLegs = combo.indices.map((i: number) => ({
+          bet_id: childBet.id,
+          event_id: validatedSelections[i].event_id,
+          market_id: validatedSelections[i].market_id,
+          outcome_id: validatedSelections[i].outcome_id,
+          odds_at_placement: validatedSelections[i].odds,
+        }));
+
+        const { error: legsErr } = await supabase.from("bet_selections").insert(comboLegs);
+        if (legsErr) {
+          await supabase.from("bet_selections").delete().in("bet_id", comboIds);
+          await supabase.from("bets").delete().in("id", comboIds);
+          await supabase.from("bets").delete().eq("id", parentBet.id);
+          return NextResponse.json({ error: "Errore selezioni combo: " + legsErr.message, code: "LEGS_ERROR" }, { status: 500 });
+        }
+      }
+
+      // Risk analysis on parent bet
+      let riskResult: any = null;
+      try {
+        riskResult = await runRiskAnalysis(supabase, parentBet.id);
+        if (riskResult.action_taken === "blocked") {
+          await supabase.from("bets").update({ status: "rejected", acceptance_note: "Bloccato dal sistema di rischio" }).eq("id", parentBet.id);
+          await supabase.from("bets").update({ status: "rejected" }).in("id", comboIds);
+          return NextResponse.json({
+            error: "Sistema bloccato dal sistema di sicurezza",
+            code: "RISK_BLOCKED",
+            risk_score: riskResult.final_score,
+          }, { status: 403 });
+        }
+      } catch {
+        // Risk engine failure — continue
+      }
+
+      if (betStatus === "pending_acceptance") {
+        return NextResponse.json({
+          success: true,
+          bet_id: parentBet.id,
+          status: "pending_acceptance",
+          message: "Sistema in attesa di approvazione",
+          combo_count: numCombos,
+          stake_per_combo: stakePerCombo,
+          combo_ids: comboIds,
+          acceptance,
+          risk_score: riskResult?.final_score || 0,
+        });
+      }
+
+      // Deduct wallet
+      const sysNewBalance = parseFloat((wallet.balance - totalSystemStake).toFixed(2));
+      const { data: sysUpdatedWallet, error: sysWalletError } = await supabase
+        .from("wallets")
+        .update({ balance: sysNewBalance })
+        .eq("user_id", authUser.id)
+        .eq("balance", wallet.balance)
+        .select("balance")
+        .single();
+
+      if (sysWalletError || !sysUpdatedWallet) {
+        const { data: freshWallet } = await supabase.from("wallets").select("balance").eq("user_id", authUser.id).single();
+        if (!freshWallet || freshWallet.balance < totalSystemStake) {
+          await supabase.from("bets").update({ status: "rejected", acceptance_note: "Saldo modificato durante piazzamento" }).eq("id", parentBet.id);
+          await supabase.from("bets").update({ status: "rejected" }).in("id", comboIds);
+          return NextResponse.json({ error: "Saldo insufficiente (aggiornato)", code: "BALANCE_RACE" }, { status: 400 });
+        }
+        await supabase.from("wallets").update({ balance: parseFloat((freshWallet.balance - totalSystemStake).toFixed(2)) }).eq("user_id", authUser.id);
+      }
+
+      // Transaction
+      await supabase.from("transactions").insert({
+        user_id: authUser.id,
+        wallet_id: wallet.id,
+        type: "bet",
+        amount: -totalSystemStake,
+        balance_before: wallet.balance,
+        balance_after: wallet.balance - totalSystemStake,
+        reference_type: "bet",
+        reference_id: parentBet.id,
+        description: `Sistema ${systemType}: ${numCombos} combo da ${comboK} selezioni`,
+        status: "completed",
+      });
+
+      // Risk action log
+      await supabase.from("risk_actions").insert({
+        action_type: acceptance.decision === "partial_accept" ? "partial_accept" : "accept_bet",
+        entity_type: "bet",
+        entity_id: parentBet.id,
+        performed_by_system: true,
+        details: { acceptance, risk_score: riskResult?.final_score || 0, system: systemType, combo_count: numCombos },
+      });
+
+      return NextResponse.json({
+        success: true,
+        bet_id: parentBet.id,
+        status: betStatus,
+        acceptance,
+        stake: totalSystemStake,
+        stake_per_combo: stakePerCombo,
+        combo_count: numCombos,
+        combo_ids: comboIds,
+        potential_win: totalPotentialWin,
+        risk_score: riskResult?.final_score || 0,
+        flagged: riskResult?.action_taken === "flagged",
+        partial: acceptance.decision === "partial_accept",
+      });
+    }
+
+    // ═══════════════════════════════════════════════════
+    // SINGOLA / MULTIPLA PATH (existing logic)
+    // ═══════════════════════════════════════════════════
 
     // ── 9. Insert bet ──
     const { data: bet, error: betError } = await supabase

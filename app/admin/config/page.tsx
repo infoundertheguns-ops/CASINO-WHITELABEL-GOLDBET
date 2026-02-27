@@ -55,7 +55,7 @@ export default function AdminConfig() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">Caricamento configurazione...</div>
+        <div className="text-sm" style={{ color: "var(--admin-text4)" }}>Caricamento configurazione...</div>
       </div>
     );
   }

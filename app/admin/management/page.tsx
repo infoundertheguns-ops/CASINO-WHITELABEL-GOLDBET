@@ -79,10 +79,10 @@ export default function AdminManagement() {
       <div className="mb-4">
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="🔍 Cerca per username o email..."
-          className="w-full max-w-md px-4 py-2 rounded-lg bg-[#12111a] border border-gray-800 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-brand" />
+          className="w-full max-w-md px-4 py-2 rounded-lg bg-[var(--admin-card)] border border-gray-800 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-brand" />
       </div>
 
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500 text-sm">Caricamento...</div>
         ) : (

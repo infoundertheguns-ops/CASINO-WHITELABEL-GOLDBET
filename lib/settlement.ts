@@ -386,7 +386,7 @@ async function resolveBet(
   // Fetch the bet itself
   const { data: bet } = await supabase
     .from("bets")
-    .select("id, user_id, stake, potential_win, status")
+    .select("id, user_id, stake, potential_win, status, parent_bet_id")
     .eq("id", betId)
     .single();
 
@@ -431,7 +431,66 @@ async function resolveBet(
     await creditWallet(supabase, bet.user_id, betId, bet.stake, "refund");
   }
 
+  // If this is a child of a sistema bet, check if parent can be resolved
+  if (bet.parent_bet_id) {
+    await resolveParentBet(supabase, bet.parent_bet_id);
+  }
+
   return payout;
+}
+
+// ═══ resolveParentBet — aggregate child combo results into parent ═══
+
+async function resolveParentBet(
+  supabase: SupabaseClient,
+  parentBetId: string
+): Promise<void> {
+  // Fetch all child bets
+  const { data: children } = await supabase
+    .from("bets")
+    .select("id, status, actual_win, stake")
+    .eq("parent_bet_id", parentBetId);
+
+  if (!children || children.length === 0) return;
+
+  // If any child still open/unsettled → skip
+  if (children.some((c) => !c.status || c.status === "open" || c.status === "pending_acceptance")) return;
+
+  // Fetch parent
+  const { data: parent } = await supabase
+    .from("bets")
+    .select("id, status, user_id")
+    .eq("id", parentBetId)
+    .single();
+
+  if (!parent || (parent.status !== "open" && parent.status !== "pending_acceptance")) return;
+
+  // Calculate aggregates
+  const combosWon = children.filter((c) => c.status === "won").length;
+  const combosVoid = children.filter((c) => c.status === "void").length;
+  const totalPayout = children.reduce((sum, c) => sum + (c.actual_win || 0), 0);
+  const allVoid = combosVoid === children.length;
+  const allLost = children.every((c) => c.status === "lost" || c.status === "void") && !allVoid;
+
+  let parentStatus: string;
+  if (allVoid) {
+    parentStatus = "void";
+  } else if (combosWon > 0) {
+    parentStatus = "won";
+  } else {
+    parentStatus = "lost";
+  }
+
+  // Update parent — wallet already credited by each child individually
+  await supabase
+    .from("bets")
+    .update({
+      status: parentStatus,
+      actual_win: parseFloat(totalPayout.toFixed(2)),
+      combos_won: combosWon,
+      settled_at: new Date().toISOString(),
+    })
+    .eq("id", parentBetId);
 }
 
 // ═══ creditWallet ═══

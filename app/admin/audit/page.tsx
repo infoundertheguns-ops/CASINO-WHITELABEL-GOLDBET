@@ -41,7 +41,7 @@ export default function AdminAuditLog() {
           <button key={f.id} onClick={()=>setFilter(f.id)} className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold",filter===f.id?"bg-brand text-white":"bg-gray-800 text-gray-400 hover:bg-gray-700")}>{f.l}</button>
         ))}
       </div>
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
         {filtered.length === 0 ? <div className="p-8 text-center text-gray-500">Nessun log</div> : (
           <div className="max-h-[600px] overflow-y-auto">
             {filtered.map((log, i) => (

@@ -17,11 +17,13 @@ export async function GET(req: NextRequest) {
     const status = req.nextUrl.searchParams.get("status");
     const cutoff = req.nextUrl.searchParams.get("cutoff");
 
+    // Only fetch top-level bets (exclude sistema_combo children)
     let query = supabase
       .from("bets")
       .select(
         `*, bet_selections(id, event_id, odds_at_placement, result, event:events(home_team, away_team))`
       )
+      .is("parent_bet_id", null)
       .order("created_at", { ascending: false })
       .limit(200);
 
@@ -30,6 +32,26 @@ export async function GET(req: NextRequest) {
 
     const { data: bets, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // For sistema parent bets, fetch child combos with their bet_selections
+    const sistemaBetIds = (bets || [])
+      .filter((b: Record<string, unknown>) => b.bet_type === "sistema")
+      .map((b: Record<string, unknown>) => b.id as string);
+
+    let childrenMap = new Map<string, Record<string, unknown>[]>();
+    if (sistemaBetIds.length > 0) {
+      const { data: children } = await supabase
+        .from("bets")
+        .select(`id, parent_bet_id, stake, total_odds, potential_win, status, bet_selections(id, event_id, odds_at_placement, result, event:events(home_team, away_team))`)
+        .in("parent_bet_id", sistemaBetIds)
+        .order("created_at", { ascending: true });
+
+      for (const child of (children || [])) {
+        const pid = child.parent_bet_id as string;
+        if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+        childrenMap.get(pid)!.push(child);
+      }
+    }
 
     // Fetch usernames
     const userIds = [...new Set((bets || []).map((b: Record<string, unknown>) => b.user_id as string))];
@@ -49,6 +71,7 @@ export async function GET(req: NextRequest) {
       bets: (bets || []).map((b: Record<string, unknown>) => ({
         ...b,
         username: userMap.get(b.user_id as string) || "—",
+        children: childrenMap.get(b.id as string) || undefined,
       })),
       openEventsCount: count || 0,
     });

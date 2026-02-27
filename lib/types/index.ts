@@ -106,6 +106,11 @@ export interface Bet {
   settled_at?: string;
   created_at: string;
   legs: BetLeg[];
+  // Sistema (system bet) fields
+  parent_bet_id?: string;
+  combo_type?: string;       // "2/3", "3/5", etc.
+  combo_count?: number;      // C(N,K) number of combos
+  combos_won?: number;
   // Acceptance system
   requested_stake?: number;
   accepted_stake?: number;

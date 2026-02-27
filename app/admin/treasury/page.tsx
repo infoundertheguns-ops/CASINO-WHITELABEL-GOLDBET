@@ -45,7 +45,7 @@ export default function AdminTreasury() {
           { l: "Net Revenue", v: `$${(data.net||0).toFixed(0)}`, c: (data.net||0) >= 0 ? "text-emerald-400" : "text-red-400", i: "💰" },
           { l: "GGR", v: `$${(data.ggr||0).toFixed(0)}`, c: (data.ggr||0) >= 0 ? "text-emerald-400" : "text-red-400", i: "📊" },
         ].map((k, i) => (
-          <div key={i} className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+          <div key={i} className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
             <div className="text-lg mb-1">{k.i}</div>
             <div className={cn("text-xl font-black font-mono", k.c)}>{k.v}</div>
             <div className="text-[10px] text-gray-500">{k.l}</div>
@@ -59,13 +59,13 @@ export default function AdminTreasury() {
           { l: "WD Pending", v: String(data.pending?.length || 0), c: "text-yellow-400" },
           { l: "Liability WD", v: `$${(data.pending||[]).reduce((s: number, x: any) => s + (x.amount_usdt || 0), 0).toFixed(0)}`, c: "text-orange-400" },
         ].map((k, i) => (
-          <div key={i} className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+          <div key={i} className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
             <div className={cn("text-xl font-black font-mono", k.c)}>{k.v}</div>
             <div className="text-[10px] text-gray-500">{k.l}</div>
           </div>
         ))}
       </div>
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-5 mb-6">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-5 mb-6">
         <h3 className="text-sm font-bold text-white mb-3">🏦 Hot Wallet (simulato)</h3>
         <div className="grid grid-cols-4 gap-3">
           {[{coin:"BTC",bal:0.0234,usd:1450,c:"text-orange-500"},{coin:"ETH",bal:1.25,usd:3100,c:"text-blue-500"},{coin:"USDT",bal:25000,usd:25000,c:"text-emerald-500"},{coin:"SOL",bal:45.2,usd:2800,c:"text-purple-500"}].map(hw=>(
@@ -77,7 +77,7 @@ export default function AdminTreasury() {
           ))}
         </div>
       </div>
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 p-5">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-5">
         <h3 className="text-sm font-bold text-white mb-3">📈 P&L</h3>
         <div className="flex items-center gap-6 text-sm">
           <div><div className="text-[10px] text-gray-500">Bet</div><div className="font-black font-mono text-emerald-400">${(data.totalBets||0).toFixed(0)}</div></div>

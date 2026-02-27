@@ -40,14 +40,14 @@ export default function AdminAML() {
           { l: "TX SOSPETTE", v: bigTx.length, c: "text-orange-400" },
           { l: "RISOLTI", v: alerts.filter(a => a.status === "resolved").length, c: "text-emerald-400" },
         ].map((k, i) => (
-          <div key={i} className="bg-[#12111a] rounded-xl border border-gray-800 p-4">
+          <div key={i} className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
             <div className="text-[10px] text-gray-500">{k.l}</div>
             <div className={cn("text-lg font-black font-mono", k.c)}>{k.v}</div>
           </div>
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-800"><span className="text-sm font-bold text-white">🚨 AML Alerts</span></div>
           {alerts.length === 0 ? <div className="p-8 text-center text-gray-500 text-sm">Nessun alert</div> : (
             <div className="max-h-[500px] overflow-y-auto">
@@ -69,7 +69,7 @@ export default function AdminAML() {
             </div>
           )}
         </div>
-        <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+        <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-800"><span className="text-sm font-bold text-white">💸 TX &gt; $500</span></div>
           {bigTx.length === 0 ? <div className="p-8 text-center text-gray-500 text-sm">Nessuna</div> : (
             <div className="max-h-[500px] overflow-y-auto">

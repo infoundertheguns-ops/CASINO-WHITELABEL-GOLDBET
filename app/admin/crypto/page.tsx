@@ -40,7 +40,7 @@ export default function AdminCrypto() {
       <p className="text-sm text-gray-500 mb-6">Gestione depositi, prelievi e wallet</p>
 
       {/* Pending Withdrawals */}
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden mb-6">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-gray-800">
           <span className="text-sm font-bold text-white">↑ Prelievi ({withdrawals.length})</span>
         </div>
@@ -88,7 +88,7 @@ export default function AdminCrypto() {
       </div>
 
       {/* Deposits */}
-      <div className="bg-[#12111a] rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-800">
           <span className="text-sm font-bold text-white">↓ Depositi ({deposits.length})</span>
         </div>

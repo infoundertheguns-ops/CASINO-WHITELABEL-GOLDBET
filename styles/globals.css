@@ -36,6 +36,8 @@
   .admin-theme {
     --admin-bg: #08070f;
     --admin-surface: #0e0d1a;
+    --admin-surface2: #161527;
+    --admin-surface3: #1e1d32;
     --admin-card: #12111a;
     --admin-card-hover: rgba(255,255,255,0.03);
     --admin-sidebar: #0a0914;
@@ -53,6 +55,8 @@
   .admin-theme.admin-light {
     --admin-bg: #f3f4f6;
     --admin-surface: #ffffff;
+    --admin-surface2: #f9fafb;
+    --admin-surface3: #f3f4f6;
     --admin-card: #ffffff;
     --admin-card-hover: rgba(0,0,0,0.02);
     --admin-sidebar: #ffffff;
@@ -195,9 +199,9 @@
   }
 
   /* Admin backgrounds */
-  .bg-admin-surface { background: #0e0d1a; }
-  .bg-admin-surface2 { background: #161527; }
-  .bg-admin-surface3 { background: #1e1d32; }
-  .border-admin { border-color: #232244; }
-  .border-admin2 { border-color: #342f60; }
+  .bg-admin-surface { background: var(--admin-surface); }
+  .bg-admin-surface2 { background: var(--admin-surface2, #161527); }
+  .bg-admin-surface3 { background: var(--admin-surface3, #1e1d32); }
+  .border-admin { border-color: var(--admin-border); }
+  .border-admin2 { border-color: var(--admin-border2); }
 }
