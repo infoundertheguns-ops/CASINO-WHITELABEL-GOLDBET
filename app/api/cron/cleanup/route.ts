@@ -55,7 +55,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 2. Fix ended events that still have active markets ──
+  // ── 2. Force-finish stale live events (no updates for 30+ min) ──
+  let staleLiveFinished = 0;
+  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: staleLive } = await supabase
+    .from("events")
+    .select("id")
+    .eq("status", "live")
+    .eq("is_live", true)
+    .lt("updated_at", staleThreshold)
+    .limit(200);
+
+  if (staleLive && staleLive.length > 0) {
+    const ids = staleLive.map((e: { id: string }) => e.id);
+    await supabase
+      .from("events")
+      .update({ status: "finished", is_live: false, updated_at: new Date().toISOString() })
+      .in("id", ids);
+    staleLiveFinished = ids.length;
+  }
+
+  // ── 3. Fix ended events that still have active markets ──
   const { data: brokenEnded } = await supabase
     .from("events")
     .select("id")
@@ -84,6 +104,7 @@ export async function POST(req: NextRequest) {
     finished_remaining: finishedEvents?.length || 0,
     settled,
     deactivated,
+    stale_live_finished: staleLiveFinished || undefined,
     ended_fixed: endedFixed || undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   });

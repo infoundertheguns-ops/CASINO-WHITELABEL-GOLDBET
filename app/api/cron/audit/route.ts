@@ -74,6 +74,31 @@ export async function POST(req: NextRequest) {
     alerts.push(`SCRAPER IDLE: no live events, last update ${lastUpdateAge ?? "unknown"} min ago`);
   }
 
+  // ═══ FIX 0: Force-finish stale live events when scraper is down ═══
+  // If scraper hasn't updated outcomes in 60+ minutes, mark all live events as finished
+  // so the normal finished→ended pipeline (FIX 1) can process them.
+
+  if (!scraperAlive && liveCnt > 0 && lastUpdateAge !== null && lastUpdateAge >= 60) {
+    const staleThreshold = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: staleLive } = await supabase
+      .from("events")
+      .select("id")
+      .eq("status", "live")
+      .eq("is_live", true)
+      .lt("updated_at", staleThreshold)
+      .limit(500);
+
+    if (staleLive && staleLive.length > 0) {
+      const ids = staleLive.map((e: { id: string }) => e.id);
+      await supabase
+        .from("events")
+        .update({ status: "finished", is_live: false, updated_at: new Date().toISOString() })
+        .in("id", ids);
+      fixes.stale_live_force_finished = ids.length;
+      alerts.push(`FORCE-FINISHED ${ids.length} stale live events (no updates for ${lastUpdateAge} min)`);
+    }
+  }
+
   // ═══ FIX 1: Process ALL finished events (loop until done, max 500) ═══
 
   let totalSettled = 0;
