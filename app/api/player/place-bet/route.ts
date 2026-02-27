@@ -35,9 +35,19 @@ function combinations<T>(arr: T[], k: number): T[][] {
 
 export async function POST(req: NextRequest) {
   try {
-    // ── 1. Auth: verify user session ──
-    const userSupabase = await createServerClient();
-    const { data: { user: authUser } } = await userSupabase.auth.getUser();
+    // ── 1. Auth: verify user session (cookies OR Authorization header) ──
+    let authUser: any = null;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const adminSb = getAdminSupabase();
+      const { data: { user } } = await adminSb.auth.getUser(token);
+      authUser = user;
+    } else {
+      const userSupabase = await createServerClient();
+      const { data: { user } } = await userSupabase.auth.getUser();
+      authUser = user;
+    }
     if (!authUser) {
       return NextResponse.json({ error: "Non autenticato", code: "AUTH_REQUIRED" }, { status: 401 });
     }

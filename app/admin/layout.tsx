@@ -24,6 +24,12 @@ const NAVIGATION: AdminNavGroup[] = [
     ],
   },
   {
+    group: "SISTEMA",
+    items: [
+      { id: "scraper", icon: "🔄", label: "Scraper Monitor" },
+    ],
+  },
+  {
     group: "GESTIONE",
     items: [
       { id: "users", icon: "👥", label: "Utenti" },
@@ -39,6 +45,7 @@ const TITLES: Record<string, string> = {
   settlement: "Settlement",
   risk: "Risk & Trading Desk",
   liability: "Liability Management",
+  scraper: "Scraper Monitor",
   users: "Gestione Utenti",
   config: "Configurazione",
   audit: "Audit Log",
@@ -70,6 +77,7 @@ export default function AdminLayout({
       settlement: "/admin/sportsbook",
       risk: "/admin/risk",
       liability: "/admin/risk",
+      scraper: "/admin/scraper",
       users: "/admin/management",
       config: "/admin/config",
       audit: "/admin/audit",
