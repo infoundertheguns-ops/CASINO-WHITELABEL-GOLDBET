@@ -22,6 +22,8 @@ interface ScraperStats {
   errors_last_hour: number;
   session_status: string;
   by_sport?: Record<string, { live: SportBreakdown; prematch: SportBreakdown }>;
+  live_events_current_cycle?: number;
+  prematch_events_current_cycle?: number;
 }
 
 interface DbCounts {
@@ -149,12 +151,14 @@ function CompRow({
   vincitu,
   diffPct,
   sparkData,
+  goldbet_cumulative,
 }: {
   label: string;
   goldbet: number;
   vincitu: number;
   diffPct: number;
   sparkData: number[];
+  goldbet_cumulative?: number;
 }) {
   return (
     <div
@@ -169,15 +173,27 @@ function CompRow({
       <span style={{ fontWeight: 600, color: "var(--admin-text)" }}>
         {label}
       </span>
-      <span
-        style={{
-          textAlign: "right",
-          color: "var(--admin-text2)",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {formatNum(goldbet)}
-      </span>
+      <div style={{ textAlign: "right" }}>
+        <span
+          style={{
+            color: "var(--admin-text2)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {formatNum(goldbet)}
+        </span>
+        {goldbet_cumulative != null && goldbet_cumulative !== goldbet && (
+          <div
+            style={{
+              fontSize: "0.7em",
+              color: "var(--admin-text4)",
+              marginTop: 2,
+            }}
+          >
+            {formatNum(goldbet_cumulative)} monitorati
+          </div>
+        )}
+      </div>
       <span
         style={{
           textAlign: "right",
@@ -681,17 +697,19 @@ export default function ScraperStatsDashboard() {
         {/* Rows */}
         <CompRow
           label="Eventi Live"
-          goldbet={latest.goldbet.live_events}
+          goldbet={latest.goldbet.live_events_current_cycle ?? latest.goldbet.live_events}
           vincitu={latest.vincitu.live_events}
           diffPct={latest.diffs.live_events_pct}
           sparkData={sparkLiveEvents}
+          goldbet_cumulative={latest.goldbet.live_events}
         />
         <CompRow
           label="Eventi Prematch"
-          goldbet={latest.goldbet.prematch_events}
+          goldbet={latest.goldbet.prematch_events_current_cycle ?? latest.goldbet.prematch_events}
           vincitu={latest.vincitu.prematch_events}
           diffPct={latest.diffs.prematch_events_pct}
           sparkData={sparkPrematchEvents}
+          goldbet_cumulative={latest.goldbet.prematch_events}
         />
         <CompRow
           label="Mercati Attivi"
