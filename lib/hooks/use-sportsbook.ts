@@ -81,6 +81,55 @@ export interface BetslipItem {
   outcomeId?: string;
 }
 
+// ═══ CANONICAL OUTCOME ORDERING ═══
+// Ensures outcomes display in correct order regardless of DB insertion order
+
+function sortSelections(marketName: string, selections: Selection[]): Selection[] {
+  if (selections.length <= 1) return selections;
+
+  const name = (marketName || "").toLowerCase();
+
+  // Determine priority map based on market type
+  let priorityMap: Record<string, number> | null = null;
+
+  // 1X2 family: 1, X, 2
+  if (name === "1x2" || name === "1x" || name === "1x2 tempi reg." || name === "esito finale 1x2"
+      || name === "1x2 pt" || name.startsWith("1x2 ")) {
+    priorityMap = { "1": 0, "x": 1, "2": 2 };
+  }
+  // Under/Over: Over, Under
+  else if (name.includes("under/over") || name.startsWith("u/o") || name.startsWith("o/u")) {
+    priorityMap = { "over": 0, "under": 1, "o": 0, "u": 1 };
+  }
+  // GG/NG: GG, NG
+  else if (name.includes("gol/nogol") || name === "gg/ng" || name === "gg/ng pt") {
+    priorityMap = { "gg": 0, "ng": 1, "gol": 0, "nogol": 1 };
+  }
+  // Doppia Chance: 1X, 12, X2
+  else if (name.includes("doppia chance")) {
+    priorityMap = { "1x": 0, "12": 1, "x2": 2 };
+  }
+  // Head-to-head / Draw No Bet: 1, 2
+  else if (name === "t/t risultato" || name.includes("testa a testa") || name.includes("vincente incontro")
+      || name.includes("draw no bet") || name === "t/t match") {
+    priorityMap = { "1": 0, "2": 1 };
+  }
+  // Pari/Dispari: Dispari, Pari
+  else if (name.includes("pari/dispari") || name.includes("odd/even")) {
+    priorityMap = { "dispari": 0, "pari": 1, "odd": 0, "even": 1 };
+  }
+
+  if (!priorityMap) return selections;
+
+  return [...selections].sort((a, b) => {
+    const aKey = (a.label || "").toLowerCase().trim();
+    const bKey = (b.label || "").toLowerCase().trim();
+    const aPri = priorityMap![aKey] ?? 999;
+    const bPri = priorityMap![bKey] ?? 999;
+    return aPri - bPri;
+  });
+}
+
 // ═══ HELPERS ═══
 
 function formatKickoffTime(startsAt: string): string {
@@ -131,15 +180,18 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
         name: m.name,
         marketType: m.market_type,
         line: m.line,
-        selections: (m.outcomes || [])
-          .filter((o: any) => o.is_active && (includeSuspended || !o.is_suspended))
-          .map((o: any) => ({
-            id: o.id,
-            label: o.name,
-            odds: parseFloat(o.odds),
-            previousOdds: o.previous_odds ? parseFloat(o.previous_odds) : undefined,
-            suspended: o.is_suspended ? true : undefined,
-          })),
+        selections: sortSelections(
+          m.name,
+          (m.outcomes || [])
+            .filter((o: any) => o.is_active && (includeSuspended || !o.is_suspended))
+            .map((o: any) => ({
+              id: o.id,
+              label: o.name,
+              odds: parseFloat(o.odds),
+              previousOdds: o.previous_odds ? parseFloat(o.previous_odds) : undefined,
+              suspended: o.is_suspended ? true : undefined,
+            }))
+        ),
       })),
   };
 }

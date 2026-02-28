@@ -216,7 +216,29 @@ export async function POST(req: NextRequest) {
       }
 
       processed++;
-      if (!ev.markets?.length) continue;
+
+      // If no markets in payload, deactivate ALL active markets for this event
+      if (!ev.markets?.length) {
+        const { data: activeMarkets } = await supabase
+          .from("markets")
+          .select("id")
+          .eq("event_id", event!.id)
+          .eq("is_active", true);
+
+        if (activeMarkets?.length) {
+          for (const idBatch of chunk(activeMarkets.map((m) => m.id), 500)) {
+            await supabase
+              .from("markets")
+              .update({ is_active: false, is_suspended: true })
+              .in("id", idBatch);
+            await supabase
+              .from("outcomes")
+              .update({ is_active: false, is_suspended: true })
+              .in("market_id", idBatch);
+          }
+        }
+        continue;
+      }
 
       // ── 4. Upsert markets (deduplicate by market_type first) ──
       const dedupMarkets = new Map<string, Record<string, unknown>>();
