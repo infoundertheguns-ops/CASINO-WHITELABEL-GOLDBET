@@ -58,7 +58,8 @@ const SPORT_ICONS: Record<string, string> = {
 };
 
 function extractLine(marketType: string): number | null {
-  const match = marketType.match(/[_.](\d+\.?\d*)$/);
+  // Match line at end of market name, separated by underscore or space
+  const match = marketType.match(/[_ ](-?\d+\.?\d*)$/);
   return match ? parseFloat(match[1]) : null;
 }
 

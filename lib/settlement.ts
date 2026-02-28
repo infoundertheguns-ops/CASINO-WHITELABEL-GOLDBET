@@ -132,7 +132,7 @@ const VOID_PATTERNS: RegExp[] = [
   /^U\/O\s+Mappe/i,
   /^T\/T\s+Mappa\s+\d+/i,
   /^Vincente\s+Titolo/i,
-  /^Modalit[àa]\s+Vittoria/i,
+  /^Modalit[àa]\b.*Vittoria/i,
   /^Margine\s+Vittoria/i,
   /^Segna\s+Goal\s+Interv/i,
   /^Prossimo\s+Gol/i,
@@ -141,6 +141,17 @@ const VOID_PATTERNS: RegExp[] = [
   /^1X2\s+-\s+\d+°\s+Quarto/i,
   /^Under\/Over\s+\d+°\s+(Quarto|Set)/i,
   /^Pari\/Dispari\s+\d+°\s+Quarto/i,
+  /^Pari\/Dispari\s+Punti\s+Set\s+\d+\s+Gioco/i,
+  /^Gara\s+A\s+\d+\s+Gol/i,
+  /^Shootout$/i,
+  /^Squadra\s+(Casa|Ospite)\s+Vince\s+A\s+0\s+Periodo/i,
+  /^1X2\s+\d+°\s+Periodo/i,
+  /^U\/O\s+\d+°\s+Periodo/i,
+  /^U\/O\s+(Tempi\s+Reg\.|Team\s+\d+\s+Tempi\s+Reg\.)/i,
+  /^1°?\s*Quarto\s+Gara/i,
+  /^T\/T\s+Handicap\s+\d+°\s+(Quarto|Tempo)/i,
+  /^Over\/Under\s+\d+°\s+(Quarto|Tempo|Set)/i,
+  /^Pari\/Dispari\s+\d+°\s+Tempo/i,
 ];
 
 // Priority-ordered pattern array: first match wins
@@ -155,6 +166,7 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^GG\/NG$/, key: "GG/NG" },
   { pattern: /^Gol\/NoGol$/, key: "GG/NG" },
   { pattern: /^Goal\/No Goal$/, key: "GG/NG" },
+  { pattern: /^Gol\/No\s+Gol$/i, key: "GG/NG" },
   { pattern: /^DC$/, key: "DC" },
   { pattern: /^Doppia Chance$/, key: "DC" },
   { pattern: /^Draw No Bet$/, key: "DNB" },
@@ -215,6 +227,7 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^DC\s*\+\s*(?:GG\/NG|Gol\/NoGol)$/, key: "COMBO_DC_GG" },
   { pattern: /^DC\s*\+\s*Under\/Over\s+([\d.]+)$/, key: "COMBO_DC_OU", lineGroup: 1 },
   { pattern: /^DC\s*\+\s*U\/O\s+([\d.]+)$/, key: "COMBO_DC_OU", lineGroup: 1 },
+  { pattern: /^DC\s*\+\s*Under\/Over$/, key: "COMBO_DC_OU" },
   { pattern: /^GG o Over\s+([\d.]+)$/, key: "GG_OR_OVER", lineGroup: 1 },
   { pattern: /^1X2\s*\+\s*(?:GG\/NG)\s+1°?\s*Tempo$/, key: "COMBO_1X2_GG_HT" },
   { pattern: /^1X2\s*\+\s*U\/O\s+1°?\s*Tempo\s*([\d.]+)?$/, key: "COMBO_1X2_OU_HT", lineGroup: 1 },
@@ -238,18 +251,29 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Vincente Set$/, key: "SET_WINNER" },
   { pattern: /^Set Betting\b/, key: "SET_BETTING" },
   { pattern: /^U\/O\s+Games\s+([\d.]+)$/, key: "O/U_GAMES", lineGroup: 1 },
-  { pattern: /^Numero Totale Giochi\s+([\d.]+)$/, key: "O/U_GAMES", lineGroup: 1 },
+  { pattern: /^Numero Totale Giochi\s*([\d.]+)?$/, key: "O/U_GAMES", lineGroup: 1 },
   { pattern: /^U\/O\s+(?:Giochi|Game)\s+Set\s+(\d+)\s+([\d.]+)$/, key: "O/U_GAMES_SET", setGroup: 1, lineGroup: 2 },
+  { pattern: /^U\/O\s+(?:Giochi|Game)\s+Set\s+(\d+)$/i, key: "O/U_GAMES_SET", setGroup: 1 },
   { pattern: /^Numero Esatto Set$/, key: "EXACT_SETS" },
   { pattern: /^Set\s+(\d+)\s+Si\/No$/, key: "SET_PLAYED", setGroup: 1 },
   { pattern: /^Giocatore\s+(\d)\s+Vince Almeno Un Set$/, key: "PLAYER_WINS_SET", setGroup: 1 },
+  { pattern: /^Giocat\.\s+(\d)\s+Vince Almeno Un Set$/i, key: "PLAYER_WINS_SET", setGroup: 1 },
   { pattern: /^T\/T\s+Handicap\s+Games\s+(-?[\d.]+)$/, key: "HANDICAP_GAMES", lineGroup: 1 },
   { pattern: /^Handicap Giochi\s+([\d.]+)$/, key: "HANDICAP_GAMES", lineGroup: 1 },
   { pattern: /^Pari\/Dispari\s+Games$/, key: "ODD_EVEN_GAMES" },
+  { pattern: /^Pari\/Dispari\s+Numero\s+Giochi$/i, key: "ODD_EVEN_GAMES" },
   { pattern: /^Pari\/Dispari\s+Set\s+(\d+)$/, key: "ODD_EVEN_GAMES_SET", setGroup: 1 },
+  { pattern: /^Pari\/Dispari\s+(\d+)°\s+Set$/i, key: "ODD_EVEN_GAMES_SET", setGroup: 1 },
   { pattern: /^Tiebreak Set$/, key: "TIEBREAK_YN" },
+  { pattern: /^Tiebreak\s+Nel\s+Match\s+Si\/No$/i, key: "TIEBREAK_YN" },
   { pattern: /^Combo Set 1 & Match$/, key: "COMBO_SET1_MATCH" },
   { pattern: /^Ris\.\s*Esatto\s+Set\s*(\d+)?$/, key: "EXACT_SET_SCORE", setGroup: 1 },
+
+  // ─── Tennis additional ───
+  { pattern: /^Pari\/Dispari\s+Set$/i, key: "ODD_EVEN_SETS" },
+  { pattern: /^Almeno\s+Un\s+Set\s+6-0\s+o\s+0-6$/i, key: "BAGEL_SET" },
+  { pattern: /^U\/O\s+Set\s+Totali\s*([\d.]+)?$/i, key: "O/U_SETS", lineGroup: 1 },
+  { pattern: /^Set\s+(\d+)\s+T\/T\s+Handicap\s+Giochi$/i, key: "HANDICAP_SET", setGroup: 1 },
 
   // ─── Basketball ───
   { pattern: /^U\/O\s+Incl\.?\s*Supp\.?\s*([\d.]+)?$/, key: "O/U", lineGroup: 1 },
@@ -258,12 +282,18 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Under\/Over\s+Punti\s+([\d.]+)$/, key: "O/U", lineGroup: 1 },
   { pattern: /^U\/O\s+Punti\s+Nell.Incontro\s+([\d.]+)$/, key: "O/U", lineGroup: 1 },
   { pattern: /^Pari\/Dispari\s+Incl\.?\s*Supp\.?$/, key: "ODD_EVEN" },
+  { pattern: /^U\/O\s+Casa\s+Incl\.?\s*Supp\.?\s*([\d.]+)?$/i, key: "O/U_HOME", lineGroup: 1 },
+  { pattern: /^U\/O\s+Ospite\s+Incl\.?\s*Supp\.?\s*([\d.]+)?$/i, key: "O/U_AWAY", lineGroup: 1 },
+  { pattern: /^T\/T\s+Risultato\s*\+\s*U\/O\s+Incl\.?\s*Supp\.?$/i, key: "COMBO_1X2_OU" },
 
   // ─── Generic / sport-agnostic (catch-all) ───
   { pattern: /^T\/T\s+Handicap\s+(-?[\d.]+)$/, key: "HANDICAP_POINTS", lineGroup: 1 },
   { pattern: /^T\/T\s+Handicap\s+(?:1°|2°|3°|4°)\s*Set\s+(-?[\d.]+)$/, key: "HANDICAP_SET", lineGroup: 1 },
   { pattern: /^Testa\s+[Aa]\s+Testa\s+Handicap/i, key: "HANDICAP_POINTS" },
   { pattern: /^Testa\s+[Aa]\s+Testa$/i, key: "MATCH_WINNER" },
+
+  // ─── Hockey / generic ───
+  { pattern: /^Entrambe\s+Segnano\s+Almeno\s+(\d+)\s+Goal$/i, key: "BOTH_SCORE_N", lineGroup: 1 },
 ];
 
 // ═══ resolveSettlerKey — maps Goldbet market names → settler key ═══
@@ -847,6 +877,41 @@ const SETTLERS: Record<string, SettlerFn> = {
     const norm = sel.trim().replace(":", "-");
     if (norm === `${hGames}-${aGames}`) return "won";
     return "lost";
+  },
+
+  // ─── Tennis additional ───
+
+  ODD_EVEN_SETS: (r, sel) => {
+    if (!r.halfScores) return "void";
+    const totalSets = r.halfScores.home.length;
+    return settleOddEven(totalSets, sel);
+  },
+
+  BAGEL_SET: (r, sel) => {
+    if (!r.halfScores) return "void";
+    const { home, away } = r.halfScores;
+    let hasBagel = false;
+    for (let i = 0; i < home.length; i++) {
+      if ((home[i] === 6 && away[i] === 0) || (home[i] === 0 && away[i] === 6)) {
+        hasBagel = true;
+        break;
+      }
+    }
+    return settleYesNo(hasBagel, sel);
+  },
+
+  "O/U_SETS": (r, sel, line) => {
+    if (!r.halfScores) return "void";
+    const totalSets = r.halfScores.home.length;
+    return settleOU(totalSets, sel, line);
+  },
+
+  // ─── Hockey / generic ───
+
+  BOTH_SCORE_N: (r, sel, line) => {
+    const n = line ?? 1;
+    const condition = r.home >= n && r.away >= n;
+    return settleYesNo(condition, sel);
   },
 };
 
