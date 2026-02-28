@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
 
   const currentSet = new Set(currentIds);
   const toFinish = staleEvents.filter((e) => !currentSet.has(e.external_id));
+  let deactivated = 0;
 
-  // Mark stale live events as finished
+  // Mark stale live events as finished and deactivate their markets
   if (toFinish.length > 0) {
     const ids = toFinish.map((e) => e.id);
     const { error: updateErr } = await supabase
@@ -52,6 +53,14 @@ export async function POST(req: NextRequest) {
 
     if (updateErr) {
       return NextResponse.json({ finished: 0, error: updateErr.message });
+    }
+
+    // Deactivate all markets+outcomes for newly finished events
+    for (const ev of toFinish) {
+      try {
+        await deactivateEvent(supabase, ev.id);
+        deactivated++;
+      } catch { /* ignore */ }
     }
   }
 
@@ -78,8 +87,6 @@ export async function POST(req: NextRequest) {
   // - verify-results cron (every 5 min) — BetExplorer verified scores
   // - cleanup cron (every 10 min, 30-min delay) — fallback with scraper scores
   // This route only marks events as finished; it does NOT settle.
-
-  let deactivated = 0;
 
   // ── Deactivate stale prematch events that were cleaned above ──
   if (stalePrematch && stalePrematch.length > 0) {

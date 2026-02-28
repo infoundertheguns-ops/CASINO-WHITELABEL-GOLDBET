@@ -82,41 +82,75 @@ export interface BetslipItem {
 }
 
 // ═══ CANONICAL OUTCOME ORDERING ═══
-// Ensures outcomes display in correct order regardless of DB insertion order
+// Ensures outcomes display in correct order regardless of DB insertion order.
+// Covers all Goldbet market types: 1X2, DC, U/O, GG/NG, combos, handicap,
+// risultato esatto, prossimo gol, pari/dispari, somma gol, si/no, etc.
 
 function sortSelections(marketName: string, selections: Selection[]): Selection[] {
   if (selections.length <= 1) return selections;
 
   const name = (marketName || "").toLowerCase();
 
-  // Determine priority map based on market type
+  // ── Combo markets FIRST (before simple patterns): "1X2 + GG/NG", "DC + U/O", etc. ──
+  // Must check before 1X2/DC patterns because "1x2 + gg/ng".startsWith("1x2 ") is true
+  if (name.includes(" + ")) {
+    return sortComboSelections(name, selections);
+  }
+
+  // ── Risultato Esatto: sort by score numerically (0:0, 0:1, ... Altro last) ──
+  if (name.includes("risultato esatto")) {
+    return sortScoreSelections(selections);
+  }
+
+  // ── Somma Gol: sort numerically (0, 1, 2, 3, 4, 5+) ──
+  if (name.includes("somma gol")) {
+    return sortNumericSelections(selections);
+  }
+
+  // ── Priority map approach: explicit ordering for known patterns ──
   let priorityMap: Record<string, number> | null = null;
 
   // 1X2 family: 1, X, 2
-  if (name === "1x2" || name === "1x" || name === "1x2 tempi reg." || name === "esito finale 1x2"
-      || name === "1x2 pt" || name.startsWith("1x2 ")) {
+  if (name === "1x2" || name === "1x" || name === "esito finale 1x2"
+      || name.startsWith("1x2 ")) {
     priorityMap = { "1": 0, "x": 1, "2": 2 };
   }
-  // Under/Over: Over, Under
+  // DC (Doppia Chance) — short name "DC" or full "Doppia Chance": 1X, 12, X2
+  else if (name === "dc" || name.startsWith("dc ") || name.includes("doppia chance")) {
+    priorityMap = { "1x": 0, "12": 1, "x2": 2 };
+  }
+  // Under/Over: Over/O first, Under/U second
   else if (name.includes("under/over") || name.startsWith("u/o") || name.startsWith("o/u")) {
     priorityMap = { "over": 0, "under": 1, "o": 0, "u": 1 };
   }
-  // GG/NG: GG, NG
-  else if (name.includes("gol/nogol") || name === "gg/ng" || name === "gg/ng pt") {
+  // GG/NG / Gol/NoGol: GG, NG
+  else if (name.includes("gol/nogol") || name.includes("gg/ng")) {
     priorityMap = { "gg": 0, "ng": 1, "gol": 0, "nogol": 1 };
   }
-  // Doppia Chance: 1X, 12, X2
-  else if (name.includes("doppia chance")) {
-    priorityMap = { "1x": 0, "12": 1, "x2": 2 };
-  }
-  // Head-to-head / Draw No Bet: 1, 2
-  else if (name === "t/t risultato" || name.includes("testa a testa") || name.includes("vincente incontro")
-      || name.includes("draw no bet") || name === "t/t match") {
+  // Head-to-head / Draw No Bet / Vincente: 1, 2
+  else if (name.includes("t/t risultato") || name.includes("testa a testa")
+      || name.includes("vincente incontro") || name.includes("vincente (escl")
+      || name.includes("draw no bet") || name.includes("t/t match")) {
     priorityMap = { "1": 0, "2": 1 };
+  }
+  // T/T Handicap: 1, 2
+  else if (name.includes("t/t handicap")) {
+    priorityMap = { "1": 0, "2": 1 };
+  }
+  // Prossimo Gol: Casa, Nessun Gol, Ospite
+  else if (name.includes("prossimo gol")) {
+    priorityMap = { "casa": 0, "nessun gol": 1, "ospite": 2 };
   }
   // Pari/Dispari: Dispari, Pari
   else if (name.includes("pari/dispari") || name.includes("odd/even")) {
     priorityMap = { "dispari": 0, "pari": 1, "odd": 0, "even": 1 };
+  }
+  // Si/No markets (e.g. "Giocatore 1 Vince Almeno Un Set", "GG o Over 2.5")
+  else if (selections.length === 2) {
+    const labels = selections.map(s => (s.label || "").toLowerCase().trim());
+    if (labels.includes("si") && labels.includes("no")) {
+      priorityMap = { "si": 0, "no": 1 };
+    }
   }
 
   if (!priorityMap) return selections;
@@ -127,6 +161,88 @@ function sortSelections(marketName: string, selections: Selection[]): Selection[
     const aPri = priorityMap![aKey] ?? 999;
     const bPri = priorityMap![bKey] ?? 999;
     return aPri - bPri;
+  });
+}
+
+// Sort combo outcomes: "1 - GG", "X - Over", "1X - Under", etc.
+// Groups by first component in canonical order, then second component
+function sortComboSelections(marketName: string, selections: Selection[]): Selection[] {
+  const name = marketName.toLowerCase();
+
+  // Determine ordering for first part (before separator)
+  let firstOrder: Record<string, number>;
+  if (name.startsWith("dc") || name.includes("doppia chance")) {
+    firstOrder = { "1x": 0, "12": 1, "x2": 2 };
+  } else {
+    firstOrder = { "1": 0, "x": 1, "2": 2 };
+  }
+
+  // Determine ordering for second part (after separator)
+  let secondOrder: Record<string, number>;
+  if (name.includes("gg") || name.includes("gol")) {
+    secondOrder = { "gg": 0, "ng": 1 };
+  } else {
+    secondOrder = { "over": 0, "under": 1 };
+  }
+
+  return [...selections].sort((a, b) => {
+    const aParts = parseComboLabel(a.label);
+    const bParts = parseComboLabel(b.label);
+    const aFirst = firstOrder[aParts[0]] ?? 999;
+    const bFirst = firstOrder[bParts[0]] ?? 999;
+    if (aFirst !== bFirst) return aFirst - bFirst;
+    const aSecond = secondOrder[aParts[1]] ?? 999;
+    const bSecond = secondOrder[bParts[1]] ?? 999;
+    return aSecond - bSecond;
+  });
+}
+
+function parseComboLabel(label: string): [string, string] {
+  const l = (label || "").toLowerCase().trim();
+  // Try " - " separator first, then "-"
+  const sep = l.includes(" - ") ? " - " : "-";
+  const idx = l.indexOf(sep);
+  if (idx === -1) return [l, ""];
+  return [l.slice(0, idx).trim(), l.slice(idx + sep.length).trim()];
+}
+
+// Sort score outcomes: "0:0", "0:1", ..., "4:4", "Altro" last
+function sortScoreSelections(selections: Selection[]): Selection[] {
+  return [...selections].sort((a, b) => {
+    const aL = (a.label || "").trim();
+    const bL = (b.label || "").trim();
+    const aScore = parseScore(aL);
+    const bScore = parseScore(bL);
+    // "Altro" goes last
+    if (!aScore && !bScore) return 0;
+    if (!aScore) return 1;
+    if (!bScore) return -1;
+    // Sort by home goals first, then away goals
+    if (aScore[0] !== bScore[0]) return aScore[0] - bScore[0];
+    return aScore[1] - bScore[1];
+  });
+}
+
+function parseScore(label: string): [number, number] | null {
+  const m = label.match(/^(\d+):(\d+)$/);
+  if (!m) return null;
+  return [parseInt(m[1]), parseInt(m[2])];
+}
+
+// Sort numeric outcomes: "0", "1", "2", "3", "4", "5+", etc.
+function sortNumericSelections(selections: Selection[]): Selection[] {
+  return [...selections].sort((a, b) => {
+    const aL = (a.label || "").trim();
+    const bL = (b.label || "").trim();
+    const aNum = parseInt(aL);
+    const bNum = parseInt(bL);
+    // Non-numeric (like "5+") — extract leading number
+    if (isNaN(aNum) && isNaN(bNum)) return aL.localeCompare(bL);
+    if (isNaN(aNum)) return 1;
+    if (isNaN(bNum)) return -1;
+    if (aNum !== bNum) return aNum - bNum;
+    // Same number but one has "+" suffix (e.g. "3+" > "3")
+    return aL.length - bL.length;
   });
 }
 
