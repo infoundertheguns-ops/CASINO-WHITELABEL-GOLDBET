@@ -705,11 +705,10 @@ export default function ScraperStatsDashboard() {
         />
         <CompRow
           label="Eventi Prematch"
-          goldbet={latest.goldbet.prematch_events_current_cycle ?? latest.goldbet.prematch_events}
+          goldbet={latest.goldbet.prematch_events}
           vincitu={latest.vincitu.prematch_events}
           diffPct={latest.diffs.prematch_events_pct}
           sparkData={sparkPrematchEvents}
-          goldbet_cumulative={latest.goldbet.prematch_events}
         />
         <CompRow
           label="Mercati Attivi"

@@ -89,7 +89,6 @@ async function checkAndAlert(snap: Snapshot) {
   const d = snap.diffs;
 
   const gbLiveCycle = snap.goldbet.live_events_current_cycle ?? snap.goldbet.live_events;
-  const gbPrematchCycle = snap.goldbet.prematch_events_current_cycle ?? snap.goldbet.prematch_events;
 
   if (Math.abs(d.live_events_pct) > ALERT_THRESHOLD_PCT) {
     alerts.push(
@@ -98,7 +97,7 @@ async function checkAndAlert(snap: Snapshot) {
   }
   if (Math.abs(d.prematch_events_pct) > ALERT_THRESHOLD_PCT) {
     alerts.push(
-      `📊 <b>Eventi Prematch</b>\nGoldbet (ciclo): ${gbPrematchCycle}\nVincitu: ${snap.vincitu.prematch_events}\nDiff: ${d.prematch_events_pct > 0 ? "+" : ""}${d.prematch_events_pct}%`
+      `📊 <b>Eventi Prematch</b>\nGoldbet: ${snap.goldbet.prematch_events}\nVincitu: ${snap.vincitu.prematch_events}\nDiff: ${d.prematch_events_pct > 0 ? "+" : ""}${d.prematch_events_pct}%`
     );
   }
   if (Math.abs(d.markets_pct) > ALERT_THRESHOLD_PCT) {
@@ -184,14 +183,14 @@ export async function POST(req: NextRequest) {
   const gbTotalMarkets = goldbet.live_markets + goldbet.prematch_markets;
   const gbTotalOutcomes = goldbet.live_outcomes + goldbet.prematch_outcomes;
 
-  // Use current cycle counts for diff when available (more accurate than cumulative map)
+  // Use current cycle count for live (scrapes ALL events every 30s, so cycle = real count)
+  // Use cumulative for prematch (scrapes subsets per cycle, cumulative = real count)
   const gbLiveForDiff = goldbet.live_events_current_cycle ?? goldbet.live_events;
-  const gbPrematchForDiff = goldbet.prematch_events_current_cycle ?? goldbet.prematch_events;
 
   const diffs = {
     live_events_pct: calcDiffPct(gbLiveForDiff, vincitu.live_events),
     prematch_events_pct: calcDiffPct(
-      gbPrematchForDiff,
+      goldbet.prematch_events,
       vincitu.prematch_events
     ),
     markets_pct: calcDiffPct(gbTotalMarkets, vincitu.active_markets),
