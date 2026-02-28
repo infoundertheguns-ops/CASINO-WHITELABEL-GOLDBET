@@ -178,11 +178,12 @@ function sortComboSelections(marketName: string, selections: Selection[]): Selec
   }
 
   // Determine ordering for second part (after separator)
+  // Include abbreviations: "Ov"/"Un" (prematch), "O"/"U", "Over"/"Under" (live)
   let secondOrder: Record<string, number>;
   if (name.includes("gg") || name.includes("gol")) {
     secondOrder = { "gg": 0, "ng": 1 };
   } else {
-    secondOrder = { "over": 0, "under": 1 };
+    secondOrder = { "over": 0, "under": 1, "ov": 0, "un": 1, "o": 0, "u": 1 };
   }
 
   return [...selections].sort((a, b) => {
@@ -199,11 +200,12 @@ function sortComboSelections(marketName: string, selections: Selection[]): Selec
 
 function parseComboLabel(label: string): [string, string] {
   const l = (label || "").toLowerCase().trim();
-  // Try " - " separator first, then "-"
-  const sep = l.includes(" - ") ? " - " : "-";
-  const idx = l.indexOf(sep);
-  if (idx === -1) return [l, ""];
-  return [l.slice(0, idx).trim(), l.slice(idx + sep.length).trim()];
+  // Try separators: " - ", " + ", "-"
+  for (const sep of [" - ", " + ", "-"]) {
+    const idx = l.indexOf(sep);
+    if (idx > 0) return [l.slice(0, idx).trim(), l.slice(idx + sep.length).trim()];
+  }
+  return [l, ""];
 }
 
 // Sort score outcomes: "0:0", "0:1", ..., "4:4", "Altro" last
