@@ -200,28 +200,37 @@ export async function POST(req: NextRequest) {
   // Query DB counts per sport (events with sport join)
   let bySportData: Snapshot["by_sport"] | undefined;
   if (goldbet.by_sport && Object.keys(goldbet.by_sport).length > 0) {
-    // Step 1: Fetch active events with sport name — ~1-5K rows, fast query
-    const { data: dbEvents } = await supabase
-      .from("events")
-      .select("id, sport_id, is_live, status, sports!inner(name)")
-      .in("status", ["prematch", "live"]);
+    // Step 1: Fetch active events with sport name — paginate to avoid Supabase 1000 row limit
+    const dbEvents: any[] = [];
+    let evOffset = 0;
+    const EV_PAGE = 2000;
+    let evHasMore = true;
+    while (evHasMore) {
+      const { data: batch } = await supabase
+        .from("events")
+        .select("id, sport_id, is_live, status, sports!inner(name)")
+        .in("status", ["prematch", "live"])
+        .range(evOffset, evOffset + EV_PAGE - 1);
+      if (!batch || batch.length === 0) { evHasMore = false; break; }
+      dbEvents.push(...batch);
+      evOffset += batch.length;
+      if (batch.length < EV_PAGE) evHasMore = false;
+    }
 
     // Step 2: Build event_id → sport_name map + aggregate events per sport
     const eventSportMap = new Map<string, string>(); // event.id → sport name
     const dbBySport: Record<string, { live_events: number; prematch_events: number; active_markets: number; active_outcomes: number }> = {};
 
-    if (dbEvents) {
-      for (const ev of dbEvents) {
-        const sportName = (ev as any).sports?.name || "Sconosciuto";
-        eventSportMap.set(ev.id, sportName);
-        if (!dbBySport[sportName]) {
-          dbBySport[sportName] = { live_events: 0, prematch_events: 0, active_markets: 0, active_outcomes: 0 };
-        }
-        if (ev.is_live) {
-          dbBySport[sportName].live_events++;
-        } else {
-          dbBySport[sportName].prematch_events++;
-        }
+    for (const ev of dbEvents) {
+      const sportName = (ev as any).sports?.name || "Sconosciuto";
+      eventSportMap.set(ev.id, sportName);
+      if (!dbBySport[sportName]) {
+        dbBySport[sportName] = { live_events: 0, prematch_events: 0, active_markets: 0, active_outcomes: 0 };
+      }
+      if (ev.is_live) {
+        dbBySport[sportName].live_events++;
+      } else {
+        dbBySport[sportName].prematch_events++;
       }
     }
 

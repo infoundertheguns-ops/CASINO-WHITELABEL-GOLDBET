@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Cleanup stale prematch events (started 3+ hours ago, never went live) ──
-  const staleThreshold = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+  // ── Cleanup stale prematch events (started 30+ min ago, never went live) ──
+  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const { data: stalePrematch } = await supabase
     .from("events")
     .select("id")

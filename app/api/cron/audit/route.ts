@@ -152,9 +152,9 @@ export async function POST(req: NextRequest) {
   if (bulkFixed.markets_fixed > 0) fixes.ended_markets_fixed = bulkFixed.markets_fixed;
   if (bulkFixed.outcomes_fixed > 0) fixes.ended_outcomes_fixed = bulkFixed.outcomes_fixed;
 
-  // ═══ FIX 3: Stale prematch (started 4+ hours ago, never went live) ═══
+  // ═══ FIX 3: Stale prematch (started 30+ min ago, never went live) ═══
 
-  const staleThreshold = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const { data: stalePrematch } = await supabase
     .from("events")
     .select("id")
