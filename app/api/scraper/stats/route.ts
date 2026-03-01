@@ -200,10 +200,10 @@ export async function POST(req: NextRequest) {
   // Query DB counts per sport (events with sport join)
   let bySportData: Snapshot["by_sport"] | undefined;
   if (goldbet.by_sport && Object.keys(goldbet.by_sport).length > 0) {
-    // Step 1: Fetch active events with sport name — paginate to avoid Supabase 1000 row limit
+    // Step 1: Fetch active events with sport name — paginate (Supabase returns max 1000 per request)
     const dbEvents: any[] = [];
     let evOffset = 0;
-    const EV_PAGE = 2000;
+    const EV_PAGE = 1000;
     let evHasMore = true;
     while (evHasMore) {
       const { data: batch } = await supabase
@@ -235,8 +235,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: Fetch active markets (just id + event_id, no nested join)
-    // Paginate to get all ~23K active markets
-    const PAGE_SIZE = 5000;
+    // Paginate to get all active markets (Supabase returns max 1000 per request)
+    const PAGE_SIZE = 1000;
     let offset = 0;
     let hasMore = true;
     while (hasMore) {

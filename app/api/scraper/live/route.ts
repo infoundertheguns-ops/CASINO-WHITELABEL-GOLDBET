@@ -54,7 +54,11 @@ function slugify(str: string): string {
 function extractLine(marketType: string): number | null {
   // Match line at end of market name, separated by underscore or space
   const match = marketType.match(/[_ ](-?\d+\.?\d*)$/);
-  return match ? parseFloat(match[1]) : null;
+  if (!match) return null;
+  const val = parseFloat(match[1]);
+  // Player prop IDs are 7+ digits (e.g. 2000100) — not betting lines
+  if (Math.abs(val) >= 1000000) return null;
+  return val;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
