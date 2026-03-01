@@ -142,7 +142,8 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const [liveEv, prematchEv, finishedEv, endedEv, activeMarkets, activeOutcomes] =
+  // Count events in parallel (small table, ~5K rows — safe)
+  const [liveEv, prematchEv, finishedEv, endedEv] =
     await Promise.all([
       supabase
         .from("events")
@@ -161,21 +162,20 @@ export async function POST(req: NextRequest) {
         .from("events")
         .select("id", { count: "exact", head: true })
         .eq("status", "ended"),
-      supabase
-        .from("markets")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true),
-      supabase
-        .from("outcomes")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true),
     ]);
+
+  // Use RPC for market/outcome counts — exact count on large tables (260K+ markets,
+  // 677K+ outcomes) is too slow due to dead tuples and PostgREST parallel count bugs.
+  // get_active_counts() uses exact count for markets + partial index estimate for outcomes.
+  const { data: activeCounts } = await supabase.rpc("get_active_counts").single() as {
+    data: { active_markets: number; active_outcomes: number } | null;
+  };
 
   const vincitu: DbCounts = {
     live_events: liveEv.count || 0,
     prematch_events: prematchEv.count || 0,
-    active_markets: activeMarkets.count || 0,
-    active_outcomes: activeOutcomes.count || 0,
+    active_markets: activeCounts?.active_markets || 0,
+    active_outcomes: activeCounts?.active_outcomes || 0,
     finished_events: finishedEv.count || 0,
     ended_events: endedEv.count || 0,
   };

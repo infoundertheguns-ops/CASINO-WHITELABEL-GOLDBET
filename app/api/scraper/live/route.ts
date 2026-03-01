@@ -255,26 +255,10 @@ export async function POST(req: NextRequest) {
         })
         .eq("id", event.id);
 
-      // ── 3. If no markets in payload, deactivate ALL active markets (Goldbet closed them) ──
+      // ── 3. If no markets in payload, skip market logic (overview-only update) ──
+      // The scraper's detail API uses rotation (max 80 events/cycle), so events
+      // without markets simply weren't fetched this cycle — their markets are still valid.
       if (!ev.markets?.length) {
-        const { data: activeMarkets } = await supabase
-          .from("markets")
-          .select("id")
-          .eq("event_id", event!.id)
-          .eq("is_active", true);
-
-        if (activeMarkets?.length) {
-          for (const idBatch of chunk(activeMarkets.map((m) => m.id), 500)) {
-            await supabase
-              .from("markets")
-              .update({ is_active: false, is_suspended: true })
-              .in("id", idBatch);
-            await supabase
-              .from("outcomes")
-              .update({ is_active: false, is_suspended: true })
-              .in("market_id", idBatch);
-          }
-        }
         updated++;
         continue;
       }
