@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "./use-auth";
 import { useSportFilter } from "@/lib/contexts/sport-filter-context";
+import { useLiveOdds, type LiveOddsMessage } from "./use-live-odds";
 
 // ═══ API-FOOTBALL STATS TYPES ═══
 
@@ -32,6 +33,7 @@ export interface MatchEvent {
 
 export interface SportEvent {
   id: string;
+  externalId?: string;
   league: string;
   leagueSlug?: string;
   leagueIcon: string;
@@ -269,6 +271,7 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
   const liveData = row.live_data || {};
   return {
     id: row.id,
+    externalId: row.external_id || undefined,
     league: row.league?.name || "",
     leagueSlug: row.league?.slug || "",
     leagueIcon: row.sport?.icon || "⚽",
@@ -586,6 +589,76 @@ export function useSportsbook() {
       }
     };
   }, []);
+
+  // ── SSE: live odds via Redis (fast path) ──
+  const handleOddsChange = useCallback((msg: LiveOddsMessage) => {
+    if (!msg.changes || msg.changes.length === 0) {
+      // Score/minute-only update — still update event metadata
+      if (msg.scores || msg.minute != null || msg.period) {
+        setEvents((prev) =>
+          prev.map((event) => {
+            if (event.externalId !== msg.event_id) return event;
+            return {
+              ...event,
+              ...(msg.scores ? { scoreH: msg.scores.home, scoreA: msg.scores.away } : {}),
+              ...(msg.minute != null ? { minute: msg.minute, minuteReceivedAt: Date.now() } : {}),
+              ...(msg.period ? { period: msg.period } : {}),
+              time: `LIVE ${msg.minute || event.minute || 0}'`,
+            };
+          })
+        );
+      }
+      return;
+    }
+
+    setEvents((prev) =>
+      prev.map((event) => {
+        if (event.externalId !== msg.event_id) return event;
+
+        const updatedEvent = {
+          ...event,
+          ...(msg.scores ? { scoreH: msg.scores.home, scoreA: msg.scores.away } : {}),
+          ...(msg.minute != null ? { minute: msg.minute, minuteReceivedAt: Date.now() } : {}),
+          ...(msg.period ? { period: msg.period } : {}),
+          time: `LIVE ${msg.minute || event.minute || 0}'`,
+          markets: event.markets.map((market) => ({
+            ...market,
+            selections: market.selections.map((sel) => {
+              const change = msg.changes.find(
+                (c) => c.market_type === (market.marketType || market.name) && c.outcome_name === sel.label
+              );
+              if (!change) return sel;
+              return {
+                ...sel,
+                previousOdds: sel.odds,
+                odds: change.odds,
+                changedAt: Date.now(),
+              };
+            }),
+          })),
+        };
+
+        // Sync betslip odds
+        for (const change of msg.changes) {
+          setBetslip((prev) =>
+            prev.map((item) => {
+              if (item.eventId !== event.id) return item;
+              if (item.marketName !== change.market_type && event.markets.find(m => m.id === item.marketId)?.marketType !== change.market_type) return item;
+              if (item.selection !== change.outcome_name) return item;
+              return { ...item, odds: change.odds };
+            })
+          );
+        }
+
+        return updatedEvent;
+      })
+    );
+  }, []);
+
+  useLiveOdds({
+    onOddsChange: handleOddsChange,
+    enabled: !isMockData,
+  });
 
   // ── Filtered events by sport + league ──
   const filteredEvents = events.filter((e) => {

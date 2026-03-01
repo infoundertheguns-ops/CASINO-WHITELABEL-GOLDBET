@@ -14,6 +14,7 @@ import {
   type MatchStats,
   type MatchEvent,
 } from "@/lib/hooks/use-sportsbook";
+import { useLiveOdds, type LiveOddsMessage } from "@/lib/hooks/use-live-odds";
 import { createClient } from "@/lib/supabase/client";
 import { MarketCategoryTabs } from "@/components/sportsbook/market-category-tabs";
 import { BetslipPanel } from "@/components/sportsbook/betslip-panel";
@@ -486,7 +487,7 @@ export default function EventDetail() {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
       return;
     }
-    intervalRef.current = setInterval(() => fetchFullEvent(false), 5_000);
+    intervalRef.current = setInterval(() => fetchFullEvent(false), 30_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [directEvent?.live, hookEvent?.live, eventId, fetchFullEvent]);
 
@@ -582,6 +583,37 @@ export default function EventDetail() {
       .subscribe();
     return () => { supabaseDetail.removeChannel(channel); if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current); };
   }, [eventId, supabaseDetail, debouncedRefetch]);
+
+  // SSE: live odds via Redis (primary for detail page)
+  const detailExternalId = directEvent?.externalId;
+  const handleDetailOddsChange = useCallback((msg: LiveOddsMessage) => {
+    setDirectEvent((prev) => {
+      if (!prev || prev.externalId !== msg.event_id) return prev;
+      return {
+        ...prev,
+        ...(msg.scores ? { scoreH: msg.scores.home, scoreA: msg.scores.away } : {}),
+        ...(msg.minute != null ? { minute: msg.minute, minuteReceivedAt: Date.now() } : {}),
+        ...(msg.period ? { period: msg.period } : {}),
+        time: `LIVE ${msg.minute || prev.minute || 0}'`,
+        markets: prev.markets.map((market) => ({
+          ...market,
+          selections: market.selections.map((sel) => {
+            const change = msg.changes.find(
+              (c) => c.market_type === (market.marketType || market.name) && c.outcome_name === sel.label
+            );
+            if (!change) return sel;
+            return { ...sel, previousOdds: sel.odds, odds: change.odds, changedAt: Date.now() };
+          }),
+        })),
+      };
+    });
+  }, []);
+
+  useLiveOdds({
+    eventIds: detailExternalId ? [detailExternalId] : undefined,
+    onOddsChange: handleDetailOddsChange,
+    enabled: !!(directEvent?.live && detailExternalId),
+  });
 
   const ev = directEvent || hookEvent;
   const loading = !directEvent && (hookLoading || directLoading);

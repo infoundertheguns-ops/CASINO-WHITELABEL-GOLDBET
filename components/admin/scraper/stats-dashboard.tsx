@@ -65,6 +65,12 @@ interface StatsResponse {
   };
 }
 
+interface RedisMetrics {
+  redis: { connected: boolean; memory_used: number; latency_ms: number; error?: string };
+  odds: { active_events: number; sse_clients: number; write_queue_depth: number; changes_per_second: number };
+  throughput_history: { ts: number; cps: number; queue: number; clients: number }[];
+}
+
 // ═══ HELPERS ═══
 
 function diffColor(pct: number): string {
@@ -436,15 +442,23 @@ function CellPair({
 
 export default function ScraperStatsDashboard() {
   const [data, setData] = useState<StatsResponse | null>(null);
+  const [redisMetrics, setRedisMetrics] = useState<RedisMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchStats = useCallback(async () => {
     try {
-      const resp = await fetch("/api/scraper/stats");
-      if (resp.ok) {
-        const json = await resp.json();
+      const [statsResp, redisResp] = await Promise.all([
+        fetch("/api/scraper/stats"),
+        fetch("/api/odds/metrics").catch(() => null),
+      ]);
+      if (statsResp.ok) {
+        const json = await statsResp.json();
         setData(json);
+      }
+      if (redisResp?.ok) {
+        const json = await redisResp.json();
+        setRedisMetrics(json);
       }
     } catch {
       // silently fail
@@ -731,6 +745,11 @@ export default function ScraperStatsDashboard() {
         <SportBreakdownTable bySport={latest.by_sport} />
       )}
 
+      {/* Redis Pipeline section */}
+      {redisMetrics && redisMetrics.redis.connected && (
+        <RedisPipelineSection metrics={redisMetrics} />
+      )}
+
       {/* Extra info cards */}
       <div
         style={{
@@ -867,6 +886,137 @@ export default function ScraperStatsDashboard() {
         {lastRefresh.toLocaleTimeString("it-IT")}
       </div>
     </div>
+  );
+}
+
+// ═══ REDIS PIPELINE SECTION ═══
+
+function RedisPipelineSection({ metrics }: { metrics: RedisMetrics }) {
+  const { redis, odds, throughput_history } = metrics;
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  const sparkCps = throughput_history.map(h => h.cps);
+  const sparkQueue = throughput_history.map(h => h.queue);
+
+  const cards: { label: string; value: string; color: string; spark?: number[] }[] = [
+    { label: "Quote/sec", value: String(odds.changes_per_second), color: "#8b5cf6", spark: sparkCps },
+    { label: "Latenza Redis", value: `${redis.latency_ms}ms`, color: redis.latency_ms <= 5 ? "#10b981" : "#f59e0b" },
+    { label: "Client SSE", value: String(odds.sse_clients), color: "#3b82f6" },
+    { label: "Coda Supabase", value: String(odds.write_queue_depth), color: odds.write_queue_depth > 100 ? "#ef4444" : "#10b981", spark: sparkQueue },
+    { label: "Memoria Redis", value: formatBytes(redis.memory_used), color: "#6366f1" },
+    { label: "Eventi in cache", value: String(odds.active_events), color: "#06b6d4" },
+  ];
+
+  return (
+    <div
+      style={{
+        background: "var(--admin-card)",
+        border: "1px solid var(--admin-border)",
+        borderRadius: 8,
+        overflow: "hidden",
+        marginTop: 24,
+      }}
+    >
+      <div
+        style={{
+          padding: "12px 16px",
+          borderBottom: "1px solid var(--admin-border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "#10b981",
+              boxShadow: "0 0 6px #10b981",
+            }}
+          />
+          <span style={{ fontWeight: 700, color: "var(--admin-text)", fontSize: "0.95em" }}>
+            Redis Pipeline
+          </span>
+        </div>
+        <span style={{ fontSize: "0.8em", color: "var(--admin-text3)" }}>
+          Fast path attivo
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 1,
+          background: "var(--admin-border)",
+        }}
+      >
+        {cards.map((card) => (
+          <div
+            key={card.label}
+            style={{
+              background: "var(--admin-card)",
+              padding: "16px 16px 12px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.7em",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                color: "var(--admin-text3)",
+                marginBottom: 6,
+                fontWeight: 600,
+              }}
+            >
+              {card.label}
+            </div>
+            <div
+              style={{
+                fontSize: "1.4em",
+                fontWeight: 700,
+                color: card.color,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {card.value}
+            </div>
+            {card.spark && card.spark.length >= 2 && (
+              <div style={{ marginTop: 6 }}>
+                <MetricsSparkline data={card.spark} color={card.color} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricsSparkline({ data, color, width = 100, height = 24 }: { data: number[]; color: string; width?: number; height?: number }) {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = height - ((v - min) / range) * (height - 4) - 2;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <svg width={width} height={height} style={{ display: "block" }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeOpacity={0.7} />
+    </svg>
   );
 }
 
