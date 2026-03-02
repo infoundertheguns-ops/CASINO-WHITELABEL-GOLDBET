@@ -24,6 +24,9 @@ interface ScraperStats {
   by_sport?: Record<string, { live: SportBreakdown; prematch: SportBreakdown }>;
   live_events_current_cycle?: number;
   prematch_events_current_cycle?: number;
+  detail_workers?: number | { ready: number; total: number };
+  memory_mb?: number;
+  source?: string;
 }
 
 interface DbCounts {
@@ -37,7 +40,12 @@ interface DbCounts {
 
 interface SportData {
   goldbet: { live: SportBreakdown; prematch: SportBreakdown };
-  vincitu: { live_events: number; prematch_events: number; active_markets: number; active_outcomes: number };
+  vincitu: {
+    live_events: number;
+    prematch_events: number;
+    active_markets: number;
+    active_outcomes: number;
+  };
 }
 
 interface Snapshot {
@@ -53,10 +61,16 @@ interface Snapshot {
   by_sport?: Record<string, SportData>;
 }
 
+interface ServerData {
+  latest: Snapshot | null;
+  history: Snapshot[];
+}
+
 interface StatsResponse {
   connected: boolean;
   latest: Snapshot | null;
   history: Snapshot[];
+  servers: Record<string, ServerData>;
   vincitu_only?: {
     live_events: number;
     prematch_events: number;
@@ -66,39 +80,51 @@ interface StatsResponse {
 }
 
 interface RedisMetrics {
-  redis: { connected: boolean; memory_used: number; latency_ms: number; error?: string };
-  odds: { active_events: number; sse_clients: number; write_queue_depth: number; changes_per_second: number };
-  throughput_history: { ts: number; cps: number; queue: number; clients: number }[];
+  redis: {
+    connected: boolean;
+    memory_used: number;
+    latency_ms: number;
+    error?: string;
+  };
+  odds: {
+    active_events: number;
+    sse_clients: number;
+    write_queue_depth: number;
+    changes_per_second: number;
+  };
+  throughput_history: {
+    ts: number;
+    cps: number;
+    queue: number;
+    clients: number;
+  }[];
 }
 
 // ═══ HELPERS ═══
 
-function diffColor(pct: number): string {
-  const abs = Math.abs(pct);
-  if (abs <= 10) return "#10b981"; // green
-  if (abs <= 25) return "#f59e0b"; // yellow
-  return "#ef4444"; // red
+function coverageColor(pct: number): string {
+  if (pct >= 90) return "#10b981";
+  if (pct >= 75) return "#f59e0b";
+  return "#ef4444";
 }
 
-function diffBg(pct: number): string {
-  const abs = Math.abs(pct);
-  if (abs <= 10) return "rgba(16, 185, 129, 0.1)";
-  if (abs <= 25) return "rgba(245, 158, 11, 0.1)";
+function coverageBg(pct: number): string {
+  if (pct >= 90) return "rgba(16, 185, 129, 0.1)";
+  if (pct >= 75) return "rgba(245, 158, 11, 0.1)";
   return "rgba(239, 68, 68, 0.1)";
 }
 
-function diffIcon(pct: number): string {
-  const abs = Math.abs(pct);
-  if (abs <= 10) return "✅";
-  if (abs <= 25) return "⚠️";
-  return "🔴";
+function formatNum(n: number): string {
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
+  return n.toLocaleString("it-IT");
 }
 
-function formatNum(n: number): string {
+function formatNumFull(n: number): string {
   return n.toLocaleString("it-IT");
 }
 
 function timeAgo(iso: string): string {
+  if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
   const secs = Math.floor(diff / 1000);
   if (secs < 60) return `${secs}s fa`;
@@ -108,23 +134,35 @@ function timeAgo(iso: string): string {
   return `${hrs}h ${mins % 60}m fa`;
 }
 
+function statusColor(status: string): string {
+  if (status === "healthy") return "#10b981";
+  if (status === "degraded") return "#f59e0b";
+  if (status === "prematch-only") return "#3b82f6";
+  return "#ef4444";
+}
+
+function coveragePct(gb: number, v: number): number {
+  if (gb === 0) return v === 0 ? 100 : 0;
+  return Math.round((v / gb) * 1000) / 10;
+}
+
 // ═══ SPARKLINE ═══
 
 function Sparkline({
   data,
+  color,
   width = 120,
   height = 32,
 }: {
   data: number[];
+  color?: string;
   width?: number;
   height?: number;
 }) {
   if (data.length < 2) return null;
-
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
-
   const points = data
     .map((v, i) => {
       const x = (i / (data.length - 1)) * width;
@@ -133,101 +171,17 @@ function Sparkline({
     })
     .join(" ");
 
-  const latest = data[data.length - 1];
-  const color = diffColor(latest);
-
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
       <polyline
         points={points}
         fill="none"
-        stroke={color}
+        stroke={color || "#10b981"}
         strokeWidth="1.5"
         strokeLinejoin="round"
+        strokeOpacity={0.7}
       />
     </svg>
-  );
-}
-
-// ═══ COMPARISON ROW ═══
-
-function CompRow({
-  label,
-  goldbet,
-  vincitu,
-  diffPct,
-  sparkData,
-  goldbet_cumulative,
-}: {
-  label: string;
-  goldbet: number;
-  vincitu: number;
-  diffPct: number;
-  sparkData: number[];
-  goldbet_cumulative?: number;
-}) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 100px 100px 90px 130px",
-        alignItems: "center",
-        padding: "12px 16px",
-        borderBottom: "1px solid var(--admin-border)",
-      }}
-    >
-      <span style={{ fontWeight: 600, color: "var(--admin-text)" }}>
-        {label}
-      </span>
-      <div style={{ textAlign: "right" }}>
-        <span
-          style={{
-            color: "var(--admin-text2)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {formatNum(goldbet)}
-        </span>
-        {goldbet_cumulative != null && goldbet_cumulative !== goldbet && (
-          <div
-            style={{
-              fontSize: "0.7em",
-              color: "var(--admin-text4)",
-              marginTop: 2,
-            }}
-          >
-            {formatNum(goldbet_cumulative)} monitorati
-          </div>
-        )}
-      </div>
-      <span
-        style={{
-          textAlign: "right",
-          color: "var(--admin-text)",
-          fontVariantNumeric: "tabular-nums",
-          fontWeight: 600,
-        }}
-      >
-        {formatNum(vincitu)}
-      </span>
-      <span
-        style={{
-          textAlign: "right",
-          fontWeight: 700,
-          color: diffColor(diffPct),
-          background: diffBg(diffPct),
-          borderRadius: 4,
-          padding: "2px 8px",
-          fontSize: "0.85em",
-        }}
-      >
-        {diffIcon(diffPct)} {diffPct > 0 ? "+" : ""}
-        {diffPct}%
-      </span>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Sparkline data={sparkData} />
-      </div>
-    </div>
   );
 }
 
@@ -255,21 +209,354 @@ const SPORT_ICONS: Record<string, string> = {
   Boxing: "🥊",
 };
 
-function getSportIcon(sport: string): string {
-  return SPORT_ICONS[sport] || "🏅";
+// ═══ SECTION 1 — SERVER HEALTH CARD ═══
+
+function ServerHealthCard({
+  title,
+  server,
+  isMain,
+}: {
+  title: string;
+  server: ServerData | null;
+  isMain: boolean;
+}) {
+  const isOffline = !server || !server.latest;
+  const gb = server?.latest?.goldbet;
+
+  const dotColor = isOffline
+    ? "#6b7280"
+    : statusColor(gb?.session_status || "dead");
+
+  return (
+    <div
+      style={{
+        background: "var(--admin-card)",
+        border: "1px solid var(--admin-border)",
+        borderRadius: 8,
+        padding: "16px 20px",
+        opacity: isOffline ? 0.5 : 1,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: isOffline ? 0 : 12,
+        }}
+      >
+        <div
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: dotColor,
+            boxShadow: isOffline ? "none" : `0 0 8px ${dotColor}`,
+          }}
+        />
+        <span
+          style={{
+            fontWeight: 700,
+            color: "var(--admin-text)",
+            fontSize: "0.95em",
+          }}
+        >
+          {title}
+        </span>
+        {isOffline && (
+          <span
+            style={{
+              fontSize: "0.8em",
+              color: "var(--admin-text4)",
+              marginLeft: "auto",
+            }}
+          >
+            Offline
+          </span>
+        )}
+      </div>
+
+      {!isOffline && gb && (
+        <>
+          {/* Timing row */}
+          <div
+            style={{
+              fontSize: "0.82em",
+              color: "var(--admin-text3)",
+              marginBottom: 8,
+            }}
+          >
+            {isMain ? (
+              <>
+                Last Live:{" "}
+                <span style={{ color: "var(--admin-text2)" }}>
+                  {timeAgo(gb.last_live_cycle)}
+                </span>
+                <span style={{ margin: "0 8px" }}>·</span>
+                Last Pre:{" "}
+                <span style={{ color: "var(--admin-text2)" }}>
+                  {timeAgo(gb.last_prematch_cycle)}
+                </span>
+              </>
+            ) : (
+              <>
+                Ultimo ciclo:{" "}
+                <span style={{ color: "var(--admin-text2)" }}>
+                  {timeAgo(gb.last_prematch_cycle)}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Stats row */}
+          <div
+            style={{
+              fontSize: "0.82em",
+              color: "var(--admin-text3)",
+            }}
+          >
+            {isMain ? (
+              <>
+                Workers:{" "}
+                <span
+                  style={{ color: "var(--admin-text2)", marginRight: 4 }}
+                >
+                  {gb.detail_workers != null
+                    ? typeof gb.detail_workers === "object"
+                      ? `${gb.detail_workers.ready}/${gb.detail_workers.total}`
+                      : `${gb.detail_workers}/15`
+                    : "—"}
+                </span>
+                <span style={{ margin: "0 4px" }}>·</span>
+                Errori:{" "}
+                <span
+                  style={{
+                    color:
+                      gb.errors_last_hour > 0
+                        ? "#ef4444"
+                        : "var(--admin-text2)",
+                    marginRight: 4,
+                  }}
+                >
+                  {gb.errors_last_hour}/h
+                </span>
+                {gb.memory_mb != null && (
+                  <>
+                    <span style={{ margin: "0 4px" }}>·</span>
+                    RAM:{" "}
+                    <span style={{ color: "var(--admin-text2)" }}>
+                      {(gb.memory_mb / 1024).toFixed(1)} GB
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                Eventi:{" "}
+                <span
+                  style={{ color: "var(--admin-text2)", marginRight: 4 }}
+                >
+                  {formatNumFull(gb.prematch_events)}
+                </span>
+                <span style={{ margin: "0 4px" }}>·</span>
+                Mercati:{" "}
+                <span
+                  style={{ color: "var(--admin-text2)", marginRight: 4 }}
+                >
+                  {formatNum(gb.prematch_markets)}
+                </span>
+                {gb.memory_mb != null && (
+                  <>
+                    <span style={{ margin: "0 4px" }}>·</span>
+                    RAM:{" "}
+                    <span style={{ color: "var(--admin-text2)" }}>
+                      {(gb.memory_mb / 1024).toFixed(1)} GB
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
-// ═══ SPORT BREAKDOWN TABLE ═══
+// ═══ SECTION 2 — COVERAGE KPI CARD ═══
 
-function SportBreakdownTable({ bySport }: { bySport: Record<string, SportData> }) {
-  // Sort by total Goldbet events descending
-  const sorted = Object.entries(bySport).sort((a, b) => {
-    const totalA = a[1].goldbet.live.events + a[1].goldbet.prematch.events;
-    const totalB = b[1].goldbet.live.events + b[1].goldbet.prematch.events;
-    return totalB - totalA;
-  });
+function CoverageKPI({
+  label,
+  gbValue,
+  vValue,
+  sparkData,
+}: {
+  label: string;
+  gbValue: number;
+  vValue: number;
+  sparkData: number[];
+}) {
+  const pct = coveragePct(gbValue, vValue);
+  const color = coverageColor(pct);
+
+  return (
+    <div
+      style={{
+        background: "var(--admin-card)",
+        border: "1px solid var(--admin-border)",
+        borderRadius: 8,
+        padding: "16px 20px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.7em",
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          color: "var(--admin-text3)",
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "1.8em",
+              fontWeight: 700,
+              color,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {pct}%
+          </div>
+          <div
+            style={{
+              fontSize: "0.8em",
+              color: "var(--admin-text3)",
+              marginTop: 4,
+            }}
+          >
+            GB {formatNum(gbValue)} / V {formatNum(vValue)}
+          </div>
+        </div>
+        {sparkData.length >= 2 && (
+          <Sparkline data={sparkData} color={color} width={80} height={28} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══ SECTION 3 — SPORT TABLE ═══
+
+interface MergedSport {
+  gbEvents: number;
+  vEvents: number;
+  gbMarkets: number;
+  vMarkets: number;
+}
+
+function mergeSportData(
+  mainSport: Record<string, SportData> | undefined,
+  prematchSport: Record<string, SportData> | undefined
+): Record<string, MergedSport> {
+  const result: Record<string, MergedSport> = {};
+
+  const allSports = new Set([
+    ...Object.keys(mainSport || {}),
+    ...Object.keys(prematchSport || {}),
+  ]);
+
+  for (const sport of allSports) {
+    const main = mainSport?.[sport];
+    const pre = prematchSport?.[sport];
+
+    // Live from main, prematch from prematch VPS (fallback main)
+    const gbLiveEv = main?.goldbet.live.events || 0;
+    const gbPrematchEv =
+      pre?.goldbet.prematch.events ??
+      main?.goldbet.prematch.events ??
+      0;
+    const gbLiveMkt = main?.goldbet.live.markets || 0;
+    const gbPrematchMkt =
+      pre?.goldbet.prematch.markets ??
+      main?.goldbet.prematch.markets ??
+      0;
+
+    // Vincitu from main (shared DB)
+    const vLive = main?.vincitu.live_events || 0;
+    const vPrematch = main?.vincitu.prematch_events || 0;
+    const vMarkets = main?.vincitu.active_markets || 0;
+
+    result[sport] = {
+      gbEvents: gbLiveEv + gbPrematchEv,
+      vEvents: vLive + vPrematch,
+      gbMarkets: gbLiveMkt + gbPrematchMkt,
+      vMarkets,
+    };
+  }
+
+  return result;
+}
+
+function CoveragePill({ pct, bold }: { pct: number; bold?: boolean }) {
+  const color = coverageColor(pct);
+  return (
+    <span style={{ textAlign: "center", display: "flex", justifyContent: "center" }}>
+      <span
+        style={{
+          fontSize: "0.8em",
+          fontWeight: bold ? 700 : 600,
+          color,
+          background: coverageBg(pct),
+          borderRadius: 4,
+          padding: "2px 8px",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {pct}%
+      </span>
+    </span>
+  );
+}
+
+const COL_TEMPLATE = "1.5fr repeat(2, 80px) 90px repeat(2, 80px) 90px";
+
+function SportTable({
+  mainSport,
+  prematchSport,
+}: {
+  mainSport: Record<string, SportData> | undefined;
+  prematchSport: Record<string, SportData> | undefined;
+}) {
+  const merged = mergeSportData(mainSport, prematchSport);
+
+  const sorted = Object.entries(merged).sort(
+    (a, b) => b[1].gbEvents - a[1].gbEvents
+  );
 
   if (sorted.length === 0) return null;
+
+  let tGbEv = 0,
+    tVEv = 0,
+    tGbMkt = 0,
+    tVMkt = 0;
+  for (const [, d] of sorted) {
+    tGbEv += d.gbEvents;
+    tVEv += d.vEvents;
+    tGbMkt += d.gbMarkets;
+    tVMkt += d.vMarkets;
+  }
 
   return (
     <div
@@ -278,7 +565,6 @@ function SportBreakdownTable({ bySport }: { bySport: Record<string, SportData> }
         border: "1px solid var(--admin-border)",
         borderRadius: 8,
         overflow: "hidden",
-        marginTop: 24,
       }}
     >
       <div
@@ -290,14 +576,14 @@ function SportBreakdownTable({ bySport }: { bySport: Record<string, SportData> }
           fontSize: "0.95em",
         }}
       >
-        Dettaglio per Sport
+        Copertura per Sport
       </div>
 
       {/* Header */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1.4fr repeat(6, 1fr)",
+          gridTemplateColumns: COL_TEMPLATE,
           padding: "8px 16px",
           borderBottom: "1px solid var(--admin-border)",
           fontSize: "0.7em",
@@ -308,608 +594,192 @@ function SportBreakdownTable({ bySport }: { bySport: Record<string, SportData> }
         }}
       >
         <span>Sport</span>
-        <span style={{ textAlign: "right" }}>Live GB</span>
-        <span style={{ textAlign: "right" }}>Live V</span>
-        <span style={{ textAlign: "right" }}>Pre GB</span>
-        <span style={{ textAlign: "right" }}>Pre V</span>
+        <span style={{ textAlign: "right" }}>Ev. GB</span>
+        <span style={{ textAlign: "right" }}>Ev. V</span>
+        <span style={{ textAlign: "center" }}>Copertura</span>
         <span style={{ textAlign: "right" }}>Mkt GB</span>
         <span style={{ textAlign: "right" }}>Mkt V</span>
+        <span style={{ textAlign: "center" }}>Copertura</span>
       </div>
 
       {/* Rows */}
-      {sorted.map(([sport, data]) => {
-        const gbLive = data.goldbet.live.events;
-        const vLive = data.vincitu.live_events;
-        const gbPre = data.goldbet.prematch.events;
-        const vPre = data.vincitu.prematch_events;
-        const gbMkt = data.goldbet.live.markets + data.goldbet.prematch.markets;
-        const vMkt = data.vincitu.active_markets;
-
-        const liveDiff = calcDiffPct(gbLive, vLive);
-        const preDiff = calcDiffPct(gbPre, vPre);
-
-        return (
-          <div
-            key={sport}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.4fr repeat(6, 1fr)",
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--admin-border)",
-              alignItems: "center",
-            }}
-          >
-            <span
-              style={{
-                fontWeight: 600,
-                color: "var(--admin-text)",
-                fontSize: "0.9em",
-              }}
-            >
-              {getSportIcon(sport)} {sport}
-            </span>
-            <CellPair value={gbLive} isRef />
-            <CellPair value={vLive} diff={liveDiff} />
-            <CellPair value={gbPre} isRef />
-            <CellPair value={vPre} diff={preDiff} />
-            <CellPair value={gbMkt} isRef />
-            <CellPair value={vMkt} diff={calcDiffPct(gbMkt, vMkt)} />
-          </div>
-        );
-      })}
-
-      {/* Totals row */}
-      {(() => {
-        let tGbLive = 0, tVLive = 0, tGbPre = 0, tVPre = 0, tGbMkt = 0, tVMkt = 0;
-        for (const data of Object.values(bySport)) {
-          tGbLive += data.goldbet.live.events;
-          tVLive += data.vincitu.live_events;
-          tGbPre += data.goldbet.prematch.events;
-          tVPre += data.vincitu.prematch_events;
-          tGbMkt += data.goldbet.live.markets + data.goldbet.prematch.markets;
-          tVMkt += data.vincitu.active_markets;
-        }
-        return (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.4fr repeat(6, 1fr)",
-              padding: "10px 16px",
-              alignItems: "center",
-              background: "rgba(59, 130, 246, 0.05)",
-              fontWeight: 700,
-            }}
-          >
-            <span style={{ color: "var(--admin-text)", fontSize: "0.9em" }}>
-              TOTALE
-            </span>
-            <CellPair value={tGbLive} isRef bold />
-            <CellPair value={tVLive} diff={calcDiffPct(tGbLive, tVLive)} bold />
-            <CellPair value={tGbPre} isRef bold />
-            <CellPair value={tVPre} diff={calcDiffPct(tGbPre, tVPre)} bold />
-            <CellPair value={tGbMkt} isRef bold />
-            <CellPair value={tVMkt} diff={calcDiffPct(tGbMkt, tVMkt)} bold />
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-function calcDiffPct(goldbet: number, vincitu: number): number {
-  if (goldbet === 0) return vincitu === 0 ? 0 : 100;
-  return Math.round(((vincitu - goldbet) / goldbet) * 1000) / 10;
-}
-
-function CellPair({
-  value,
-  diff,
-  isRef,
-  bold,
-}: {
-  value: number;
-  diff?: number;
-  isRef?: boolean;
-  bold?: boolean;
-}) {
-  return (
-    <span
-      style={{
-        textAlign: "right",
-        fontVariantNumeric: "tabular-nums",
-        fontSize: "0.9em",
-        color: isRef ? "var(--admin-text2)" : "var(--admin-text)",
-        fontWeight: bold ? 700 : isRef ? 400 : 600,
-      }}
-    >
-      {formatNum(value)}
-      {diff != null && diff !== 0 && (
-        <span
-          style={{
-            fontSize: "0.75em",
-            marginLeft: 4,
-            color: diffColor(diff),
-          }}
-        >
-          {diff > 0 ? "+" : ""}{diff}%
-        </span>
-      )}
-    </span>
-  );
-}
-
-// ═══ MAIN DASHBOARD ═══
-
-export default function ScraperStatsDashboard() {
-  const [data, setData] = useState<StatsResponse | null>(null);
-  const [redisMetrics, setRedisMetrics] = useState<RedisMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const [statsResp, redisResp] = await Promise.all([
-        fetch("/api/scraper/stats"),
-        fetch("/api/odds/metrics").catch(() => null),
-      ]);
-      if (statsResp.ok) {
-        const json = await statsResp.json();
-        setData(json);
-      }
-      if (redisResp?.ok) {
-        const json = await redisResp.json();
-        setRedisMetrics(json);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setLoading(false);
-      setLastRefresh(new Date());
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 30_000); // refresh every 30s
-    return () => clearInterval(interval);
-  }, [fetchStats]);
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          padding: 40,
-          textAlign: "center",
-          color: "var(--admin-text3)",
-        }}
-      >
-        Caricamento...
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div
-        style={{
-          padding: 40,
-          textAlign: "center",
-          color: "var(--admin-text3)",
-        }}
-      >
-        Errore nel caricamento dei dati
-      </div>
-    );
-  }
-
-  // Not connected — show DB-only counts
-  if (!data.connected) {
-    const v = data.vincitu_only!;
-    return (
-      <div>
-        {/* Status banner */}
+      {sorted.map(([sport, d]) => (
         <div
-          style={{
-            background: "rgba(239, 68, 68, 0.1)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            borderRadius: 8,
-            padding: "16px 20px",
-            marginBottom: 24,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <span style={{ fontSize: 24 }}>🔴</span>
-          <div>
-            <div
-              style={{
-                color: "#ef4444",
-                fontWeight: 700,
-                fontSize: "1.05em",
-              }}
-            >
-              Scraper non connesso
-            </div>
-            <div style={{ color: "var(--admin-text3)", fontSize: "0.9em" }}>
-              Nessun dato ricevuto dallo scraper. Conteggi solo dal DB Vincitu.
-            </div>
-          </div>
-        </div>
-
-        {/* DB-only cards */}
-        <div
+          key={sport}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {[
-            { label: "Live", value: v.live_events, color: "#10b981" },
-            {
-              label: "Prematch",
-              value: v.prematch_events,
-              color: "#3b82f6",
-            },
-            { label: "Finished", value: v.finished_events, color: "#f59e0b" },
-            { label: "Ended", value: v.ended_events, color: "#6b7280" },
-          ].map((card) => (
-            <div
-              key={card.label}
-              style={{
-                background: "var(--admin-card)",
-                border: "1px solid var(--admin-border)",
-                borderRadius: 8,
-                padding: 20,
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.8em",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                  color: "var(--admin-text3)",
-                  marginBottom: 8,
-                }}
-              >
-                {card.label}
-              </div>
-              <div
-                style={{
-                  fontSize: "1.8em",
-                  fontWeight: 700,
-                  color: card.color,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {formatNum(card.value)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Connected — show comparison
-  const latest = data.latest!;
-  const history = data.history;
-
-  const gbTotalMarkets =
-    latest.goldbet.live_markets + latest.goldbet.prematch_markets;
-  const gbTotalOutcomes =
-    latest.goldbet.live_outcomes + latest.goldbet.prematch_outcomes;
-
-  // Extract sparkline data
-  const sparkLiveEvents = history.map((s) => s.diffs.live_events_pct);
-  const sparkPrematchEvents = history.map((s) => s.diffs.prematch_events_pct);
-  const sparkMarkets = history.map((s) => s.diffs.markets_pct);
-  const sparkOutcomes = history.map((s) => s.diffs.outcomes_pct);
-
-  const sessionColor =
-    latest.goldbet.session_status === "healthy" ? "#10b981" : "#ef4444";
-  const sessionLabel =
-    latest.goldbet.session_status === "healthy" ? "Online" : "Problema";
-
-  return (
-    <div>
-      {/* Status header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: sessionColor,
-              boxShadow: `0 0 8px ${sessionColor}`,
-            }}
-          />
-          <div>
-            <span
-              style={{
-                fontWeight: 700,
-                color: "var(--admin-text)",
-                fontSize: "1.05em",
-              }}
-            >
-              Scraper {sessionLabel}
-            </span>
-            <span
-              style={{
-                color: "var(--admin-text3)",
-                fontSize: "0.85em",
-                marginLeft: 12,
-              }}
-            >
-              Ultimo aggiornamento: {timeAgo(latest.timestamp)}
-            </span>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            fontSize: "0.85em",
-            color: "var(--admin-text3)",
-          }}
-        >
-          <span>
-            Live cycle: {timeAgo(latest.goldbet.last_live_cycle)}
-          </span>
-          <span>
-            Prematch cycle: {timeAgo(latest.goldbet.last_prematch_cycle)}
-          </span>
-          {latest.goldbet.errors_last_hour > 0 && (
-            <span style={{ color: "#ef4444" }}>
-              {latest.goldbet.errors_last_hour} errori/h
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Comparison table */}
-      <div
-        style={{
-          background: "var(--admin-card)",
-          border: "1px solid var(--admin-border)",
-          borderRadius: 8,
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 100px 100px 90px 130px",
+            gridTemplateColumns: COL_TEMPLATE,
             padding: "10px 16px",
             borderBottom: "1px solid var(--admin-border)",
-            fontSize: "0.75em",
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            color: "var(--admin-text3)",
-            fontWeight: 600,
+            alignItems: "center",
           }}
         >
-          <span>Metrica</span>
-          <span style={{ textAlign: "right" }}>Goldbet</span>
-          <span style={{ textAlign: "right" }}>Vincitu</span>
-          <span style={{ textAlign: "right" }}>Diff</span>
-          <span style={{ textAlign: "right" }}>Trend</span>
+          <span
+            style={{
+              fontWeight: 600,
+              color: "var(--admin-text)",
+              fontSize: "0.9em",
+            }}
+          >
+            {SPORT_ICONS[sport] || "🏅"} {sport}
+          </span>
+          <span
+            style={{
+              textAlign: "right",
+              fontVariantNumeric: "tabular-nums",
+              fontSize: "0.9em",
+              color: "var(--admin-text2)",
+            }}
+          >
+            {formatNumFull(d.gbEvents)}
+          </span>
+          <span
+            style={{
+              textAlign: "right",
+              fontVariantNumeric: "tabular-nums",
+              fontSize: "0.9em",
+              color: "var(--admin-text)",
+              fontWeight: 600,
+            }}
+          >
+            {formatNumFull(d.vEvents)}
+          </span>
+          <CoveragePill pct={coveragePct(d.gbEvents, d.vEvents)} />
+          <span
+            style={{
+              textAlign: "right",
+              fontVariantNumeric: "tabular-nums",
+              fontSize: "0.9em",
+              color: "var(--admin-text2)",
+            }}
+          >
+            {formatNum(d.gbMarkets)}
+          </span>
+          <span
+            style={{
+              textAlign: "right",
+              fontVariantNumeric: "tabular-nums",
+              fontSize: "0.9em",
+              color: "var(--admin-text)",
+              fontWeight: 600,
+            }}
+          >
+            {formatNum(d.vMarkets)}
+          </span>
+          <CoveragePill pct={coveragePct(d.gbMarkets, d.vMarkets)} />
         </div>
+      ))}
 
-        {/* Rows */}
-        <CompRow
-          label="Eventi Live"
-          goldbet={latest.goldbet.live_events_current_cycle ?? latest.goldbet.live_events}
-          vincitu={latest.vincitu.live_events}
-          diffPct={latest.diffs.live_events_pct}
-          sparkData={sparkLiveEvents}
-          goldbet_cumulative={latest.goldbet.live_events}
-        />
-        <CompRow
-          label="Eventi Prematch"
-          goldbet={latest.goldbet.prematch_events}
-          vincitu={latest.vincitu.prematch_events}
-          diffPct={latest.diffs.prematch_events_pct}
-          sparkData={sparkPrematchEvents}
-        />
-        <CompRow
-          label="Mercati Attivi"
-          goldbet={gbTotalMarkets}
-          vincitu={latest.vincitu.active_markets}
-          diffPct={latest.diffs.markets_pct}
-          sparkData={sparkMarkets}
-        />
-        <CompRow
-          label="Outcomes Attivi"
-          goldbet={gbTotalOutcomes}
-          vincitu={latest.vincitu.active_outcomes}
-          diffPct={latest.diffs.outcomes_pct}
-          sparkData={sparkOutcomes}
-        />
-      </div>
-
-      {/* Sport breakdown table */}
-      {latest.by_sport && Object.keys(latest.by_sport).length > 0 && (
-        <SportBreakdownTable bySport={latest.by_sport} />
-      )}
-
-      {/* Redis Pipeline section */}
-      {redisMetrics && redisMetrics.redis.connected && (
-        <RedisPipelineSection metrics={redisMetrics} />
-      )}
-
-      {/* Extra info cards */}
+      {/* Totals row */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 16,
-          marginTop: 24,
+          gridTemplateColumns: COL_TEMPLATE,
+          padding: "10px 16px",
+          alignItems: "center",
+          background: "rgba(59, 130, 246, 0.05)",
+          fontWeight: 700,
         }}
       >
-        {/* Goldbet breakdown */}
-        <div
+        <span style={{ color: "var(--admin-text)", fontSize: "0.9em" }}>
+          TOTALE
+        </span>
+        <span
           style={{
-            background: "var(--admin-card)",
-            border: "1px solid var(--admin-border)",
-            borderRadius: 8,
-            padding: 20,
+            textAlign: "right",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: "0.9em",
+            color: "var(--admin-text2)",
           }}
         >
-          <div
-            style={{
-              fontSize: "0.8em",
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              color: "var(--admin-text3)",
-              marginBottom: 12,
-              fontWeight: 600,
-            }}
-          >
-            Goldbet — Dettaglio
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <Row
-              label="Mercati Live"
-              value={formatNum(latest.goldbet.live_markets)}
-            />
-            <Row
-              label="Mercati Prematch"
-              value={formatNum(latest.goldbet.prematch_markets)}
-            />
-            <Row
-              label="Outcomes Live"
-              value={formatNum(latest.goldbet.live_outcomes)}
-            />
-            <Row
-              label="Outcomes Prematch"
-              value={formatNum(latest.goldbet.prematch_outcomes)}
-            />
-          </div>
-        </div>
-
-        {/* Vincitu DB state */}
-        <div
+          {formatNumFull(tGbEv)}
+        </span>
+        <span
           style={{
-            background: "var(--admin-card)",
-            border: "1px solid var(--admin-border)",
-            borderRadius: 8,
-            padding: 20,
+            textAlign: "right",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: "0.9em",
+            color: "var(--admin-text)",
           }}
         >
-          <div
-            style={{
-              fontSize: "0.8em",
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              color: "var(--admin-text3)",
-              marginBottom: 12,
-              fontWeight: 600,
-            }}
-          >
-            Vincitu DB
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <Row
-              label="Finished"
-              value={formatNum(latest.vincitu.finished_events)}
-            />
-            <Row
-              label="Ended"
-              value={formatNum(latest.vincitu.ended_events)}
-            />
-            <Row
-              label="Mercati Attivi"
-              value={formatNum(latest.vincitu.active_markets)}
-            />
-            <Row
-              label="Outcomes Attivi"
-              value={formatNum(latest.vincitu.active_outcomes)}
-            />
-          </div>
-        </div>
-
-        {/* Scraper health */}
-        <div
+          {formatNumFull(tVEv)}
+        </span>
+        <CoveragePill pct={coveragePct(tGbEv, tVEv)} bold />
+        <span
           style={{
-            background: "var(--admin-card)",
-            border: "1px solid var(--admin-border)",
-            borderRadius: 8,
-            padding: 20,
+            textAlign: "right",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: "0.9em",
+            color: "var(--admin-text2)",
           }}
         >
-          <div
-            style={{
-              fontSize: "0.8em",
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              color: "var(--admin-text3)",
-              marginBottom: 12,
-              fontWeight: 600,
-            }}
-          >
-            Scraper Health
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <Row label="Sessione" value={latest.goldbet.session_status} />
-            <Row
-              label="Errori/h"
-              value={String(latest.goldbet.errors_last_hour)}
-            />
-            <Row label="Snapshots" value={String(history.length)} />
-          </div>
-        </div>
-      </div>
-
-      {/* Refresh indicator */}
-      <div
-        style={{
-          marginTop: 16,
-          textAlign: "right",
-          fontSize: "0.8em",
-          color: "var(--admin-text4)",
-        }}
-      >
-        Auto-refresh ogni 30s — Ultimo:{" "}
-        {lastRefresh.toLocaleTimeString("it-IT")}
+          {formatNum(tGbMkt)}
+        </span>
+        <span
+          style={{
+            textAlign: "right",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: "0.9em",
+            color: "var(--admin-text)",
+          }}
+        >
+          {formatNum(tVMkt)}
+        </span>
+        <CoveragePill pct={coveragePct(tGbMkt, tVMkt)} bold />
       </div>
     </div>
   );
 }
 
-// ═══ REDIS PIPELINE SECTION ═══
+// ═══ SECTION 4 — REDIS PIPELINE ═══
 
 function RedisPipelineSection({ metrics }: { metrics: RedisMetrics }) {
   const { redis, odds, throughput_history } = metrics;
 
   const formatBytes = (bytes: number): string => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
-  const sparkCps = throughput_history.map(h => h.cps);
-  const sparkQueue = throughput_history.map(h => h.queue);
+  const sparkCps = throughput_history.map((h) => h.cps);
+  const sparkQueue = throughput_history.map((h) => h.queue);
 
-  const cards: { label: string; value: string; color: string; spark?: number[] }[] = [
-    { label: "Quote/sec", value: String(odds.changes_per_second), color: "#8b5cf6", spark: sparkCps },
-    { label: "Latenza Redis", value: `${redis.latency_ms}ms`, color: redis.latency_ms <= 5 ? "#10b981" : "#f59e0b" },
+  const cards: {
+    label: string;
+    value: string;
+    color: string;
+    spark?: number[];
+  }[] = [
+    {
+      label: "Quote/sec",
+      value: String(odds.changes_per_second),
+      color: "#8b5cf6",
+      spark: sparkCps,
+    },
+    {
+      label: "Latenza Redis",
+      value: `${redis.latency_ms}ms`,
+      color: redis.latency_ms <= 5 ? "#10b981" : "#f59e0b",
+    },
     { label: "Client SSE", value: String(odds.sse_clients), color: "#3b82f6" },
-    { label: "Coda Supabase", value: String(odds.write_queue_depth), color: odds.write_queue_depth > 100 ? "#ef4444" : "#10b981", spark: sparkQueue },
-    { label: "Memoria Redis", value: formatBytes(redis.memory_used), color: "#6366f1" },
-    { label: "Eventi in cache", value: String(odds.active_events), color: "#06b6d4" },
+    {
+      label: "Coda Supabase",
+      value: String(odds.write_queue_depth),
+      color: odds.write_queue_depth > 100 ? "#ef4444" : "#10b981",
+      spark: sparkQueue,
+    },
+    {
+      label: "Memoria Redis",
+      value: formatBytes(redis.memory_used),
+      color: "#6366f1",
+    },
+    {
+      label: "Eventi in cache",
+      value: String(odds.active_events),
+      color: "#06b6d4",
+    },
   ];
 
   return (
@@ -919,7 +789,6 @@ function RedisPipelineSection({ metrics }: { metrics: RedisMetrics }) {
         border: "1px solid var(--admin-border)",
         borderRadius: 8,
         overflow: "hidden",
-        marginTop: 24,
       }}
     >
       <div
@@ -941,7 +810,13 @@ function RedisPipelineSection({ metrics }: { metrics: RedisMetrics }) {
               boxShadow: "0 0 6px #10b981",
             }}
           />
-          <span style={{ fontWeight: 700, color: "var(--admin-text)", fontSize: "0.95em" }}>
+          <span
+            style={{
+              fontWeight: 700,
+              color: "var(--admin-text)",
+              fontSize: "0.95em",
+            }}
+          >
             Redis Pipeline
           </span>
         </div>
@@ -990,7 +865,12 @@ function RedisPipelineSection({ metrics }: { metrics: RedisMetrics }) {
             </div>
             {card.spark && card.spark.length >= 2 && (
               <div style={{ marginTop: 6 }}>
-                <MetricsSparkline data={card.spark} color={card.color} />
+                <Sparkline
+                  data={card.spark}
+                  color={card.color}
+                  width={100}
+                  height={24}
+                />
               </div>
             )}
           </div>
@@ -1000,46 +880,293 @@ function RedisPipelineSection({ metrics }: { metrics: RedisMetrics }) {
   );
 }
 
-function MetricsSparkline({ data, color, width = 100, height = 24 }: { data: number[]; color: string; width?: number; height?: number }) {
-  if (data.length < 2) return null;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 4) - 2;
-      return `${x},${y}`;
-    })
-    .join(" ");
+// ═══ UNIFIED COVERAGE LOGIC ═══
 
-  return (
-    <svg width={width} height={height} style={{ display: "block" }}>
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeOpacity={0.7} />
-    </svg>
-  );
+function computeUnifiedCoverage(
+  main: Snapshot | null,
+  prematch: Snapshot | null
+) {
+  // Events: live from main, prematch from prematch VPS (fallback main)
+  const gbLiveEv =
+    main?.goldbet.live_events_current_cycle ??
+    main?.goldbet.live_events ??
+    0;
+  const gbPrematchEv =
+    prematch?.goldbet.prematch_events ??
+    main?.goldbet.prematch_events ??
+    0;
+  const vEvents =
+    (main?.vincitu.live_events ?? 0) +
+    (main?.vincitu.prematch_events ?? 0);
+
+  // Markets: live from main, prematch from prematch VPS (fallback main)
+  const gbLiveMkt = main?.goldbet.live_markets ?? 0;
+  const gbPrematchMkt =
+    prematch?.goldbet.prematch_markets ??
+    main?.goldbet.prematch_markets ??
+    0;
+  const vMarkets = main?.vincitu.active_markets ?? 0;
+
+  // Outcomes: live from main, prematch from prematch VPS (fallback main)
+  const gbLiveOut = main?.goldbet.live_outcomes ?? 0;
+  const gbPrematchOut =
+    prematch?.goldbet.prematch_outcomes ??
+    main?.goldbet.prematch_outcomes ??
+    0;
+  const vOutcomes = main?.vincitu.active_outcomes ?? 0;
+
+  return {
+    events: { gb: gbLiveEv + gbPrematchEv, v: vEvents },
+    markets: { gb: gbLiveMkt + gbPrematchMkt, v: vMarkets },
+    outcomes: { gb: gbLiveOut + gbPrematchOut, v: vOutcomes },
+  };
 }
 
-// Small helper row
-function Row({ label, value }: { label: string; value: string }) {
+// ═══ MAIN DASHBOARD ═══
+
+export default function ScraperStatsDashboard() {
+  const [data, setData] = useState<StatsResponse | null>(null);
+  const [redisMetrics, setRedisMetrics] = useState<RedisMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const [statsResp, redisResp] = await Promise.all([
+        fetch("/api/scraper/stats"),
+        fetch("/api/odds/metrics").catch(() => null),
+      ]);
+      if (statsResp.ok) {
+        setData(await statsResp.json());
+      }
+      if (redisResp?.ok) {
+        setRedisMetrics(await redisResp.json());
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+      setLastRefresh(new Date());
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  if (loading) {
+    return (
+      <div
+        style={{ padding: 40, textAlign: "center", color: "var(--admin-text3)" }}
+      >
+        Caricamento...
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div
+        style={{ padding: 40, textAlign: "center", color: "var(--admin-text3)" }}
+      >
+        Errore nel caricamento dei dati
+      </div>
+    );
+  }
+
+  // ─── Disconnected: DB-only ───
+  if (!data.connected) {
+    const v = data.vincitu_only!;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Offline server cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 16,
+          }}
+        >
+          <ServerHealthCard title="Main VPS" server={null} isMain />
+          <ServerHealthCard
+            title="Prematch VPS"
+            server={null}
+            isMain={false}
+          />
+        </div>
+
+        {/* Warning banner */}
+        <div
+          style={{
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: 8,
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>🔴</span>
+          <div>
+            <div style={{ color: "#ef4444", fontWeight: 700 }}>
+              Scraper non connesso
+            </div>
+            <div style={{ color: "var(--admin-text3)", fontSize: "0.9em" }}>
+              Conteggi solo dal DB Vincitu
+            </div>
+          </div>
+        </div>
+
+        {/* DB-only cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {[
+            { label: "Live", value: v.live_events, color: "#10b981" },
+            { label: "Prematch", value: v.prematch_events, color: "#3b82f6" },
+            { label: "Finished", value: v.finished_events, color: "#f59e0b" },
+            { label: "Ended", value: v.ended_events, color: "#6b7280" },
+          ].map((card) => (
+            <div
+              key={card.label}
+              style={{
+                background: "var(--admin-card)",
+                border: "1px solid var(--admin-border)",
+                borderRadius: 8,
+                padding: 20,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.8em",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                  color: "var(--admin-text3)",
+                  marginBottom: 8,
+                }}
+              >
+                {card.label}
+              </div>
+              <div
+                style={{
+                  fontSize: "1.8em",
+                  fontWeight: 700,
+                  color: card.color,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {formatNumFull(card.value)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Connected: full dashboard ───
+  const mainServer = data.servers?.main || null;
+  const prematchServer = data.servers?.prematch || null;
+  const mainLatest = mainServer?.latest || null;
+  const prematchLatest = prematchServer?.latest || null;
+
+  // Unified coverage numbers
+  const coverage = computeUnifiedCoverage(mainLatest, prematchLatest);
+
+  // Sparkline data from main history (coverage % over time)
+  const mainHistory = mainServer?.history || [];
+  const sparkEvents = mainHistory.map((s) => {
+    const gb =
+      (s.goldbet.live_events_current_cycle ?? s.goldbet.live_events) +
+      s.goldbet.prematch_events;
+    const v = s.vincitu.live_events + s.vincitu.prematch_events;
+    return coveragePct(gb, v);
+  });
+  const sparkMarkets = mainHistory.map((s) => {
+    const gb = s.goldbet.live_markets + s.goldbet.prematch_markets;
+    return coveragePct(gb, s.vincitu.active_markets);
+  });
+  const sparkOutcomes = mainHistory.map((s) => {
+    const gb = s.goldbet.live_outcomes + s.goldbet.prematch_outcomes;
+    return coveragePct(gb, s.vincitu.active_outcomes);
+  });
+
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        fontSize: "0.9em",
-      }}
-    >
-      <span style={{ color: "var(--admin-text3)" }}>{label}</span>
-      <span
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Section 1 — Server Health Strip */}
+      <div
         style={{
-          color: "var(--admin-text)",
-          fontWeight: 600,
-          fontVariantNumeric: "tabular-nums",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
         }}
       >
-        {value}
-      </span>
+        <ServerHealthCard title="Main VPS" server={mainServer} isMain />
+        <ServerHealthCard
+          title="Prematch VPS"
+          server={prematchServer}
+          isMain={false}
+        />
+      </div>
+
+      {/* Section 2 — Coverage KPIs */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 16,
+        }}
+      >
+        <CoverageKPI
+          label="Copertura Eventi"
+          gbValue={coverage.events.gb}
+          vValue={coverage.events.v}
+          sparkData={sparkEvents}
+        />
+        <CoverageKPI
+          label="Copertura Mercati"
+          gbValue={coverage.markets.gb}
+          vValue={coverage.markets.v}
+          sparkData={sparkMarkets}
+        />
+        <CoverageKPI
+          label="Copertura Outcomes"
+          gbValue={coverage.outcomes.gb}
+          vValue={coverage.outcomes.v}
+          sparkData={sparkOutcomes}
+        />
+      </div>
+
+      {/* Section 3 — Sport Table */}
+      <SportTable
+        mainSport={mainLatest?.by_sport}
+        prematchSport={prematchLatest?.by_sport}
+      />
+
+      {/* Section 4 — Redis Pipeline (conditional) */}
+      {redisMetrics && redisMetrics.redis.connected && (
+        <RedisPipelineSection metrics={redisMetrics} />
+      )}
+
+      {/* Refresh indicator */}
+      <div
+        style={{
+          textAlign: "right",
+          fontSize: "0.8em",
+          color: "var(--admin-text4)",
+        }}
+      >
+        Auto-refresh ogni 30s — Ultimo:{" "}
+        {lastRefresh.toLocaleTimeString("it-IT")}
+      </div>
     </div>
   );
 }

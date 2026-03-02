@@ -24,6 +24,8 @@ interface ScraperStats {
   by_sport?: Record<string, { live: SportBreakdown; prematch: SportBreakdown }>;
   live_events_current_cycle?: number;
   prematch_events_current_cycle?: number;
+  source?: string; // 'main' | 'prematch' — identifies which server sent the stats
+  memory_mb?: number;
 }
 
 interface DbCounts {
@@ -59,19 +61,26 @@ interface Snapshot {
   }>;
 }
 
-// ═══ IN-MEMORY STORE (circular buffer, last ~60 snapshots = ~1 hour at 1/min) ═══
+// ═══ IN-MEMORY STORE (circular buffer per source, last ~60 snapshots = ~1 hour at 1/min) ═══
 // Use globalThis to survive Next.js module re-evaluation
 
 const MAX_SNAPSHOTS = 60;
 
 const g = globalThis as any;
-if (!g.__scraperSnapshots) g.__scraperSnapshots = [] as Snapshot[];
-const snapshots: Snapshot[] = g.__scraperSnapshots;
+if (!g.__scraperSnapshotsBySource) g.__scraperSnapshotsBySource = {} as Record<string, Snapshot[]>;
+const snapshotsBySource: Record<string, Snapshot[]> = g.__scraperSnapshotsBySource;
 
-function addSnapshot(snap: Snapshot) {
-  snapshots.push(snap);
-  if (snapshots.length > MAX_SNAPSHOTS) {
-    snapshots.shift();
+// Legacy alias — points to 'main' buffer for backward compat in GET
+function getSnapshots(source: string): Snapshot[] {
+  if (!snapshotsBySource[source]) snapshotsBySource[source] = [];
+  return snapshotsBySource[source];
+}
+
+function addSnapshot(snap: Snapshot, source: string) {
+  const buf = getSnapshots(source);
+  buf.push(snap);
+  if (buf.length > MAX_SNAPSHOTS) {
+    buf.shift();
   }
 }
 
@@ -292,10 +301,13 @@ export async function POST(req: NextRequest) {
     by_sport: bySportData,
   };
 
-  addSnapshot(snap);
+  const source = goldbet.source || 'main';
+  addSnapshot(snap, source);
 
-  // Check for alerts (non-blocking)
-  checkAndAlert(snap).catch(() => {});
+  // Check for alerts (non-blocking) — only for main server
+  if (source === 'main') {
+    checkAndAlert(snap).catch(() => {});
+  }
 
   return NextResponse.json({ ok: true, snapshot: snap });
 }
@@ -306,7 +318,10 @@ export async function GET(req: NextRequest) {
   // Admin page access — either scraper key or no auth needed (internal)
   // For simplicity, allow unauthenticated GET (admin pages are already auth-gated)
 
-  if (snapshots.length === 0) {
+  const allSources = Object.keys(snapshotsBySource);
+  const hasAnyData = allSources.some(s => snapshotsBySource[s].length > 0);
+
+  if (!hasAnyData) {
     // No scraper data yet — return DB-only counts
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -337,6 +352,7 @@ export async function GET(req: NextRequest) {
       connected: false,
       latest: null,
       history: [],
+      servers: {},
       vincitu_only: {
         live_events: liveEv.count || 0,
         prematch_events: prematchEv.count || 0,
@@ -346,9 +362,26 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Build per-source response
+  const servers: Record<string, { latest: Snapshot | null; history: Snapshot[] }> = {};
+  for (const source of allSources) {
+    const buf = snapshotsBySource[source];
+    if (buf.length > 0) {
+      servers[source] = {
+        latest: buf[buf.length - 1],
+        history: buf,
+      };
+    }
+  }
+
+  // Backward compat: "latest" and "history" from main server (or first available)
+  const mainBuf = snapshotsBySource['main'] || [];
+  const fallbackBuf = mainBuf.length > 0 ? mainBuf : (snapshotsBySource[allSources[0]] || []);
+
   return NextResponse.json({
     connected: true,
-    latest: snapshots[snapshots.length - 1],
-    history: snapshots,
+    latest: fallbackBuf.length > 0 ? fallbackBuf[fallbackBuf.length - 1] : null,
+    history: fallbackBuf,
+    servers,
   });
 }
