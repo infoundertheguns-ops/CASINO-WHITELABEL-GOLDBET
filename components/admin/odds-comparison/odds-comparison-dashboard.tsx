@@ -12,6 +12,13 @@ interface SportOption {
   kambi: number;
 }
 
+interface LeagueOption {
+  id: string;
+  name: string;
+  goldbet: number;
+  kambi: number;
+}
+
 interface EventSummary {
   id: string;
   external_id: string;
@@ -94,7 +101,8 @@ const MARKET_CANON: [RegExp, string][] = [
   // Esito finale / 1X2
   [/^esito finale 1x2$/, "1x2"],
   [/^1x2$/, "1x2"],
-  // Doppia chance
+  // Doppia chance (Kambi full name + Goldbet abbreviation)
+  [/^dc$/, "doppia_chance"],
   [/^doppia chance$/, "doppia_chance"],
   [/^doppia chance - 1° tempo$/, "doppia_chance_1t"],
   [/^doppia chance - 2° tempo$/, "doppia_chance_2t"],
@@ -125,13 +133,19 @@ const MARKET_CANON: [RegExp, string][] = [
   [/^1° tempo$/, "1x2_1t"],
   [/^2° tempo$/, "1x2_2t"],
   [/^1x2 1t$/, "1x2_1t"],
-  // Risultato esatto
+  [/^1x2 2t$/, "1x2_2t"],
+  // Pari/Dispari (Goldbet "P/D" + Kambi "Pari/Dispari")
+  [/^p\/d$/, "pari_dispari"],
+  [/^pari\/dispari$/, "pari_dispari"],
+  // Risultato esatto (Goldbet "Ris.Esatto 26 Esiti" + Kambi "Risultato esatto")
+  [/^ris\.esatto.*/, "esatto"],
   [/^risultato esatto$/, "esatto"],
   [/^risultato esatto - 1° tempo$/, "esatto_1t"],
   // HT/FT
   [/^primo tempo\/finale$/, "ht_ft"],
   [/^ht\/ft$/, "ht_ft"],
-  // Handicap
+  // Handicap (Goldbet "1X2 H -1" + Kambi "1X2 con Handicap")
+  [/^1x2 h .+$/, "handicap_1x2"],
   [/^1x2 con handicap$/, "handicap_1x2"],
   [/^handicap asiatico$/, "handicap_asiatico"],
   [/^handicap asiatico - 1° tempo$/, "handicap_asiatico_1t"],
@@ -174,25 +188,50 @@ function canonicalizeMarketName(name: string): string {
 // Kambi puts all lines as outcomes in one market: "Totale gol" → outcomes have "Over 2.5", "Under 2.5"
 function extractLineFromName(name: string): number | null {
   const n = normalizeMarketName(name);
-  // Goldbet: "u/o 2.5", "u/o 1t 0.5"
-  const m = n.match(/(\d+\.?\d*)$/);
+  // Goldbet: "u/o 2.5", "u/o 1t 0.5", "1x2 h -1"
+  const m = n.match(/\s(-?\d+\.?\d*)\s*$/);
   if (m) return parseFloat(m[1]);
   return null;
 }
 
 // Build a key for matching markets across sources
+// Both Goldbet and Kambi create separate markets per line, so key = "canon|line"
 function marketMatchKey(m: MarketDetail): string {
   const canon = canonicalizeMarketName(m.name);
-  // For Goldbet U/O markets with line in name, strip the line (they match Kambi's single "Totale gol")
-  // Both will canonicalize to the same base key
-  if (m.line != null) return `${canon}|${m.line}`;
-  // Check if line is embedded in name (Goldbet pattern)
-  const embeddedLine = extractLineFromName(m.name);
-  if (embeddedLine != null && canon.startsWith("uo_")) {
-    // Don't include embedded line — Kambi has one market with all lines as outcomes
-    return canon;
+  // For line-based markets, always include the line
+  if (canon.startsWith("uo_") || canon.startsWith("handicap_")) {
+    if (m.line != null) return `${canon}|${m.line}`;
+    const embeddedLine = extractLineFromName(m.name);
+    if (embeddedLine != null) return `${canon}|${embeddedLine}`;
   }
+  // Generic: if DB has a line field, include it
+  if (m.line != null) return `${canon}|${m.line}`;
   return canon;
+}
+
+// Normalize outcome names for cross-source matching
+function normalizeOutcomeName(name: string, marketCanon: string): string {
+  const n = name.toLowerCase().trim();
+  // U/O: Kambi "Over 2.5" → "over", Goldbet "U"/"O"
+  if (marketCanon.startsWith("uo_")) {
+    if (n.startsWith("over") || n === "o") return "over";
+    if (n.startsWith("under") || n === "u") return "under";
+  }
+  // GG/NG: Kambi "Si"/"No", Goldbet "GG"/"NG"
+  if (marketCanon.startsWith("gg_ng")) {
+    if (n === "si" || n === "gg" || n === "gol") return "gg";
+    if (n === "no" || n === "ng" || n === "nogol") return "ng";
+  }
+  // Pari/Dispari: Kambi "Pari"/"Dispari", Goldbet "P"/"D"
+  if (marketCanon === "pari_dispari") {
+    if (n === "p" || n === "pari") return "pari";
+    if (n === "d" || n === "dispari") return "dispari";
+  }
+  // Risultato esatto: normalize score format "1:0" → "1-0"
+  if (marketCanon.startsWith("esatto")) {
+    return n.replace(/:/g, "-");
+  }
+  return n;
 }
 
 // Category ID using the same logic as sportsbook
@@ -225,6 +264,8 @@ export default function OddsComparisonDashboard() {
   const [sports, setSports] = useState<SportOption[]>([]);
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [leagues, setLeagues] = useState<LeagueOption[]>([]);
+  const [selectedLeague, setSelectedLeague] = useState<string>("");
 
   const [goldEvents, setGoldEvents] = useState<EventSummary[]>([]);
   const [kambiEvents, setKambiEvents] = useState<EventSummary[]>([]);
@@ -249,11 +290,23 @@ export default function OddsComparisonDashboard() {
     }).catch(console.error);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Load events when sport/status changes ───
+  // ─── Load leagues when sport/status changes ───
+  useEffect(() => {
+    if (!selectedSport) return;
+    const params: Record<string, string> = { sport_id: selectedSport };
+    if (statusFilter !== "all") params.status = statusFilter;
+    fetchApi("leagues", params).then((r) => {
+      setLeagues(r.leagues || []);
+    }).catch(console.error);
+    setSelectedLeague("");
+  }, [selectedSport, statusFilter]);
+
+  // ─── Load events when sport/status/league changes ───
   const loadEvents = useCallback(async () => {
     if (!selectedSport) return;
     const params: Record<string, string> = { sport_id: selectedSport };
     if (statusFilter !== "all") params.status = statusFilter;
+    if (selectedLeague) params.league_id = selectedLeague;
 
     const [goldRes, kambiRes] = await Promise.all([
       fetchApi("events", { ...params, source: "goldbet" }),
@@ -262,7 +315,7 @@ export default function OddsComparisonDashboard() {
 
     setGoldEvents(goldRes.events || []);
     setKambiEvents(kambiRes.events || []);
-  }, [selectedSport, statusFilter]);
+  }, [selectedSport, statusFilter, selectedLeague]);
 
   useEffect(() => {
     loadEvents().catch(console.error);
@@ -381,6 +434,15 @@ export default function OddsComparisonDashboard() {
           value={selectedSport}
           onChange={setSelectedSport}
           options={sports.map((s) => ({ value: s.id, label: `${s.name} (GB ${s.goldbet} · K ${s.kambi})` }))}
+        />
+        <FilterSelect
+          label="Torneo"
+          value={selectedLeague}
+          onChange={setSelectedLeague}
+          options={[
+            { value: "", label: `Tutti (${leagues.length})` },
+            ...leagues.map((l) => ({ value: l.id, label: `${l.name} (GB ${l.goldbet} · K ${l.kambi})` })),
+          ]}
         />
         <div style={{ display: "flex", gap: 4 }}>
           {["all", "live", "prematch"].map((s) => (
@@ -561,11 +623,32 @@ function EventSelector({ label, color, events, selectedId, onSelect, detail }: {
         }}
       >
         <option value="">Seleziona evento...</option>
-        {events.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.home_team} vs {e.away_team} ({e.league_name || "?"}) — {e.market_count} mkt
-          </option>
-        ))}
+        {(() => {
+          const byLeague = new Map<string, EventSummary[]>();
+          for (const e of events) {
+            const lg = e.league_name || "Altro";
+            const arr = byLeague.get(lg) || [];
+            arr.push(e);
+            byLeague.set(lg, arr);
+          }
+          const groups = Array.from(byLeague.entries()).sort((a, b) => b[1].length - a[1].length);
+          if (groups.length <= 1) {
+            return events.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.home_team} vs {e.away_team} — {e.market_count} mkt
+              </option>
+            ));
+          }
+          return groups.map(([lg, evts]) => (
+            <optgroup key={lg} label={`${lg} (${evts.length})`}>
+              {evts.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.home_team} vs {e.away_team} — {e.market_count} mkt
+                </option>
+              ))}
+            </optgroup>
+          ));
+        })()}
       </select>
 
       {/* Info card */}
@@ -658,10 +741,11 @@ function SumStat({ label, value, sub, color }: { label: string; value: string; s
 
 interface ComparisonRow {
   marketName: string;
+  canon: string;
   line: number | null;
   category: string;
-  goldOutcomes: { name: string; odds: number }[];
-  kambiOutcomes: { name: string; odds: number }[];
+  goldOutcomes: { name: string; normalizedName: string; odds: number }[];
+  kambiOutcomes: { name: string; normalizedName: string; odds: number }[];
   onlyGold: boolean;
   onlyKambi: boolean;
 }
@@ -720,10 +804,10 @@ function MarketComparisonTable({ rows, loading }: { rows: ComparisonRow[]; loadi
 }
 
 function MarketRow({ row, index }: { row: ComparisonRow; index: number }) {
-  // Find matching outcomes by name
-  const allNames = new Set([
-    ...row.goldOutcomes.map((o) => o.name.toLowerCase()),
-    ...row.kambiOutcomes.map((o) => o.name.toLowerCase()),
+  // Find matching outcomes by normalized name
+  const allNormalized = new Set([
+    ...row.goldOutcomes.map((o) => o.normalizedName),
+    ...row.kambiOutcomes.map((o) => o.normalizedName),
   ]);
 
   const bgBase = index % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)";
@@ -764,14 +848,15 @@ function MarketRow({ row, index }: { row: ComparisonRow; index: number }) {
       </div>
 
       {/* Outcomes */}
-      {Array.from(allNames).map((outName) => {
-        const gOdds = row.goldOutcomes.find((o) => o.name.toLowerCase() === outName)?.odds;
-        const kOdds = row.kambiOutcomes.find((o) => o.name.toLowerCase() === outName)?.odds;
-        const diff = gOdds && kOdds ? diffPct(gOdds, kOdds) : null;
+      {Array.from(allNormalized).map((normName) => {
+        const gOut = row.goldOutcomes.find((o) => o.normalizedName === normName);
+        const kOut = row.kambiOutcomes.find((o) => o.normalizedName === normName);
+        const diff = gOut && kOut ? diffPct(gOut.odds, kOut.odds) : null;
+        const displayName = gOut?.name || kOut?.name || normName;
 
         return (
           <div
-            key={outName}
+            key={normName}
             style={{
               display: "grid",
               gridTemplateColumns: "minmax(200px, 1.5fr) 1fr 1fr 80px",
@@ -781,10 +866,10 @@ function MarketRow({ row, index }: { row: ComparisonRow; index: number }) {
             }}
           >
             <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)" }}>
-              {outName}
+              {displayName}
             </div>
-            <OddsCell odds={gOdds} />
-            <OddsCell odds={kOdds} />
+            <OddsCell odds={gOut?.odds} />
+            <OddsCell odds={kOut?.odds} />
             <div style={{ textAlign: "center" }}>
               {diff != null ? (
                 <span style={{
@@ -857,75 +942,31 @@ function buildCategories(gold: EventDetail | null, kambi: EventDetail | null) {
   return Array.from(catMap.values()).filter((c) => c.goldCount + c.kambiCount > 0);
 }
 
-// Split a Kambi multi-line market (e.g. "Totale gol" with Over/Under 0.5..5.5) into
-// individual sub-markets per line, to match Goldbet's per-line markets (e.g. "U/O 2.5")
-function splitMultiLineMarket(m: MarketDetail): { key: string; name: string; line: number | null; outcomes: Outcome[] }[] {
-  const canon = canonicalizeMarketName(m.name);
-
-  // Only split markets that are known multi-line (Kambi puts all lines in one market)
-  const isMultiLine = canon.startsWith("uo_") || canon === "handicap_asiatico" || canon === "handicap_asiatico_1t";
-  if (!isMultiLine) {
-    return [{ key: marketMatchKey(m), name: m.name, line: m.line, outcomes: m.outcomes }];
-  }
-
-  // Group outcomes by their line value (extracted from name: "Over 2.5" → 2.5)
-  const lineGroups = new Map<number, Outcome[]>();
-  const unmatched: Outcome[] = [];
-
-  for (const o of m.outcomes) {
-    const lineMatch = o.name.match(/(\d+\.?\d*)\s*$/);
-    if (lineMatch) {
-      const lineVal = parseFloat(lineMatch[1]);
-      const arr = lineGroups.get(lineVal) || [];
-      arr.push(o);
-      lineGroups.set(lineVal, arr);
-    } else {
-      unmatched.push(o);
-    }
-  }
-
-  if (lineGroups.size === 0) {
-    return [{ key: marketMatchKey(m), name: m.name, line: m.line, outcomes: m.outcomes }];
-  }
-
-  const result: { key: string; name: string; line: number | null; outcomes: Outcome[] }[] = [];
-  for (const [lineVal, outcomes] of Array.from(lineGroups.entries()).sort((a, b) => a[0] - b[0])) {
-    // Build a display name with line
-    const displayName = `${m.name} ${lineVal}`;
-    result.push({
-      key: `${canon}|${lineVal}`,
-      name: displayName,
-      line: lineVal,
-      outcomes,
-    });
-  }
-
-  // Add unmatched outcomes as a separate entry
-  if (unmatched.length > 0) {
-    result.push({ key: canon + "|other", name: m.name, line: null, outcomes: unmatched });
-  }
-
-  return result;
-}
-
-// For Goldbet U/O markets, build a key that matches the split Kambi markets
-function goldMarketMatchKey(m: MarketDetail): string {
-  const canon = canonicalizeMarketName(m.name);
-  // Goldbet "U/O 2.5" → canon "uo_gol", embedded line 2.5 → key "uo_gol|2.5"
-  const embeddedLine = extractLineFromName(m.name);
-  if (embeddedLine != null && (canon.startsWith("uo_") || canon.startsWith("handicap_"))) {
-    return `${canon}|${embeddedLine}`;
-  }
-  if (m.line != null) return `${canon}|${m.line}`;
-  return canon;
-}
-
 interface FlatMarketEntry {
   key: string;
+  canon: string;
   name: string;
   line: number | null;
-  outcomes: { name: string; odds: number }[];
+  outcomes: { name: string; normalizedName: string; odds: number }[];
   source: "gold" | "kambi";
+}
+
+function flattenMarket(m: MarketDetail, source: "gold" | "kambi"): FlatMarketEntry {
+  const key = marketMatchKey(m);
+  const canon = canonicalizeMarketName(m.name);
+  const line = m.line ?? extractLineFromName(m.name);
+  return {
+    key,
+    canon,
+    name: m.name,
+    line,
+    outcomes: m.outcomes.map((o) => ({
+      name: o.name,
+      normalizedName: normalizeOutcomeName(o.name, canon),
+      odds: o.odds,
+    })),
+    source,
+  };
 }
 
 function buildComparison(gold: EventDetail | null, kambi: EventDetail | null, categoryId: string): ComparisonRow[] {
@@ -942,32 +983,17 @@ function buildComparison(gold: EventDetail | null, kambi: EventDetail | null, ca
   const gFiltered = categoryId === "principali" ? pickPrincipali(goldMarkets) : goldMarkets;
   const kFiltered = categoryId === "principali" ? pickPrincipali(kambiMarkets) : kambiMarkets;
 
-  // Flatten Goldbet markets (1 market = 1 entry, use goldMarketMatchKey)
+  // Both sources: 1 market = 1 entry with unified marketMatchKey
   const goldByKey = new Map<string, FlatMarketEntry>();
   for (const m of gFiltered) {
-    const key = goldMarketMatchKey(m);
-    goldByKey.set(key, {
-      key,
-      name: m.name,
-      line: m.line ?? extractLineFromName(m.name),
-      outcomes: m.outcomes.map((o) => ({ name: o.name, odds: o.odds })),
-      source: "gold",
-    });
+    const entry = flattenMarket(m, "gold");
+    goldByKey.set(entry.key, entry);
   }
 
-  // Flatten Kambi markets (split multi-line markets)
   const kambiByKey = new Map<string, FlatMarketEntry>();
   for (const m of kFiltered) {
-    const splits = splitMultiLineMarket(m);
-    for (const s of splits) {
-      kambiByKey.set(s.key, {
-        key: s.key,
-        name: s.name,
-        line: s.line,
-        outcomes: s.outcomes.map((o) => ({ name: o.name, odds: o.odds })),
-        source: "kambi",
-      });
-    }
+    const entry = flattenMarket(m, "kambi");
+    kambiByKey.set(entry.key, entry);
   }
 
   const allKeys = new Set([...goldByKey.keys(), ...kambiByKey.keys()]);
@@ -979,6 +1005,7 @@ function buildComparison(gold: EventDetail | null, kambi: EventDetail | null, ca
 
     rows.push({
       marketName: gm?.name || km?.name || key,
+      canon: gm?.canon || km?.canon || key,
       line: gm?.line ?? km?.line ?? null,
       category: categoryId,
       goldOutcomes: gm?.outcomes || [],
@@ -991,6 +1018,8 @@ function buildComparison(gold: EventDetail | null, kambi: EventDetail | null, ca
   // Sort: matched first, then exclusive
   rows.sort((a, b) => {
     if (a.onlyGold === b.onlyGold && a.onlyKambi === b.onlyKambi) {
+      // Sort by line for same canon
+      if (a.canon === b.canon && a.line != null && b.line != null) return a.line - b.line;
       return a.marketName.localeCompare(b.marketName);
     }
     if (!a.onlyGold && !a.onlyKambi) return -1;
@@ -1009,13 +1038,13 @@ function pickPrincipali(markets: MarketDetail[]): MarketDetail[] {
   const m1x2 = markets.find((m) => nameL(m) === "1x2" || nameL(m) === "esito finale 1x2");
   if (m1x2) result.push(m1x2);
 
-  // U/O 2.5 — Goldbet: "U/O 2.5", Kambi: "Totale gol" (has Over/Under 2.5 in outcomes)
+  // U/O 2.5 — Goldbet: "U/O 2.5", Kambi: "Totale gol" with line=2.5
   const muo = markets.find((m) => {
     const n = nameL(m);
     if ((n.includes("under/over") || n.startsWith("u/o") || n.startsWith("o/u")) &&
       (n.includes("2.5") || m.line === 2.5)) return true;
-    // Kambi: "Totale gol" contains all lines in outcomes
-    if (n === "totale gol") return true;
+    // Kambi: "Totale gol" with line=2.5 (separate market per line)
+    if (n === "totale gol" && m.line === 2.5) return true;
     return false;
   });
   if (muo) result.push(muo);
@@ -1027,8 +1056,8 @@ function pickPrincipali(markets: MarketDetail[]): MarketDetail[] {
   });
   if (mgg) result.push(mgg);
 
-  // Doppia Chance
-  const mdc = markets.find((m) => nameL(m).includes("doppia chance"));
+  // Doppia Chance — Goldbet "DC", Kambi "Doppia Chance"
+  const mdc = markets.find((m) => nameL(m).includes("doppia chance") || nameL(m) === "dc");
   if (mdc) result.push(mdc);
 
   // Fallback: winner

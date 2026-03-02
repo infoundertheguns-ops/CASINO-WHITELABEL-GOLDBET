@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
         return await getEventDetail(supabase, sp);
       case "match-suggestions":
         return await getMatchSuggestions(supabase, sp);
+      case "leagues":
+        return await getLeagues(supabase, sp);
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
@@ -72,6 +74,7 @@ async function getSports(supabase: any) {
 async function getEvents(supabase: any, sp: URLSearchParams) {
   const source = sp.get("source") || "goldbet";
   const sportId = sp.get("sport_id");
+  const leagueId = sp.get("league_id");
   const status = sp.get("status"); // live, prematch, or null for all
 
   // Paginate to get all events (not just 500)
@@ -88,6 +91,7 @@ async function getEvents(supabase: any, sp: URLSearchParams) {
       .range(offset, offset + PAGE - 1);
 
     if (sportId) query = query.eq("sport_id", sportId);
+    if (leagueId) query = query.eq("league_id", leagueId);
     if (status === "live") query = query.eq("status", "live");
     else if (status === "prematch") query = query.eq("status", "prematch");
     else query = query.in("status", ["prematch", "live"]);
@@ -281,4 +285,51 @@ async function getMatchSuggestions(supabase: any, sp: URLSearchParams) {
   scored.sort((a: any, b: any) => b.score - a.score);
 
   return NextResponse.json({ suggestions: scored.slice(0, 10) });
+}
+
+// ─── Leagues with event counts per source ───
+
+async function getLeagues(supabase: any, sp: URLSearchParams) {
+  const sportId = sp.get("sport_id");
+  if (!sportId) return NextResponse.json({ error: "sport_id required" }, { status: 400 });
+
+  const status = sp.get("status");
+  const leagueMap = new Map<string, { id: string; name: string; goldbet: number; kambi: number }>();
+  const PAGE = 1000;
+  let offset = 0;
+
+  while (true) {
+    let query = supabase
+      .from("events")
+      .select("league_id, source, leagues(name)")
+      .eq("sport_id", sportId)
+      .range(offset, offset + PAGE - 1);
+
+    if (status === "live") query = query.eq("status", "live");
+    else if (status === "prematch") query = query.eq("status", "prematch");
+    else query = query.in("status", ["prematch", "live"]);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    for (const row of data) {
+      const id = row.league_id;
+      if (!id) continue;
+      const name = row.leagues?.name || "Sconosciuta";
+      const src = row.source as string;
+      const existing = leagueMap.get(id) || { id, name, goldbet: 0, kambi: 0 };
+      if (src === "kambi") existing.kambi++;
+      else existing.goldbet++;
+      leagueMap.set(id, existing);
+    }
+
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  const leagues = Array.from(leagueMap.values()).sort((a, b) =>
+    (b.goldbet + b.kambi) - (a.goldbet + a.kambi)
+  );
+  return NextResponse.json({ leagues });
 }
