@@ -21,6 +21,7 @@ const NAVIGATION: AdminNavGroup[] = [
       { id: "settlement", icon: "⚖️", label: "Settlement", badge: 2 },
       { id: "risk", icon: "🛡️", label: "Risk & Trading", badge: 5 },
       { id: "liability", icon: "📊", label: "Liability" },
+      { id: "odds-comparison", icon: "🔍", label: "Confronto Quote" },
     ],
   },
   {
@@ -45,6 +46,7 @@ const TITLES: Record<string, string> = {
   settlement: "Settlement",
   risk: "Risk & Trading Desk",
   liability: "Liability Management",
+  "odds-comparison": "Confronto Quote",
   scraper: "Scraper Monitor",
   users: "Gestione Utenti",
   config: "Configurazione",
@@ -77,6 +79,7 @@ export default function AdminLayout({
       settlement: "/admin/sportsbook",
       risk: "/admin/risk",
       liability: "/admin/risk",
+      "odds-comparison": "/admin/odds-comparison",
       scraper: "/admin/scraper",
       users: "/admin/management",
       config: "/admin/config",

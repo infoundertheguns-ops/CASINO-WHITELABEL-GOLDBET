@@ -37,11 +37,13 @@ export function getMarketCategoryId(market: Market): string {
   // Primo Tempo — must check before generic patterns
   if (name.includes("primo tempo") || name.includes("1° tempo") || name.includes("1 tempo")) return "primo_tempo";
   if (name === "1x2 pt" || name === "u/o pt" || name === "gg/ng pt") return "primo_tempo";
+  // Kambi: "2° Tempo" as standalone = 1X2 second half → primo_tempo group
+  if (name === "2° tempo") return "primo_tempo";
 
   // Risultato Esatto
   if (name.includes("risultato esatto") || name.includes("exact score") || type === "exact_score") return "esatto";
 
-  // HT/FT
+  // HT/FT — Kambi: "Primo tempo/Finale"
   if (name.includes("ht/ft") || name.includes("tempo/finale") || type === "ht_ft") return "ht_ft";
 
   // Combo (multi-condition markets)
@@ -49,16 +51,20 @@ export function getMarketCategoryId(market: Market): string {
   if (name.includes("marc +") || name.includes("pros marc +") || name.includes("metodo prossimo gol")) return "combo";
   if (name.includes("gg o over") || name.includes("gg e over") || name.includes("gg + over")) return "combo";
 
-  // Handicap
+  // Handicap — Goldbet + Kambi: "Handicap", "1x2 con Handicap", "Handicap Asiatico", "Testa a Testa Handicap"
   if (name.includes("handicap") || name.includes("1x2 hand") || type === "handicap") return "handicap";
 
-  // Under/Over
+  // Under/Over — Goldbet: "U/O", "Under/Over" | Kambi: "Totale gol", "Totale Asiatico"
   if (name.includes("under/over") || name.startsWith("o/u") || name.startsWith("u/o")) return "uo";
+  if (name.startsWith("totale gol") || name.startsWith("totale asiatico")) return "uo";
 
   // Gol
-  if (name.includes("gol/nogol") || name === "gg/ng" || type === "gg_ng") return "gol";
-  if (name.includes("somma gol") || name.includes("prossimo gol")) return "gol";
-  if (name.includes("rete inviolata") || name.includes("vincente a 0") || name.includes("clean sheet")) return "gol";
+  if (name.includes("gol/nogol") || name.includes("gol/no gol") || name === "gg/ng" || type === "gg_ng") return "gol";
+  if (name.includes("entrambe le squadre a segno") || name.includes("entrambe le squadre segnano")) return "gol";
+  if (name.includes("somma gol") || name.includes("prossimo gol") || name.includes("primo gol")) return "gol";
+  if (name.startsWith("gol totali") || name.includes("numero totale esatto di gol")) return "gol";
+  if (name.includes("gol segnato in entrambi")) return "gol";
+  if (name.includes("rete inviolata") || name.includes("vincente a 0") || name.includes("vince senza subire gol") || name.includes("clean sheet")) return "gol";
   if (name.includes("segna") && !name.includes("+")) return "gol";
 
   // Winner markets per tutti sport → "1x2" category
@@ -80,10 +86,12 @@ export function getMarketCategoryId(market: Market): string {
   if (name.startsWith("t/t handicap")) return "handicap";
 
   // Speciali
-  if (name.includes("angoli") || name.includes("corner")) return "speciali";
-  if (name.includes("ammonizion") || name.includes("cartellini")) return "speciali";
+  if (name.includes("angoli") || name.includes("corner") || name.includes("calci d'angolo")) return "speciali";
+  if (name.includes("ammonizion") || name.includes("cartellini") || name.includes("cartellino")) return "speciali";
   if (name.includes("pari/dispari") || name.includes("odd/even")) return "speciali";
-  if (name.includes("calci di rigore") || name.includes("penalty")) return "speciali";
+  if (name.includes("calci di rigore") || name.includes("penalty") || name.includes("rigore assegnato")) return "speciali";
+  if (name.includes("tiri totali") || name.includes("tiri del giocatore") || name.includes("tiri in porta")) return "speciali";
+  if (name.includes("fuorigioco") || name.includes("falli totali") || name.includes("woodwork")) return "speciali";
 
   return "altro";
 }
