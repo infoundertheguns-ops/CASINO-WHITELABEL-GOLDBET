@@ -258,13 +258,20 @@ function parsePeriodString(periodStr: string): number[][] {
 
 // ═══ TEAM NAME NORMALIZATION ═══
 
+import { resolveAliases, levenshtein, normalizeSuffixes } from "@/lib/team-aliases";
+
 function cleanTeamName(name: string): string {
   // Remove bold markers, extra whitespace
   return name.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
 }
 
 export function normalizeTeamName(name: string): string {
-  return name
+  let n = name;
+
+  // Apply suffix/year normalization first
+  n = normalizeSuffixes(n);
+
+  return n
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // remove accents
@@ -272,7 +279,7 @@ export function normalizeTeamName(name: string): string {
       /\b(fc|sc|cf|ac|as|ss|us|ssd|asd|calcio|basket|hockey|club|sporting|sport|united|city)\b/gi,
       ""
     )
-    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/[^a-z0-9\s()]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -288,14 +295,39 @@ export function teamMatchScore(dbName: string, beName: string): number {
   // 1. Exact match
   if (normDb === normBe) return 1.0;
 
-  // 2. One contains the other
+  // 2. Alias match: if any alias of dbName matches any alias of beName
+  const aliasesDb = resolveAliases(normDb);
+  const aliasesBe = resolveAliases(normBe);
+
+  for (const aDb of aliasesDb) {
+    const normADb = normalizeTeamName(aDb);
+    if (!normADb) continue;
+    for (const aBe of aliasesBe) {
+      const normABe = normalizeTeamName(aBe);
+      if (!normABe) continue;
+      if (normADb === normABe) return 0.95;
+    }
+  }
+
+  // 3. Containment
   if (normDb.includes(normBe) || normBe.includes(normDb)) return 0.85;
 
-  // 3. Token overlap
+  // Check containment in aliases
+  for (const aDb of aliasesDb) {
+    const normADb = normalizeTeamName(aDb);
+    if (!normADb) continue;
+    for (const aBe of aliasesBe) {
+      const normABe = normalizeTeamName(aBe);
+      if (!normABe) continue;
+      if (normADb.includes(normABe) || normABe.includes(normADb)) return 0.85;
+    }
+  }
+
+  // 4. Token overlap
   const tokensDb = normDb.split(" ").filter((t) => t.length > 1);
   const tokensBe = normBe.split(" ").filter((t) => t.length > 1);
 
-  if (tokensDb.length === 0 || tokensDb.length === 0) return 0;
+  if (tokensDb.length === 0 || tokensBe.length === 0) return 0;
 
   let shared = 0;
   for (const t of tokensDb) {
@@ -306,7 +338,19 @@ export function teamMatchScore(dbName: string, beName: string): number {
 
   const tokenScore = shared / Math.max(tokensDb.length, tokensBe.length);
 
-  // 4. First word match bonus (e.g. "Inter" vs "Inter Milano")
+  // 5. Levenshtein distance bonus
+  const maxLen = Math.max(normDb.length, normBe.length);
+  if (maxLen > 0) {
+    const dist = levenshtein(normDb, normBe);
+    const ratio = dist / maxLen;
+    if (ratio < 0.25) {
+      // Very similar strings — boost score
+      const levScore = 1.0 - ratio; // 0.75-1.0 range
+      return Math.max(tokenScore, levScore);
+    }
+  }
+
+  // 6. First word match bonus (e.g. "Inter" vs "Inter Milano")
   if (
     tokensDb.length > 0 &&
     tokensBe.length > 0 &&
@@ -317,6 +361,83 @@ export function teamMatchScore(dbName: string, beName: string): number {
   }
 
   return tokenScore;
+}
+
+/**
+ * Detailed scoring — returns breakdown for debug purposes.
+ */
+export function teamMatchScoreDetailed(dbName: string, beName: string): {
+  score: number;
+  normDb: string;
+  normBe: string;
+  method: string;
+} {
+  const normDb = normalizeTeamName(dbName);
+  const normBe = normalizeTeamName(beName);
+
+  if (!normDb || !normBe) return { score: 0, normDb, normBe, method: "empty" };
+
+  if (normDb === normBe) return { score: 1.0, normDb, normBe, method: "exact" };
+
+  const aliasesDb = resolveAliases(normDb);
+  const aliasesBe = resolveAliases(normBe);
+
+  for (const aDb of aliasesDb) {
+    const nADb = normalizeTeamName(aDb);
+    if (!nADb) continue;
+    for (const aBe of aliasesBe) {
+      const nABe = normalizeTeamName(aBe);
+      if (!nABe) continue;
+      if (nADb === nABe) return { score: 0.95, normDb, normBe, method: `alias:${nADb}` };
+    }
+  }
+
+  if (normDb.includes(normBe) || normBe.includes(normDb))
+    return { score: 0.85, normDb, normBe, method: "containment" };
+
+  for (const aDb of aliasesDb) {
+    const nADb = normalizeTeamName(aDb);
+    if (!nADb) continue;
+    for (const aBe of aliasesBe) {
+      const nABe = normalizeTeamName(aBe);
+      if (!nABe) continue;
+      if (nADb.includes(nABe) || nABe.includes(nADb))
+        return { score: 0.85, normDb, normBe, method: `alias-contain:${nADb}~${nABe}` };
+    }
+  }
+
+  const tokensDb = normDb.split(" ").filter((t) => t.length > 1);
+  const tokensBe = normBe.split(" ").filter((t) => t.length > 1);
+
+  if (tokensDb.length === 0 || tokensBe.length === 0)
+    return { score: 0, normDb, normBe, method: "no_tokens" };
+
+  let shared = 0;
+  for (const t of tokensDb) {
+    if (tokensBe.some((tb) => tb === t || tb.includes(t) || t.includes(tb))) shared++;
+  }
+  const tokenScore = shared / Math.max(tokensDb.length, tokensBe.length);
+
+  const maxLen = Math.max(normDb.length, normBe.length);
+  if (maxLen > 0) {
+    const dist = levenshtein(normDb, normBe);
+    const ratio = dist / maxLen;
+    if (ratio < 0.25) {
+      const levScore = 1.0 - ratio;
+      if (levScore > tokenScore)
+        return { score: levScore, normDb, normBe, method: `levenshtein:${dist}/${maxLen}` };
+    }
+  }
+
+  if (
+    tokensDb.length > 0 && tokensBe.length > 0 &&
+    tokensDb[0] === tokensBe[0] && tokensDb[0].length >= 3
+  ) {
+    const s = Math.max(tokenScore, 0.7);
+    return { score: s, normDb, normBe, method: "first_word" };
+  }
+
+  return { score: tokenScore, normDb, normBe, method: `tokens:${shared}/${Math.max(tokensDb.length, tokensBe.length)}` };
 }
 
 // ═══ MATCH EVENTS ═══
@@ -473,4 +594,319 @@ export function buildHalfScores(
 
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ═══════════════════════════════════════════════════
+// BetExplorer Fixtures Scraper
+// Scrapes betexplorer.com/it/ for upcoming fixtures.
+// Uses the Italian homepage with date params which
+// returns future fixtures in a modern list-based HTML.
+// Then fetches AJAX endpoint for additional events.
+// ═══════════════════════════════════════════════════
+
+// ═══ FIXTURE TYPES ═══
+
+export interface BetExplorerFixture {
+  sport: string;
+  country: string | null;
+  league: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  matchDate: Date;
+  matchUrl: string;
+  beMatchId: string | null;
+  odds1: number | null;
+  oddsX: number | null;
+  odds2: number | null;
+}
+
+export const BE_SPORTS = [
+  "football",
+  "tennis",
+  "basketball",
+  "hockey",
+  "volleyball",
+  "handball",
+  "baseball",
+] as const;
+
+// ═══ FETCH ALL FIXTURES FOR A DATE ═══
+// Single request to /it/ page gets all sports for that day.
+// Then AJAX call with cookies gets the remaining events.
+
+export async function fetchFixturesForDate(
+  date: Date
+): Promise<BetExplorerFixture[]> {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const pageUrl = `https://www.betexplorer.com/it/?year=${y}&month=${m}&day=${d}`;
+
+  // 1. Fetch main page (gets cookies + initial ~100 events)
+  const pageRes = await fetch(pageUrl, {
+    headers: { "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(20000),
+  });
+
+  if (!pageRes.ok) {
+    console.warn(`[be-fixtures] fetch ${pageUrl} → ${pageRes.status}`);
+    return [];
+  }
+
+  // Extract cookies for AJAX call
+  const cookies = pageRes.headers.getSetCookie?.() || [];
+  const cookieStr = cookies.map((c) => c.split(";")[0]).join("; ");
+
+  const pageHtml = await pageRes.text();
+  const pageFixtures = parseFixturesPageNew(pageHtml, date);
+
+  // 2. Fetch AJAX for remaining events
+  const ajaxUrl = `https://www.betexplorer.com/gres/ajax/homepage-data.php?tab=all&year=${y}&month=${m}&day=${d}&start=0&end=1000&betType=1x2&lang=it`;
+  let ajaxFixtures: BetExplorerFixture[] = [];
+
+  try {
+    const ajaxRes = await fetch(ajaxUrl, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        "X-Requested-With": "XMLHttpRequest",
+        "Cookie": cookieStr,
+        "Referer": pageUrl,
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (ajaxRes.ok) {
+      const ajaxHtml = await ajaxRes.text();
+      if (ajaxHtml.length > 100) {
+        ajaxFixtures = parseFixturesPageNew(ajaxHtml, date);
+      }
+    }
+  } catch (err) {
+    console.warn(`[be-fixtures] AJAX failed for ${y}-${m}-${d}:`, err);
+  }
+
+  // 3. Merge + deduplicate by match URL
+  const urlSet = new Set<string>();
+  const merged: BetExplorerFixture[] = [];
+
+  for (const f of [...pageFixtures, ...ajaxFixtures]) {
+    if (!urlSet.has(f.matchUrl)) {
+      urlSet.add(f.matchUrl);
+      merged.push(f);
+    }
+  }
+
+  return merged;
+}
+
+// ═══ LEGACY WRAPPER (per-sport, for cron backward compat) ═══
+
+export async function fetchFixtures(
+  _sport: string,
+  date: Date
+): Promise<BetExplorerFixture[]> {
+  // Now fetches all sports at once; sport param ignored
+  return fetchFixturesForDate(date);
+}
+
+// ═══ PARSE FIXTURES PAGE (New HTML structure) ═══
+//
+// BetExplorer Italian page uses a modern list-based layout:
+//   - Tournament header: li.js-tournament with data-league-name, data-country-name
+//   - Match: li.table-main__tournamentLiContent with data-event-id
+//     - Home: div.table-main__participantHome p.table-main__truncate
+//     - Away: div.table-main__participantAway p.table-main__truncate
+//     - Time: span.table-main__matchHour
+//     - Link: a[data-live-cell="matchlink"]
+//     - Odds: button[data-odd] inside div.table-main__odds (3 buttons for 1/X/2)
+
+export function parseFixturesPageNew(
+  html: string,
+  date: Date
+): BetExplorerFixture[] {
+  const $ = cheerio.load(html);
+  const fixtures: BetExplorerFixture[] = [];
+
+  // Track current tournament context from header rows
+  let currentCountry: string | null = null;
+  let currentLeague: string | null = null;
+  let currentSport: string | null = null;
+
+  // Process all list items in order
+  const allItems = $("li.js-tournament, li.table-main__tournamentLiContent");
+
+  allItems.each((_i, item) => {
+    const $item = $(item);
+
+    // ── Tournament header ──
+    if ($item.hasClass("js-tournament")) {
+      const $star = $item.find("a.myleague, a[data-country-name]");
+      currentCountry = $star.attr("data-country-name") || null;
+      currentLeague = $star.attr("data-league-name") || null;
+      const sportName = $star.attr("data-sport-name") || null;
+      currentSport = sportName ? mapItSportName(sportName) : null;
+
+      // Fallback: extract from league link href
+      if (!currentSport) {
+        const leagueHref = $item.find("a[href*='/it/']").attr("href") || "";
+        currentSport = extractSportFromUrl(leagueHref);
+      }
+      if (!currentCountry || !currentLeague) {
+        const leagueText = $item.find("p.table-main__leaguesNames").text().trim();
+        if (leagueText.includes(":")) {
+          const colonIdx = leagueText.indexOf(":");
+          if (!currentCountry) currentCountry = leagueText.substring(0, colonIdx).trim();
+          if (!currentLeague) currentLeague = leagueText.substring(colonIdx + 1).trim();
+        }
+      }
+      return;
+    }
+
+    // ── Match row ──
+    const $matchLink = $item.find('a[data-live-cell="matchlink"]');
+    if ($matchLink.length === 0) return;
+
+    // Home + Away teams
+    const homeTeam = cleanTeamName(
+      $item.find("div.table-main__participantHome p").text().trim()
+    );
+    const awayTeam = cleanTeamName(
+      $item.find("div.table-main__participantAway p").text().trim()
+    );
+    if (!homeTeam || !awayTeam) return;
+
+    // Match URL
+    const href = $matchLink.attr("href") || "";
+    const matchUrl = href.startsWith("http")
+      ? href
+      : `https://www.betexplorer.com${href}`;
+
+    // Sport from URL (most reliable)
+    const sport = currentSport || extractSportFromUrl(href) || "football";
+
+    // Country/league from current context or URL fallback
+    const urlParts = extractCountryLeagueFromUrl(href, sport);
+    const country = currentCountry || urlParts.country;
+    const league = currentLeague || urlParts.league;
+
+    // Match ID
+    const beMatchId = extractBeMatchId(href);
+
+    // Time
+    const timeText = $item.find("span.table-main__matchHour").text().trim();
+    const matchDate = parseMatchDateTime(date, timeText);
+
+    // Odds from button[data-odd] elements
+    const odds: [number | null, number | null, number | null] = [null, null, null];
+    $item.find("div.table-main__odds button[data-odd]").each((i: number, btn: any) => {
+      if (i >= 3) return;
+      const val = parseFloat($(btn).attr("data-odd") || "");
+      if (!isNaN(val) && val > 1) odds[i] = val;
+    });
+
+    fixtures.push({
+      sport,
+      country,
+      league,
+      homeTeam,
+      awayTeam,
+      matchDate,
+      matchUrl,
+      beMatchId,
+      odds1: odds[0],
+      oddsX: odds[1],
+      odds2: odds[2],
+    });
+  });
+
+  return fixtures;
+}
+
+// ═══ MAP ITALIAN SPORT NAMES ═══
+
+const IT_SPORT_MAP: Record<string, string> = {
+  calcio: "football",
+  tennis: "tennis",
+  basket: "basketball",
+  pallacanestro: "basketball",
+  hockey: "hockey",
+  "hockey su ghiaccio": "hockey",
+  pallavolo: "volleyball",
+  volley: "volleyball",
+  pallamano: "handball",
+  baseball: "baseball",
+};
+
+function mapItSportName(name: string): string | null {
+  return IT_SPORT_MAP[name.toLowerCase()] || null;
+}
+
+// ═══ EXTRACT SPORT FROM URL ═══
+
+function extractSportFromUrl(href: string): string | null {
+  // /it/football/country/league/... or /football/country/...
+  const match = href.match(/\/(?:it\/)?(football|tennis|basketball|hockey|volleyball|handball|baseball)\//);
+  return match ? match[1] : null;
+}
+
+// ═══ EXTRACT MATCH ID FROM URL ═══
+
+export function extractBeMatchId(url: string): string | null {
+  const segments = url.replace(/\/$/, "").split("/");
+  const last = segments[segments.length - 1];
+  if (last && /^[a-zA-Z0-9]{4,12}$/.test(last)) {
+    return last;
+  }
+  return null;
+}
+
+// ═══ EXTRACT COUNTRY/LEAGUE FROM URL ═══
+
+function extractCountryLeagueFromUrl(
+  href: string,
+  sport: string
+): { country: string | null; league: string | null } {
+  // /it/football/turkey/turkish-cup/team1-team2/matchId/
+  // or /football/turkey/turkish-cup/team1-team2/matchId/
+  const patterns = [`/it/${sport}/`, `/${sport}/`];
+  let rest = "";
+  for (const prefix of patterns) {
+    const idx = href.indexOf(prefix);
+    if (idx >= 0) {
+      rest = href.substring(idx + prefix.length);
+      break;
+    }
+  }
+  if (!rest) return { country: null, league: null };
+
+  const parts = rest.split("/").filter(Boolean);
+  const country = parts[0]
+    ? parts[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
+  const league = parts[1]
+    ? parts[1].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
+  return { country, league };
+}
+
+// ═══ PARSE MATCH DATE/TIME ═══
+
+function parseMatchDateTime(date: Date, timeText: string): Date {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const d = date.getDate();
+
+  let hours = 0;
+  let minutes = 0;
+  const timeParts = timeText.match(/(\d{1,2}):(\d{2})/);
+  if (timeParts) {
+    hours = parseInt(timeParts[1], 10);
+    minutes = parseInt(timeParts[2], 10);
+  }
+
+  // BetExplorer times are CET (UTC+1) or CEST (UTC+2)
+  const isCEST = m >= 2 && m <= 9;
+  const offsetHours = isCEST ? 2 : 1;
+
+  return new Date(Date.UTC(y, m, d, hours - offsetHours, minutes));
 }

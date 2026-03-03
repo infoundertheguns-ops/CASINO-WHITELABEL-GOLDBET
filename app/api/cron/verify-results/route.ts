@@ -2,19 +2,27 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent } from "@/lib/settlement";
 import {
-  SPORT_MAP,
-  fetchResults,
-  fetchMatchDetail,
-  matchEvents,
+  SPORT_MAP as FS_SPORT_MAP,
+  fetchResults as fsFetchResults,
+  fetchMatchDetail as fsFetchMatchDetail,
+  matchEvents as fsMatchEvents,
   buildHalfScores,
   delay,
+} from "@/lib/flashscore";
+import type { MatchedEvent as FsMatchedEvent } from "@/lib/flashscore";
+import {
+  SPORT_MAP as BE_SPORT_MAP,
+  fetchResults as beFetchResults,
+  fetchMatchDetail as beFetchMatchDetail,
+  matchEvents as beMatchEvents,
 } from "@/lib/betexplorer";
-import type { MatchedEvent } from "@/lib/betexplorer";
+import type { MatchedEvent as BeMatchedEvent } from "@/lib/betexplorer";
 
 // ═══════════════════════════════════════════════════
-// CRON: Verify results via BetExplorer + settle
-// - Scrapes BetExplorer for verified match results
-// - Matches against finished unsettled events
+// CRON: Verify results via Flashscore (primary) + BetExplorer (fallback)
+// - Flashscore feed API as primary source
+// - Events with flashscore_id get direct lookup (skip fuzzy)
+// - Unmatched events fall back to BetExplorer (transition period)
 // - Updates scores + per-period data
 // - Calls settleEvent() with verified data
 // - Runs every 5 minutes via crontab
@@ -35,8 +43,11 @@ export async function POST(req: NextRequest) {
     verified: 0,
     settled: 0,
     unmatched: 0,
+    fs_matched: 0,
+    fs_direct: 0,
+    be_fallback: 0,
     fetched_sports: 0,
-    total_be_results: 0,
+    total_fs_results: 0,
     errors: [] as string[],
   };
 
@@ -44,7 +55,7 @@ export async function POST(req: NextRequest) {
   const { data: events, error: evErr } = await supabase
     .from("events")
     .select(
-      "id, external_id, home_team, away_team, score_home, score_away, starts_at, live_data, sport_id, sports!inner(name)"
+      "id, external_id, home_team, away_team, score_home, score_away, starts_at, live_data, sport_id, flashscore_id, sports!inner(name)"
     )
     .eq("status", "finished")
     .is("settled_at", null)
@@ -58,35 +69,92 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 2. Group events by sport
-  const eventsBySport = new Map<string, typeof events>();
+  // 2. Separate events: those with flashscore_id (direct lookup) vs those needing fuzzy match
+  const directEvents: typeof events = [];
+  const fuzzyEvents: typeof events = [];
+
   for (const ev of events) {
+    if (ev.flashscore_id) {
+      directEvents.push(ev);
+    } else {
+      fuzzyEvents.push(ev);
+    }
+  }
+
+  // 3. Process direct-lookup events (have flashscore_id)
+  for (const ev of directEvents) {
+    try {
+      const detail = await fsFetchMatchDetail(ev.flashscore_id!);
+      await delay(500);
+
+      if (!detail || detail.status !== "finished") continue;
+      if (detail.scoreHome === null || detail.scoreAway === null) continue;
+
+      await processFlashscoreMatch(
+        supabase,
+        {
+          eventId: ev.id,
+          externalId: ev.external_id,
+          flashscoreId: ev.flashscore_id!,
+          fsResult: {
+            matchId: ev.flashscore_id!,
+            homeTeam: detail.homeTeam,
+            awayTeam: detail.awayTeam,
+            scoreHome: detail.scoreHome,
+            scoreAway: detail.scoreAway,
+            periods: detail.periods,
+            status: "finished",
+            timestamp: detail.timestamp,
+            country: "",
+            league: "",
+            sport: ((ev.sports as any)?.name || "").toLowerCase(),
+          },
+          matchScore: 2.0, // perfect match (direct lookup)
+          dbHomeTeam: ev.home_team,
+          dbAwayTeam: ev.away_team,
+        },
+        ((ev.sports as any)?.name || "").toLowerCase(),
+        stats
+      );
+      stats.fs_direct++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      stats.errors.push(`Direct ${ev.home_team}: ${msg}`);
+    }
+  }
+
+  // 4. Group fuzzy events by sport
+  const eventsBySport = new Map<string, typeof events>();
+  for (const ev of fuzzyEvents) {
     const sportName = ((ev.sports as any)?.name || "").toLowerCase();
-    if (!SPORT_MAP[sportName]) continue; // Skip unsupported sports
+    if (!FS_SPORT_MAP[sportName]) continue;
     const group = eventsBySport.get(sportName) || [];
     group.push(ev);
     eventsBySport.set(sportName, group);
   }
 
-  // 3. For each sport, fetch BetExplorer results and match
+  // 5. For each sport, fetch Flashscore results and match
   const today = new Date();
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const unmatchedEvents: typeof events = [];
 
   for (const [sportName, sportEvents] of eventsBySport) {
     try {
-      // Fetch today's results
-      const todayResults = await fetchResults(sportName, today);
-      await delay(1000); // Rate limit: 1 req/sec
+      // Fetch today + yesterday results from Flashscore
+      const todayResults = await fsFetchResults(sportName, today);
+      await delay(500);
+      const yesterdayResults = await fsFetchResults(sportName, yesterday);
+      await delay(500);
 
-      // Fetch yesterday's results (events might have started yesterday)
-      const yesterdayResults = await fetchResults(sportName, yesterday);
-      await delay(1000);
-
-      const allResults = [...todayResults, ...yesterdayResults];
+      const allFsResults = [...todayResults, ...yesterdayResults];
       stats.fetched_sports++;
-      stats.total_be_results += allResults.length;
+      stats.total_fs_results += allFsResults.length;
 
-      if (allResults.length === 0) continue;
+      if (allFsResults.length === 0) {
+        // No FS results — add all to unmatched for BE fallback
+        unmatchedEvents.push(...sportEvents);
+        continue;
+      }
 
       // Prepare DB events for matching
       const dbEvents = sportEvents.map((ev) => ({
@@ -99,16 +167,31 @@ export async function POST(req: NextRequest) {
         starts_at: ev.starts_at,
         live_data: ev.live_data as Record<string, unknown> | null,
         sport_name: sportName,
+        flashscore_id: ev.flashscore_id,
       }));
 
-      // Match events
-      const matched = matchEvents(dbEvents, allResults);
-      stats.unmatched += sportEvents.length - matched.length;
+      // Match events via fuzzy matching
+      const matched = fsMatchEvents(dbEvents, allFsResults);
+      stats.fs_matched += matched.length;
 
-      // Process matches
+      // Track unmatched events for BE fallback
+      const matchedIds = new Set(matched.map((m) => m.eventId));
+      for (const ev of sportEvents) {
+        if (!matchedIds.has(ev.id)) {
+          unmatchedEvents.push(ev);
+        }
+      }
+
+      // Process FS matches
       for (const m of matched) {
         try {
-          await processMatch(supabase, m, sportName, stats);
+          // Save flashscore_id for future direct lookups
+          await supabase
+            .from("events")
+            .update({ flashscore_id: m.flashscoreId })
+            .eq("id", m.eventId);
+
+          await processFlashscoreMatch(supabase, m, sportName, stats);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           stats.errors.push(`${m.dbHomeTeam} vs ${m.dbAwayTeam}: ${msg}`);
@@ -116,14 +199,23 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      stats.errors.push(`${sportName}: ${msg}`);
+      stats.errors.push(`FS ${sportName}: ${msg}`);
+      // On FS failure, add all sport events to unmatched for BE fallback
+      unmatchedEvents.push(...sportEvents);
     }
+  }
+
+  // 6. BetExplorer fallback for unmatched events (transition period)
+  if (unmatchedEvents.length > 0) {
+    await processBetExplorerFallback(supabase, unmatchedEvents, stats);
   }
 
   // Count unmatched from unsupported sports
   for (const ev of events) {
     const sportName = ((ev.sports as any)?.name || "").toLowerCase();
-    if (!SPORT_MAP[sportName]) stats.unmatched++;
+    if (!FS_SPORT_MAP[sportName] && !BE_SPORT_MAP[sportName]) {
+      stats.unmatched++;
+    }
   }
 
   return NextResponse.json({
@@ -132,30 +224,180 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// ═══ PROCESS A MATCHED EVENT ═══
+// ═══ PROCESS A FLASHSCORE MATCHED EVENT ═══
 
-async function processMatch(
+async function processFlashscoreMatch(
   supabase: SupabaseClient,
-  m: MatchedEvent,
+  m: FsMatchedEvent,
   sportName: string,
   stats: { verified: number; settled: number; errors: string[] }
 ) {
-  const be = m.beResult;
+  const fs = m.fsResult;
 
-  // If no period scores from results page, try detail page
-  let periods = be.periods;
-  if (periods.length === 0 && be.matchUrl) {
-    const detailPeriods = await fetchMatchDetail(be.matchUrl);
-    if (detailPeriods) {
-      periods = detailPeriods;
-      await delay(1000);
+  // If no period scores, try detail endpoint
+  let periods = fs.periods;
+  if (periods.length === 0) {
+    try {
+      const detail = await fsFetchMatchDetail(m.flashscoreId);
+      if (detail && detail.periods.length > 0) {
+        periods = detail.periods;
+      }
+      await delay(500);
+    } catch {
+      // Period scores are optional
     }
   }
 
   // Build half scores from periods
   const halfScores = buildHalfScores(sportName, periods);
 
-  // Prepare live_data update
+  // Preserve existing live_data
+  const existingLiveData =
+    (
+      await supabase
+        .from("events")
+        .select("live_data")
+        .eq("id", m.eventId)
+        .single()
+    ).data?.live_data as Record<string, unknown> | null;
+
+  const updatedLiveData: Record<string, unknown> = {
+    ...(existingLiveData || {}),
+    verified_by: "flashscore",
+    verified_at: new Date().toISOString(),
+    flashscore_id: m.flashscoreId,
+    match_score: m.matchScore,
+  };
+
+  if (halfScores) {
+    updatedLiveData.halfScoreHome = halfScores.home;
+    updatedLiveData.halfScoreAway = halfScores.away;
+  }
+
+  // Update event with verified scores
+  const { error: updateErr } = await supabase
+    .from("events")
+    .update({
+      score_home: fs.scoreHome,
+      score_away: fs.scoreAway,
+      live_data: updatedLiveData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", m.eventId);
+
+  if (updateErr) {
+    stats.errors.push(
+      `Update failed ${m.dbHomeTeam}: ${updateErr.message}`
+    );
+    return;
+  }
+
+  stats.verified++;
+
+  // Settle the event
+  const settleRes = await settleEvent(supabase, m.eventId);
+  if (settleRes.success) {
+    stats.settled++;
+  } else if (settleRes.error) {
+    stats.errors.push(
+      `Settle failed ${m.dbHomeTeam}: ${settleRes.error}`
+    );
+  }
+}
+
+// ═══ BETEXPLORER FALLBACK (transition period) ═══
+
+async function processBetExplorerFallback(
+  supabase: SupabaseClient,
+  unmatchedEvents: any[],
+  stats: {
+    verified: number;
+    settled: number;
+    unmatched: number;
+    be_fallback: number;
+    errors: string[];
+  }
+) {
+  // Group by sport
+  const bySport = new Map<string, typeof unmatchedEvents>();
+  for (const ev of unmatchedEvents) {
+    const sportName = ((ev.sports as any)?.name || "").toLowerCase();
+    if (!BE_SPORT_MAP[sportName]) {
+      stats.unmatched++;
+      continue;
+    }
+    const group = bySport.get(sportName) || [];
+    group.push(ev);
+    bySport.set(sportName, group);
+  }
+
+  const today = new Date();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  for (const [sportName, sportEvents] of bySport) {
+    try {
+      const todayResults = await beFetchResults(sportName, today);
+      await delay(1000);
+      const yesterdayResults = await beFetchResults(sportName, yesterday);
+      await delay(1000);
+
+      const allResults = [...todayResults, ...yesterdayResults];
+      if (allResults.length === 0) {
+        stats.unmatched += sportEvents.length;
+        continue;
+      }
+
+      const dbEvents = sportEvents.map((ev: any) => ({
+        id: ev.id,
+        external_id: ev.external_id,
+        home_team: ev.home_team,
+        away_team: ev.away_team,
+        score_home: ev.score_home,
+        score_away: ev.score_away,
+        starts_at: ev.starts_at,
+        live_data: ev.live_data as Record<string, unknown> | null,
+        sport_name: sportName,
+      }));
+
+      const matched = beMatchEvents(dbEvents, allResults);
+      stats.unmatched += sportEvents.length - matched.length;
+
+      for (const m of matched) {
+        try {
+          await processBetExplorerMatch(supabase, m, sportName, stats);
+          stats.be_fallback++;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          stats.errors.push(`BE ${m.dbHomeTeam}: ${msg}`);
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      stats.errors.push(`BE ${sportName}: ${msg}`);
+      stats.unmatched += sportEvents.length;
+    }
+  }
+}
+
+async function processBetExplorerMatch(
+  supabase: SupabaseClient,
+  m: BeMatchedEvent,
+  sportName: string,
+  stats: { verified: number; settled: number; errors: string[] }
+) {
+  const be = m.beResult;
+
+  let periods = be.periods;
+  if (periods.length === 0 && be.matchUrl) {
+    const detailPeriods = await beFetchMatchDetail(be.matchUrl);
+    if (detailPeriods) {
+      periods = detailPeriods;
+      await delay(1000);
+    }
+  }
+
+  const halfScores = buildHalfScores(sportName, periods);
+
   const existingLiveData =
     (
       await supabase
@@ -176,7 +418,6 @@ async function processMatch(
     updatedLiveData.halfScoreAway = halfScores.away;
   }
 
-  // Update event with verified scores
   const { error: updateErr } = await supabase
     .from("events")
     .update({
@@ -196,7 +437,6 @@ async function processMatch(
 
   stats.verified++;
 
-  // Settle the event
   const settleRes = await settleEvent(supabase, m.eventId);
   if (settleRes.success) {
     stats.settled++;

@@ -22,6 +22,7 @@ interface ScraperEvent {
   starts_at: string;
   status?: string;
   markets: ScraperMarket[];
+  overview_only?: boolean; // true = don't deactivate missing markets (overview sends a subset)
 }
 
 // ═══ HELPERS ═══
@@ -222,23 +223,26 @@ export async function POST(req: NextRequest) {
       processed++;
 
       // If no markets in payload, deactivate ALL active markets for this event
+      // Skip for overview-only events — they intentionally send no/few markets
       if (!ev.markets?.length) {
-        const { data: activeMarkets } = await supabase
-          .from("markets")
-          .select("id")
-          .eq("event_id", event!.id)
-          .eq("is_active", true);
+        if (!ev.overview_only) {
+          const { data: activeMarkets } = await supabase
+            .from("markets")
+            .select("id")
+            .eq("event_id", event!.id)
+            .eq("is_active", true);
 
-        if (activeMarkets?.length) {
-          for (const idBatch of chunk(activeMarkets.map((m) => m.id), 500)) {
-            await supabase
-              .from("markets")
-              .update({ is_active: false, is_suspended: true })
-              .in("id", idBatch);
-            await supabase
-              .from("outcomes")
-              .update({ is_active: false, is_suspended: true })
-              .in("market_id", idBatch);
+          if (activeMarkets?.length) {
+            for (const idBatch of chunk(activeMarkets.map((m) => m.id), 500)) {
+              await supabase
+                .from("markets")
+                .update({ is_active: false, is_suspended: true })
+                .in("id", idBatch);
+              await supabase
+                .from("outcomes")
+                .update({ is_active: false, is_suspended: true })
+                .in("market_id", idBatch);
+            }
           }
         }
         continue;
@@ -277,28 +281,31 @@ export async function POST(req: NextRequest) {
       }
 
       // ── 5. Deactivate markets NOT in incoming payload ──
-      const incomingTypes = new Set(dedupMarkets.keys());
-      const { data: allEventMarkets } = await supabase
-        .from("markets")
-        .select("id, market_type")
-        .eq("event_id", event!.id)
-        .eq("is_active", true);
+      // Skip deactivation for overview-only events (they send a subset of markets)
+      if (!ev.overview_only) {
+        const incomingTypes = new Set(dedupMarkets.keys());
+        const { data: allEventMarkets } = await supabase
+          .from("markets")
+          .select("id, market_type")
+          .eq("event_id", event!.id)
+          .eq("is_active", true);
 
-      if (allEventMarkets) {
-        const staleIds = allEventMarkets
-          .filter((m) => !incomingTypes.has(m.market_type))
-          .map((m) => m.id);
+        if (allEventMarkets) {
+          const staleIds = allEventMarkets
+            .filter((m) => !incomingTypes.has(m.market_type))
+            .map((m) => m.id);
 
-        if (staleIds.length > 0) {
-          for (const idBatch of chunk(staleIds, 500)) {
-            await supabase
-              .from("markets")
-              .update({ is_active: false, is_suspended: true })
-              .in("id", idBatch);
-            await supabase
-              .from("outcomes")
-              .update({ is_active: false, is_suspended: true })
-              .in("market_id", idBatch);
+          if (staleIds.length > 0) {
+            for (const idBatch of chunk(staleIds, 500)) {
+              await supabase
+                .from("markets")
+                .update({ is_active: false, is_suspended: true })
+                .in("id", idBatch);
+              await supabase
+                .from("outcomes")
+                .update({ is_active: false, is_suspended: true })
+                .in("market_id", idBatch);
+            }
           }
         }
       }

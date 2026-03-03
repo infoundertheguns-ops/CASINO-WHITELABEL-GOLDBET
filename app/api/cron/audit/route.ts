@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent, deactivateEvent } from "@/lib/settlement";
+import { computeHealthScores, type SystemHealthRPC, type ScraperInfo, type RedisInfo } from "@/lib/health";
+import { sendTelegramAlert } from "@/lib/telegram";
 
 // ═══════════════════════════════════════════════════
 // CRON: Full Pipeline Audit + Auto-Fix
@@ -28,26 +30,39 @@ export async function POST(req: NextRequest) {
   const errors: string[] = [];
 
   // ═══ AUDIT: Collect metrics ═══
-  // Single RPC call for all heavy counts (avoids PostgREST parallel count bug + timeout)
+  // Run RPC calls sequentially to avoid PostgREST parallel issues
+  const { data: statusCounts } = await supabase.rpc("get_event_status_counts");
+
+  // get_audit_counts returns scalar json — parse carefully
+  const { data: rawAuditCounts, error: auditErr } = await supabase.rpc("get_audit_counts");
+
   const [
-    { data: statusCounts },
-    { data: auditCounts },
     { count: finishedCount },
     { count: prematchTotal },
   ] = await Promise.all([
-    supabase.rpc("get_event_status_counts"),
-    supabase.rpc("get_audit_counts"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "finished"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "prematch"),
   ]);
 
-  const ac = auditCounts || {};
-  const approxMarkets = ac.approx_total_markets ?? 0;
-  const approxOutcomes = ac.approx_total_outcomes ?? 0;
-  const updatedOutcomes5m = ac.updated_outcomes_5m ?? 0;
-  const oddsChanged5m = ac.odds_changed_5m ?? 0;
-  const liveCnt = ac.live_events ?? 0;
-  const latestOutcomeUpdate = ac.latest_outcome_update as string | null;
+  // Handle scalar json: could be object, string, or array-wrapped
+  let ac: Record<string, unknown> = {};
+  if (auditErr) {
+    errors.push(`get_audit_counts: ${auditErr.message}`);
+  } else if (rawAuditCounts) {
+    if (typeof rawAuditCounts === "string") {
+      try { ac = JSON.parse(rawAuditCounts); } catch { /* ignore */ }
+    } else if (Array.isArray(rawAuditCounts)) {
+      ac = rawAuditCounts[0] ?? {};
+    } else {
+      ac = rawAuditCounts as Record<string, unknown>;
+    }
+  }
+  const approxMarkets = Number(ac.approx_total_markets) || 0;
+  const approxOutcomes = Number(ac.approx_total_outcomes) || 0;
+  const updatedOutcomes5m = Number(ac.updated_outcomes_5m) || 0;
+  const oddsChanged5m = Number(ac.odds_changed_5m) || 0;
+  const liveCnt = Number(ac.live_events) || 0;
+  const latestOutcomeUpdate = (ac.latest_outcome_update as string) || null;
 
   const lastUpdateAge = latestOutcomeUpdate
     ? Math.floor((Date.now() - new Date(latestOutcomeUpdate).getTime()) / 60000)
@@ -180,6 +195,97 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ═══ SYSTEM HEALTH SNAPSHOT ═══
+
+  let healthScores: { overall: number; level: string; subsystems: Record<string, unknown> } | null = null;
+  let healthMetrics: SystemHealthRPC | null = null;
+
+  try {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("get_system_health");
+    if (!rpcErr && rpcData) {
+      healthMetrics = (typeof rpcData === "string" ? JSON.parse(rpcData) : rpcData) as SystemHealthRPC;
+
+      // Build scraper info from in-memory snapshots (if available) or from audit data
+      const g = globalThis as any;
+      const snapshots = g.__scraperSnapshotsBySource as Record<string, any[]> | undefined;
+
+      const buildScraperInfo = (source: string, type: "live" | "prematch"): ScraperInfo => {
+        const buf = snapshots?.[source];
+        if (buf && buf.length > 0) {
+          const latest = buf[buf.length - 1];
+          const gb = latest?.goldbet;
+          if (gb) {
+            const cycleField = type === "live" ? gb.last_live_cycle : gb.last_prematch_cycle;
+            const cycleAge = cycleField
+              ? (Date.now() - new Date(cycleField).getTime()) / 1000
+              : Infinity;
+            return { connected: true, lastCycleSeconds: cycleAge, errorsLastHour: gb.errors_last_hour ?? 0 };
+          }
+        }
+        // Fallback: use audit pipeline data
+        if (type === "live") {
+          return {
+            connected: scraperAlive,
+            lastCycleSeconds: lastUpdateAge != null ? lastUpdateAge * 60 : undefined,
+            errorsLastHour: 0,
+          };
+        }
+        return { connected: scraperAlive };
+      };
+
+      const scraperLive = buildScraperInfo("main", "live");
+      const scraperPrematch = (() => {
+        const pre = buildScraperInfo("prematch", "prematch");
+        if (pre.connected) return pre;
+        return buildScraperInfo("main", "prematch");
+      })();
+
+      // Redis info
+      let redisInfo: RedisInfo = { connected: false };
+      try {
+        const { getRedisClient } = await import("@/lib/redis");
+        const client = await getRedisClient();
+        const start = Date.now();
+        await client.ping();
+        redisInfo = { connected: true, latencyMs: Date.now() - start };
+      } catch { /* redis unavailable */ }
+
+      const scores = computeHealthScores(
+        healthMetrics,
+        { live: scraperLive, prematch: scraperPrematch },
+        redisInfo
+      );
+      healthScores = scores;
+
+      // Log to system_health_log
+      await supabase.from("system_health_log").insert({
+        overall_score: scores.overall,
+        overall_level: scores.level,
+        subsystem_scores: scores.subsystems,
+        metrics: {
+          events: healthMetrics.events,
+          pipeline: healthMetrics.pipeline,
+          quality: healthMetrics.quality,
+        },
+      });
+
+      // Alert on critical
+      if (scores.level === "critical") {
+        const lowSubs = Object.entries(scores.subsystems)
+          .filter(([, s]) => (s as any).score < 50)
+          .map(([k, s]) => `${(s as any).label}: ${(s as any).score}/100`)
+          .join("\n");
+
+        await sendTelegramAlert(
+          `🔴 <b>SYSTEM HEALTH CRITICAL</b>\n\nOverall: ${scores.overall}/100\n\n${lowSubs}\n\n🕐 ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" })}`,
+          "system_health_critical"
+        );
+      }
+    }
+  } catch (healthErr) {
+    errors.push(`health snapshot: ${healthErr instanceof Error ? healthErr.message : String(healthErr)}`);
+  }
+
   // ═══ BUILD REPORT ═══
 
   let eventStatus: Record<string, number> = {};
@@ -199,10 +305,18 @@ export async function POST(req: NextRequest) {
       last_update_minutes_ago: lastUpdateAge,
       live_events: liveCnt,
     },
-    health: {
-      finished_backlog: (finishedCount ?? 0) - processed,
-      prematch_count: prematchTotal ?? 0,
-    },
+    health: healthScores
+      ? {
+          overall_score: healthScores.overall,
+          level: healthScores.level,
+          subsystems: healthScores.subsystems,
+          finished_backlog: (finishedCount ?? 0) - processed,
+          prematch_count: prematchTotal ?? 0,
+        }
+      : {
+          finished_backlog: (finishedCount ?? 0) - processed,
+          prematch_count: prematchTotal ?? 0,
+        },
     fixes: Object.keys(fixes).length > 0 ? fixes : "none",
     alerts: alerts.length > 0 ? alerts : undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,

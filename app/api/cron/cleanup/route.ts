@@ -78,30 +78,14 @@ export async function POST(req: NextRequest) {
     staleLiveFinished = ids.length;
   }
 
-  // ── 3. Fix ended events that still have active markets ──
-  const { data: brokenEnded } = await supabase
-    .from("events")
-    .select("id")
-    .eq("status", "ended")
-    .limit(50);
-
-  if (brokenEnded && brokenEnded.length > 0) {
-    // Check which ones actually have active markets
-    for (const ev of brokenEnded) {
-      const { count } = await supabase
-        .from("markets")
-        .select("id", { count: "exact", head: true })
-        .eq("event_id", ev.id)
-        .eq("is_active", true);
-
-      if (count && count > 0) {
-        try {
-          await deactivateEvent(supabase, ev.id);
-          endedFixed++;
-        } catch { /* ignore */ }
-      }
+  // ── 3. Bulk-fix ended events that still have active markets (single RPC) ──
+  try {
+    const { data: bulkFixed, error: rpcErr } = await supabase.rpc("fix_ended_active_markets");
+    if (!rpcErr && bulkFixed) {
+      const row = Array.isArray(bulkFixed) ? bulkFixed[0] : bulkFixed;
+      endedFixed = (row?.markets_fixed ?? 0) + (row?.outcomes_fixed ?? 0);
     }
-  }
+  } catch { /* RPC not available, skip */ }
 
   // ── 4. Resolve stale multi/sistema bets with at least one lost leg ──
   let multisResolved = 0;

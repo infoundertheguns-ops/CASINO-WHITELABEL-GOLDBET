@@ -5,6 +5,7 @@ const nextConfig = {
       { protocol: "https", hostname: "**.supabase.co" },
     ],
   },
+  staticPageGenerationTimeout: 120,
 };
 
 export default nextConfig;
