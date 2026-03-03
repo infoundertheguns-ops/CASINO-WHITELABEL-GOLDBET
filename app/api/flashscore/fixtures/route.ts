@@ -8,8 +8,11 @@ import type { FlashscoreFixture } from "@/lib/flashscore";
 // ═══════════════════════════════════════════════════
 // Flashscore Fixtures Endpoint
 // Receives fixtures from standalone flashscore-scraper
-// Pre-matches with DB events to save flashscore_id
+// 1. Pre-matches with DB events to save flashscore_id
+// 2. Saves all fixtures to be_fixtures for admin view
 // ═══════════════════════════════════════════════════
+
+const CHUNK_SIZE = 500;
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-scraper-key");
@@ -36,10 +39,41 @@ export async function POST(req: NextRequest) {
     received: fixtures.length,
     matched: 0,
     already_matched: 0,
+    saved: 0,
     errors: [] as string[],
   };
 
-  // Get prematch events without flashscore_id
+  // ── 1. Save all fixtures to be_fixtures for admin Fixtures page ──
+  const now = new Date().toISOString();
+  for (let i = 0; i < fixtures.length; i += CHUNK_SIZE) {
+    const chunk = fixtures.slice(i, i + CHUNK_SIZE);
+    const rows = chunk.map((f) => ({
+      sport: f.sport,
+      country: f.country || null,
+      league: f.league || null,
+      home_team: f.homeTeam,
+      away_team: f.awayTeam,
+      match_date: new Date(f.timestamp * 1000).toISOString(),
+      match_url: f.matchId, // unique key — flashscore match ID
+      be_match_id: f.matchId,
+      odds_1: null,
+      odds_x: null,
+      odds_2: null,
+      updated_at: now,
+    }));
+
+    const { error } = await supabase
+      .from("be_fixtures")
+      .upsert(rows, { onConflict: "match_url" });
+
+    if (error) {
+      stats.errors.push(`upsert chunk ${i}: ${error.message}`);
+    } else {
+      stats.saved += chunk.length;
+    }
+  }
+
+  // ── 2. Pre-match with DB events (save flashscore_id) ──
   const { data: events, error: evErr } = await supabase
     .from("events")
     .select(

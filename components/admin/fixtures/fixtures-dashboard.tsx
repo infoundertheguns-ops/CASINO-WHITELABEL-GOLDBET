@@ -12,11 +12,7 @@ interface FixtureRow {
   home_team: string;
   away_team: string;
   match_date: string;
-  match_url: string;
   be_match_id: string | null;
-  odds_1: number | null;
-  odds_x: number | null;
-  odds_2: number | null;
   updated_at: string;
 }
 
@@ -82,11 +78,6 @@ function formatDateTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatOdds(val: number | null): string {
-  if (val == null) return "-";
-  return val.toFixed(2);
 }
 
 function timeAgo(iso: string): string {
@@ -177,33 +168,34 @@ export default function FixturesDashboard() {
   }, [selectedSport, selectedLeague, dateFrom, dateTo, search]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
       <div style={{
         background: "var(--admin-card, #0f1f35)",
         border: "1px solid var(--admin-border, #1e3a5f)",
         borderRadius: 8,
-        padding: "16px 20px",
+        padding: "18px 24px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
-          BetExplorer Fixtures
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
+          Fixtures
         </h2>
-        {stats?.last_updated && (
-          <span style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
-            Aggiornato: {timeAgo(stats.last_updated)}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {stats?.last_updated && (
+            <span style={{ fontSize: 14, color: "var(--admin-text-muted, #94a3b8)" }}>
+              Aggiornato: {timeAgo(stats.last_updated)}
+            </span>
+          )}
+          <span style={{ fontSize: 12, color: "var(--admin-text-muted, #64748b)", background: "rgba(99,102,241,0.1)", padding: "3px 8px", borderRadius: 4 }}>
+            Flashscore
           </span>
-        )}
+        </div>
       </div>
 
       {/* KPI bar */}
-      <div style={{
-        display: "flex",
-        gap: 8,
-        flexWrap: "wrap",
-      }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <KpiCard label="Totale" value={stats?.total || 0} />
         {(["football", "tennis", "basketball", "hockey", "volleyball", "handball", "baseball"] as const).map((s) => {
           const count = stats?.by_sport[s] || 0;
@@ -225,9 +217,9 @@ export default function FixturesDashboard() {
         background: "var(--admin-card, #0f1f35)",
         border: "1px solid var(--admin-border, #1e3a5f)",
         borderRadius: 8,
-        padding: "12px 20px",
+        padding: "14px 24px",
         display: "flex",
-        gap: 16,
+        gap: 18,
         alignItems: "center",
         flexWrap: "wrap",
       }}>
@@ -258,7 +250,7 @@ export default function FixturesDashboard() {
           />
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
             Da:
           </span>
           <input
@@ -269,7 +261,7 @@ export default function FixturesDashboard() {
           />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
             A:
           </span>
           <input
@@ -285,7 +277,7 @@ export default function FixturesDashboard() {
             placeholder="Cerca squadra..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ ...inputStyle, width: 180 }}
+            style={{ ...inputStyle, width: 200 }}
           />
         </div>
       </div>
@@ -298,16 +290,16 @@ export default function FixturesDashboard() {
         overflow: "hidden",
       }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--admin-border, #1e3a5f)" }}>
-                {["Data", "Ora", "Sport", "Paese", "Campionato", "Casa", "Trasferta", "1", "X", "2"].map((h) => (
+                {["Data", "Ora", "Sport", "Paese", "Campionato", "Casa", "Trasferta"].map((h) => (
                   <th
                     key={h}
                     style={{
-                      padding: "10px 12px",
+                      padding: "12px 14px",
                       textAlign: "left",
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: 600,
                       textTransform: "uppercase",
                       color: "var(--admin-text-muted, #94a3b8)",
@@ -322,13 +314,13 @@ export default function FixturesDashboard() {
             <tbody>
               {loading && fixtures.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--admin-text-muted, #94a3b8)" }}>
+                  <td colSpan={7} style={{ padding: 48, textAlign: "center", fontSize: 15, color: "var(--admin-text-muted, #94a3b8)" }}>
                     Caricamento...
                   </td>
                 </tr>
               ) : fixtures.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--admin-text-muted, #94a3b8)" }}>
+                  <td colSpan={7} style={{ padding: 48, textAlign: "center", fontSize: 15, color: "var(--admin-text-muted, #94a3b8)" }}>
                     Nessuna fixture trovata
                   </td>
                 </tr>
@@ -341,12 +333,14 @@ export default function FixturesDashboard() {
                     <td style={cellStyle}>{formatDate(f.match_date)}</td>
                     <td style={cellStyle}>{formatTime(f.match_date)}</td>
                     <td style={cellStyle}>
-                      <span title={f.sport}>{SPORT_ICONS[f.sport] || f.sport}</span>
+                      <span title={SPORT_LABELS[f.sport] || f.sport} style={{ fontSize: 18 }}>
+                        {SPORT_ICONS[f.sport] || f.sport}
+                      </span>
                     </td>
-                    <td style={{ ...cellStyle, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <td style={{ ...cellStyle, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {f.country || "-"}
                     </td>
-                    <td style={{ ...cellStyle, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <td style={{ ...cellStyle, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {f.league || "-"}
                     </td>
                     <td style={{ ...cellStyle, fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
@@ -355,9 +349,6 @@ export default function FixturesDashboard() {
                     <td style={{ ...cellStyle, fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
                       {f.away_team}
                     </td>
-                    <td style={oddsStyle(f.odds_1)}>{formatOdds(f.odds_1)}</td>
-                    <td style={oddsStyle(f.odds_x)}>{formatOdds(f.odds_x)}</td>
-                    <td style={oddsStyle(f.odds_2)}>{formatOdds(f.odds_2)}</td>
                   </tr>
                 ))
               )}
@@ -371,10 +362,10 @@ export default function FixturesDashboard() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: "12px 16px",
+            padding: "14px 20px",
             borderTop: "1px solid var(--admin-border, #1e3a5f)",
           }}>
-            <span style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)" }}>
+            <span style={{ fontSize: 14, color: "var(--admin-text-muted, #94a3b8)" }}>
               {total.toLocaleString("it-IT")} fixture totali — Pagina {page} di {pages}
             </span>
             <div style={{ display: "flex", gap: 4 }}>
@@ -383,7 +374,6 @@ export default function FixturesDashboard() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               />
-              {/* Show page numbers around current */}
               {Array.from({ length: Math.min(5, pages) }, (_, i) => {
                 const start = Math.max(1, Math.min(page - 2, pages - 4));
                 const p = start + i;
@@ -409,7 +399,7 @@ export default function FixturesDashboard() {
 
       {/* Footer */}
       <div style={{
-        fontSize: 11,
+        fontSize: 13,
         color: "var(--admin-text-muted, #94a3b8)",
         textAlign: "right",
         padding: "4px 8px",
@@ -429,25 +419,16 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid var(--admin-border, #1e3a5f)",
   borderRadius: 4,
   color: "var(--admin-text, #e2e8f0)",
-  padding: "6px 10px",
-  fontSize: 13,
+  padding: "8px 12px",
+  fontSize: 15,
 };
 
 const cellStyle: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "12px 14px",
   whiteSpace: "nowrap",
   color: "var(--admin-text-muted, #94a3b8)",
+  fontSize: 15,
 };
-
-function oddsStyle(val: number | null): React.CSSProperties {
-  return {
-    ...cellStyle,
-    textAlign: "center",
-    fontFamily: "monospace",
-    fontWeight: 600,
-    color: val != null ? "#10b981" : "var(--admin-text-muted, #94a3b8)",
-  };
-}
 
 // ═══ SUB-COMPONENTS ═══
 
@@ -464,17 +445,17 @@ function KpiCard({ label, value, active, onClick }: {
         background: active ? "rgba(37, 99, 235, 0.15)" : "var(--admin-card, #0f1f35)",
         border: `1px solid ${active ? "#2563eb" : "var(--admin-border, #1e3a5f)"}`,
         borderRadius: 8,
-        padding: "12px 16px",
-        minWidth: 90,
+        padding: "14px 20px",
+        minWidth: 100,
         cursor: onClick ? "pointer" : "default",
         textAlign: "center",
         transition: "border-color 0.15s",
       }}
     >
-      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
+      <div style={{ fontSize: 26, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
         {value.toLocaleString("it-IT")}
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)", marginTop: 2 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)", marginTop: 4 }}>
         {label}
       </div>
     </div>
@@ -489,7 +470,7 @@ function FilterSelect({ label, value, onChange, options }: {
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
+      <span style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
         {label}:
       </span>
       <select
@@ -500,8 +481,8 @@ function FilterSelect({ label, value, onChange, options }: {
           border: "1px solid var(--admin-border, #1e3a5f)",
           borderRadius: 4,
           color: "var(--admin-text, #e2e8f0)",
-          padding: "6px 10px",
-          fontSize: 13,
+          padding: "8px 12px",
+          fontSize: 15,
         }}
       >
         {options.map((o) => (
@@ -523,13 +504,13 @@ function PaginationButton({ label, active, disabled, onClick }: {
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: "4px 10px",
+        padding: "6px 14px",
         borderRadius: 4,
         border: `1px solid ${active ? "#2563eb" : "var(--admin-border, #1e3a5f)"}`,
         background: active ? "#2563eb" : "transparent",
         color: active ? "#fff" : disabled ? "var(--admin-border, #1e3a5f)" : "var(--admin-text-muted, #94a3b8)",
         cursor: disabled ? "not-allowed" : "pointer",
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: 600,
       }}
     >

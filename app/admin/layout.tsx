@@ -29,7 +29,7 @@ const NAVIGATION: AdminNavGroup[] = [
     group: "SISTEMA",
     items: [
       { id: "scraper", icon: "🔄", label: "Scraper Monitor" },
-      { id: "fixtures", icon: "📅", label: "BetExplorer" },
+      { id: "fixtures", icon: "📅", label: "Fixtures" },
     ],
   },
   {
@@ -51,7 +51,7 @@ const TITLES: Record<string, string> = {
   "odds-comparison": "Confronto Quote",
   "event-matching": "Event Matching",
   scraper: "Scraper Monitor",
-  fixtures: "BetExplorer Fixtures",
+  fixtures: "Fixtures",
   users: "Gestione Utenti",
   config: "Configurazione",
   audit: "Audit Log",
