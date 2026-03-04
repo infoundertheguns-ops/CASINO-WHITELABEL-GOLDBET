@@ -29,6 +29,16 @@ function setCache(data: unknown) {
   g.__systemHealthCache = { data, ts: Date.now() } as CacheEntry;
 }
 
+// ═══ Last-known-good result (survives cache TTL, used as fallback on RPC error) ═══
+
+function getLastGood(): unknown | null {
+  return g.__systemHealthLastGood ?? null;
+}
+
+function setLastGood(data: unknown) {
+  g.__systemHealthLastGood = data;
+}
+
 // ═══ Extract scraper info from snapshot buffer ═══
 
 function getScraperInfo(source: string, type: "live" | "prematch"): ScraperInfo {
@@ -94,6 +104,11 @@ export async function GET() {
       rpc = data as SystemHealthRPC;
     }
   } catch (err) {
+    // Fallback: return last known good result with stale flag
+    const lastGood = getLastGood();
+    if (lastGood) {
+      return NextResponse.json({ ...(lastGood as any), stale: true });
+    }
     return NextResponse.json(
       { error: `RPC failed: ${err instanceof Error ? err.message : err}` },
       { status: 500 }
@@ -101,10 +116,31 @@ export async function GET() {
   }
 
   if (!rpc) {
+    const lastGood = getLastGood();
+    if (lastGood) {
+      return NextResponse.json({ ...(lastGood as any), stale: true });
+    }
     return NextResponse.json({ error: "RPC returned null" }, { status: 500 });
   }
 
-  // 2. Scraper info from in-memory snapshots
+  // 1b. Hydrate scraper snapshots from Redis if in-memory buffer is empty (after Vincitu restart)
+  const snapBuf = g.__scraperSnapshotsBySource as Record<string, any[]> | undefined;
+  const hasInMemorySnapshots = snapBuf && Object.values(snapBuf).some(b => b.length > 0);
+  if (!hasInMemorySnapshots) {
+    try {
+      const { getRedisClient } = await import("@/lib/redis");
+      const redis = await getRedisClient();
+      for (const source of ["main", "prematch"]) {
+        const raw = await redis.get(`scraper:snapshot:${source}`);
+        if (raw) {
+          if (!g.__scraperSnapshotsBySource) g.__scraperSnapshotsBySource = {};
+          g.__scraperSnapshotsBySource[source] = [JSON.parse(raw)];
+        }
+      }
+    } catch { /* Redis fallback is best-effort */ }
+  }
+
+  // 2. Scraper info from in-memory snapshots (or Redis-hydrated)
   const scraperLive = getScraperInfo("main", "live");
   const scraperPrematch: ScraperInfo = (() => {
     // Try prematch VPS first, fallback to main
@@ -147,6 +183,7 @@ export async function GET() {
   };
 
   setCache(result);
+  setLastGood(result);
 
   return NextResponse.json(result);
 }

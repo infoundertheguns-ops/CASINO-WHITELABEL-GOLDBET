@@ -304,6 +304,13 @@ export async function POST(req: NextRequest) {
   const source = goldbet.source || 'main';
   addSnapshot(snap, source);
 
+  // Persist latest snapshot to Redis (TTL 5min) for resilience across Vincitu restarts
+  try {
+    const { getRedisClient } = await import("@/lib/redis");
+    const redis = await getRedisClient();
+    await redis.set(`scraper:snapshot:${source}`, JSON.stringify(snap), { EX: 300 });
+  } catch { /* Redis persistence is best-effort */ }
+
   // Check for alerts (non-blocking) — only for main server
   if (source === 'main') {
     checkAndAlert(snap).catch(() => {});
