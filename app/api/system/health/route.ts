@@ -50,9 +50,18 @@ function getScraperInfo(source: string, type: "live" | "prematch"): ScraperInfo 
     ? (Date.now() - new Date(cycleField).getTime()) / 1000
     : Infinity;
 
+  // Fallback: if cycle timestamp is stale (>1h) but snapshot is fresh (<5min),
+  // the scraper is alive but cycle timestamps are stale after restart.
+  // Use snapshot age instead.
+  const snapshotAge = latest?.timestamp
+    ? (Date.now() - new Date(latest.timestamp).getTime()) / 1000
+    : Infinity;
+  const effectiveAge =
+    cycleAge > 3600 && snapshotAge < 300 ? snapshotAge : cycleAge;
+
   return {
     connected: true,
-    lastCycleSeconds: cycleAge,
+    lastCycleSeconds: effectiveAge,
     errorsLastHour: gb.errors_last_hour ?? 0,
     isLive: type === "live",
   };
@@ -69,7 +78,8 @@ export async function GET() {
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { global: { fetch: (url, opts) => fetch(url, { ...opts, cache: "no-store" }) } }
   );
 
   // 1. Call RPC

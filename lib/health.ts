@@ -285,9 +285,10 @@ function scoreRedisPipeline(redis: RedisInfo): SubsystemScore {
   let score = 100;
   const latency = redis.latencyMs ?? 0;
 
-  // Latency: 100 at <=5ms, -10 per extra ms, 0 at >15ms
-  if (latency > 5) {
-    const penalty = Math.min(100, (latency - 5) * 10);
+  // Latency: 100 at <=10ms, linear to 0 at >50ms
+  // Localhost Redis can spike to 20-30ms due to event loop jitter
+  if (latency > 10) {
+    const penalty = Math.min(100, Math.round(((latency - 10) / 40) * 100));
     score -= penalty;
   }
 
