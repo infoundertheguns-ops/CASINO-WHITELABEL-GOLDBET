@@ -105,6 +105,50 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── 5. Deactivate orphan markets (active markets on non-active events) ──
+  // These accumulate during browser restarts when detail workers are offline.
+  // Approach: find finished/ended events that still have active markets, then deactivate.
+  let orphansFixed = 0;
+  try {
+    const { data: staleEvents } = await supabase
+      .from("events")
+      .select("id")
+      .in("status", ["finished", "ended"])
+      .limit(500);
+
+    if (staleEvents && staleEvents.length > 0) {
+      // Find which of these still have active markets
+      const staleIds = staleEvents.map((e: any) => e.id);
+      const { data: orphanMarkets } = await supabase
+        .from("markets")
+        .select("id")
+        .in("event_id", staleIds)
+        .eq("is_active", true)
+        .limit(1000);
+
+      if (orphanMarkets && orphanMarkets.length > 0) {
+        const marketIds = orphanMarkets.map((m: any) => m.id);
+
+        // Deactivate outcomes first, then markets (batches of 200 to avoid deadlocks)
+        for (let i = 0; i < marketIds.length; i += 200) {
+          const batch = marketIds.slice(i, i + 200);
+          await supabase
+            .from("outcomes")
+            .update({ is_active: false, is_suspended: true })
+            .in("market_id", batch)
+            .eq("is_active", true);
+
+          await supabase
+            .from("markets")
+            .update({ is_active: false, is_suspended: true })
+            .in("id", batch);
+        }
+
+        orphansFixed = marketIds.length;
+      }
+    }
+  } catch { /* non-critical */ }
+
   return NextResponse.json({
     finished_remaining: finishedEvents?.length || 0,
     settled,
@@ -112,6 +156,7 @@ export async function POST(req: NextRequest) {
     stale_live_finished: staleLiveFinished || undefined,
     ended_fixed: endedFixed || undefined,
     multis_resolved: multisResolved || undefined,
+    orphans_fixed: orphansFixed || undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   });
 }
