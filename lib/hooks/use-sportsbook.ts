@@ -282,7 +282,7 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
     time: row.is_live
       ? `LIVE ${row.minute || 0}'`
       : formatKickoffTime(row.starts_at),
-    live: row.is_live || false,
+    live: (row.is_live || false) && row.status === "live",
     minute: row.minute,
     minuteReceivedAt: row.is_live ? Date.now() : undefined,
     scoreH: row.score_home,
@@ -559,7 +559,7 @@ export function useSportsbook() {
               event.id === updated.id
                 ? {
                     ...event,
-                    live: updated.is_live || false,
+                    live: (updated.is_live || false) && updated.status === "live",
                     minute: updated.minute,
                     minuteReceivedAt: updated.is_live ? Date.now() : undefined,
                     scoreH: updated.score_home,

@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
       const { data: event } = await supabase
         .from("events").select("is_live, starts_at, status").eq("id", market.event_id).single();
 
-      if (event?.status === "ended" || event?.status === "cancelled") {
+      if (event?.status === "finished" || event?.status === "ended" || event?.status === "cancelled" || event?.status === "postponed") {
         return NextResponse.json({
           error: "Evento terminato o annullato", code: "EVENT_ENDED",
         }, { status: 400 });

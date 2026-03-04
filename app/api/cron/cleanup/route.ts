@@ -58,9 +58,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 2. Force-finish stale live events (no updates for 30+ min) ──
+  // ── 2. Force-finish stale live events (no updates for 10+ min) ──
+  // Critical: stale live events have active markets players can bet on
   let staleLiveFinished = 0;
-  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data: staleLive } = await supabase
     .from("events")
     .select("id")
