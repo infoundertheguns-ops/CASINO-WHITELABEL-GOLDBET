@@ -29,6 +29,7 @@ const NAVIGATION: AdminNavGroup[] = [
     group: "SISTEMA",
     items: [
       { id: "scraper", icon: "🔄", label: "Scraper Monitor" },
+      { id: "market-coverage", icon: "📈", label: "Market Coverage" },
       { id: "fixtures", icon: "📅", label: "Fixtures" },
     ],
   },
@@ -51,6 +52,7 @@ const TITLES: Record<string, string> = {
   "odds-comparison": "Confronto Quote",
   "event-matching": "Event Matching",
   scraper: "Scraper Monitor",
+  "market-coverage": "Market Coverage",
   fixtures: "Fixtures",
   users: "Gestione Utenti",
   config: "Configurazione",
@@ -86,6 +88,7 @@ export default function AdminLayout({
       "odds-comparison": "/admin/odds-comparison",
       "event-matching": "/admin/event-matching",
       scraper: "/admin/scraper",
+      "market-coverage": "/admin/market-coverage",
       fixtures: "/admin/fixtures",
       users: "/admin/management",
       config: "/admin/config",
