@@ -106,16 +106,31 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 5. Deactivate orphan markets (active markets on non-active events) ──
-  // Uses single RPC call — finds active markets whose event is not prematch/live.
-  let orphansFixed = 0;
+  // ── 5. Deactivate orphan markets + outcomes (active on non-active events) ──
+  // Uses single RPC call with batch processing and deadlock safety.
+  let orphanMarkets = 0;
+  let orphanOutcomes = 0;
   try {
     const { data: orphanResult, error: orphanErr } = await supabase.rpc("fix_orphan_markets");
     if (!orphanErr && orphanResult) {
       const row = typeof orphanResult === "string" ? JSON.parse(orphanResult) : orphanResult;
-      orphansFixed = (row?.markets_fixed ?? 0);
+      orphanMarkets = row?.markets_fixed ?? 0;
+      orphanOutcomes = row?.outcomes_fixed ?? 0;
     }
   } catch { /* non-critical */ }
+
+  // ── 6. Purge old ended events (>48h) with all markets + outcomes ──
+  // Prevents DB bloat from accumulating ~170K outcomes/day.
+  let purgeResult: { events_deleted: number; markets_deleted: number; outcomes_deleted: number } | null = null;
+  try {
+    const { data: purgeData, error: purgeErr } = await supabase.rpc("purge_old_ended_events", {
+      p_hours_old: 48,
+      p_batch_limit: 500,
+    });
+    if (!purgeErr && purgeData) {
+      purgeResult = typeof purgeData === "string" ? JSON.parse(purgeData) : purgeData;
+    }
+  } catch { /* non-critical — RPC may not exist yet */ }
 
   return NextResponse.json({
     finished_remaining: finishedEvents?.length || 0,
@@ -124,7 +139,9 @@ export async function POST(req: NextRequest) {
     stale_live_finished: staleLiveFinished || undefined,
     ended_fixed: endedFixed || undefined,
     multis_resolved: multisResolved || undefined,
-    orphans_fixed: orphansFixed || undefined,
+    orphan_markets: orphanMarkets || undefined,
+    orphan_outcomes: orphanOutcomes || undefined,
+    purge: purgeResult && purgeResult.events_deleted > 0 ? purgeResult : undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   });
 }
