@@ -25,6 +25,7 @@ export const MARKET_CATEGORIES: MarketCategory[] = [
   { id: "ht_ft", label: "1T/FINALE" },
   { id: "combo", label: "COMBO" },
   { id: "speciali", label: "SPECIALI" },
+  { id: "giocatori", label: "GIOCATORI" },
   { id: "altro", label: "ALTRO" },
 ];
 
@@ -33,6 +34,9 @@ export const MARKET_CATEGORIES: MarketCategory[] = [
 export function getMarketCategoryId(market: Market): string {
   const name = (market.name || "").toLowerCase();
   const type = (market.marketType || "").toLowerCase();
+
+  // Player markets (contain " | " separator, e.g. "Marc Plus | Nikola Stulic")
+  if (name.includes(' | ')) return "giocatori";
 
   // Primo Tempo — must check before generic patterns
   if (name.includes("primo tempo") || name.includes("1° tempo") || name.includes("1 tempo")) return "primo_tempo";

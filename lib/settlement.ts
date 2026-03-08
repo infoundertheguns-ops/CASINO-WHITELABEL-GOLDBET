@@ -110,6 +110,7 @@ interface MarketPattern {
 
 // Auto-VOID patterns — markets we cannot settle (need player data, per-game, corners, etc.)
 const VOID_PATTERNS: RegExp[] = [
+  /^.+\s\|\s/,  // All player markets (contain " | " separator, e.g. "Marc Plus | Nikola Stulic")
   /^Marcatore\s+al\s+90/i,
   /^Doppietta\s+al\s+90/i,
   /^Tripletta\s+al\s+90/i,
