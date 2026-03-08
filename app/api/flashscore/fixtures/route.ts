@@ -73,6 +73,38 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── 1b. Update leagues.country from fixture data ──
+  const countryPairs = new Map<string, string>();
+  for (const f of fixtures) {
+    if (f.country && f.league) {
+      const key = `${f.sport}||${f.league}`;
+      if (!countryPairs.has(key)) countryPairs.set(key, f.country);
+    }
+  }
+
+  if (countryPairs.size > 0) {
+    // Resolve sport slugs → IDs
+    const sportSlugs = [...new Set([...countryPairs.keys()].map(k => k.split("||")[0]))];
+    const sportIdMap = new Map<string, string>();
+    for (const slug of sportSlugs) {
+      const { data: row } = await supabase
+        .from("sports").select("id").ilike("slug", slug).limit(1).single();
+      if (row) sportIdMap.set(slug, row.id);
+    }
+
+    for (const [key, country] of countryPairs) {
+      const [sportSlug, leagueName] = key.split("||");
+      const sportId = sportIdMap.get(sportSlug);
+      if (!sportId) continue;
+      await supabase
+        .from("leagues")
+        .update({ country })
+        .ilike("name", leagueName)
+        .eq("sport_id", sportId)
+        .or("country.is.null,country.eq.");
+    }
+  }
+
   // ── 2. Pre-match with DB events (save flashscore_id) ──
   const { data: events, error: evErr } = await supabase
     .from("events")

@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent, deactivateEvent } from "@/lib/settlement";
 import { computeHealthScores, type SystemHealthRPC, type ScraperInfo, type RedisInfo } from "@/lib/health";
-import { sendTelegramAlert } from "@/lib/telegram";
+// Telegram alerts now handled by dedicated /api/cron/alerts route
 
 // ═══════════════════════════════════════════════════
 // CRON: Full Pipeline Audit + Auto-Fix
@@ -269,18 +269,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Alert on critical
-      if (scores.level === "critical") {
-        const lowSubs = Object.entries(scores.subsystems)
-          .filter(([, s]) => (s as any).score < 50)
-          .map(([k, s]) => `${(s as any).label}: ${(s as any).score}/100`)
-          .join("\n");
-
-        await sendTelegramAlert(
-          `🔴 <b>SYSTEM HEALTH CRITICAL</b>\n\nOverall: ${scores.overall}/100\n\n${lowSubs}\n\n🕐 ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" })}`,
-          "system_health_critical"
-        );
-      }
+      // Alert on critical — now handled by /api/cron/alerts (every 2 min)
     }
   } catch (healthErr) {
     errors.push(`health snapshot: ${healthErr instanceof Error ? healthErr.message : String(healthErr)}`);

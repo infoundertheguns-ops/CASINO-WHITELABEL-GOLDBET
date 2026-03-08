@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent, deactivateEvent, resolveBet } from "@/lib/settlement";
+import { sendTelegramAlert } from "@/lib/telegram";
 
 // ═══════════════════════════════════════════════════
 // CRON: Cleanup finished events + fix stale data
@@ -132,6 +133,47 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* non-critical — RPC may not exist yet */ }
 
+  // ── 7. Daily report (between 03:50-04:10 Rome time) ──
+  let dailyReportSent = false;
+  try {
+    const romaHour = new Date().toLocaleString("en-US", {
+      timeZone: "Europe/Rome",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    });
+    const [h, m] = romaHour.split(":").map(Number);
+    const inWindow = (h === 3 && m >= 50) || (h === 4 && m <= 10);
+
+    if (inWindow) {
+      // Fetch health score
+      let healthScore = 0;
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const resp = await fetch(`${baseUrl}/api/system/health`, { cache: "no-store" });
+        if (resp.ok) {
+          const hd = await resp.json();
+          healthScore = hd.scores?.overall ?? 0;
+        }
+      } catch { /* skip */ }
+
+      const purgeEvts = purgeResult?.events_deleted ?? 0;
+      const purgeMkts = purgeResult?.markets_deleted ?? 0;
+      const purgeOuts = purgeResult?.outcomes_deleted ?? 0;
+
+      const report = [
+        `\ud83d\udcca <b>REPORT GIORNALIERO</b>`,
+        ``,
+        `\ud83d\uddd1 Purgati: ${purgeEvts} eventi, ${purgeMkts} mercati, ${purgeOuts} outcomes`,
+        `\ud83d\udd27 Orfani fixati: ${orphanMarkets} mercati, ${orphanOutcomes} outcomes`,
+        `\u2696\ufe0f Settled: ${settled} | Deactivated: ${deactivated}`,
+        `\ud83d\udcc8 Health: ${healthScore}/100`,
+      ].join("\n");
+
+      dailyReportSent = await sendTelegramAlert("info", "REPORT GIORNALIERO", report, "daily_report");
+    }
+  } catch { /* daily report is non-critical */ }
+
   return NextResponse.json({
     finished_remaining: finishedEvents?.length || 0,
     settled,
@@ -142,6 +184,7 @@ export async function POST(req: NextRequest) {
     orphan_markets: orphanMarkets || undefined,
     orphan_outcomes: orphanOutcomes || undefined,
     purge: purgeResult && purgeResult.events_deleted > 0 ? purgeResult : undefined,
+    daily_report_sent: dailyReportSent || undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   });
 }

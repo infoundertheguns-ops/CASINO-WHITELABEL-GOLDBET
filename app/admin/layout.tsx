@@ -70,8 +70,11 @@ export default function AdminLayout({
   const router = useRouter();
 
   const activeId = useMemo(() => {
-    const segment = pathname.split("/").pop() || "dashboard";
-    return segment;
+    const parts = pathname.split("/").filter(Boolean);
+    // parts[0] = "admin", parts[1] = section, parts[2+] = sub-route
+    if (parts[1] === "market-coverage") return "market-coverage";
+    if (parts[1] === "risk") return "risk";
+    return parts[parts.length - 1] || "dashboard";
   }, [pathname]);
 
   useEffect(() => {

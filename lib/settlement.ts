@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { sendTelegramMessage } from "@/lib/telegram";
 
 // ═══ TYPES ═══
 
@@ -1117,6 +1118,11 @@ export async function resolveBet(
   // Credit wallet
   if (betStatus === "won" && payout > 0) {
     await creditWallet(supabase, bet.user_id, betId, payout, "win");
+    // Telegram alert for winning bet (fire-and-forget)
+    const { data: winner } = await supabase.from("users").select("username").eq("id", bet.user_id).single();
+    sendTelegramMessage(
+      `\ud83c\udfc6 <b>SCOMMESSA VINTA</b>\n\ud83d\udc64 @${winner?.username || bet.user_id}\n\ud83d\udcb0 +\u20ac${payout.toFixed(2)} (stake: \u20ac${bet.stake})`
+    ).catch(() => {});
   } else if (betStatus === "void") {
     await creditWallet(supabase, bet.user_id, betId, bet.stake, "refund");
   }

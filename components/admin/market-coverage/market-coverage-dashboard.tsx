@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  fetchApi, formatNum, formatTime,
+  gapColor, gapBg, coverageColor, coverageBg,
+  KPICard, CollapsibleSection, FilterSelect, EventDetailModal,
+  exportCsv, ExportButton,
+} from "./shared";
+import type { EventDetail } from "./shared";
 
 // ═══ TYPES ═══
 
@@ -10,104 +18,43 @@ interface SummaryRow {
   source: string;
   status: string;
   total_events: number;
-  avg_markets: number;
-  min_markets: number;
-  max_markets: number;
-  total_markets: number;
-  zero_market_events: number;
-  low_coverage_events: number;
-  goldbet_avg: number | null;
-  diff_pct: number | null;
+  events_with_source: number;
+  avg_source: number | null;
+  avg_vincitu: number;
+  gap_pct: number | null;
+  gap_total: number | null;
+  zero_markets: number;
 }
 
-interface LowCoverageEvent {
+interface GapEvent {
   event_id: string;
   external_id: string;
   home_team: string;
   away_team: string;
   sport_name: string;
   sport_slug: string;
+  league_name: string;
   source: string;
   status: string;
-  market_count: number;
-  sport_avg: number;
+  source_count: number;
+  vincitu_count: number;
+  gap: number;
   coverage_pct: number;
   starts_at: string;
 }
 
 interface StatsData {
   summary: SummaryRow[];
-  low_coverage_events: LowCoverageEvent[];
+  gap_events: GapEvent[];
+  total_events: number;
+  events_with_source: number;
   generated_at: string;
-  has_scraper_data: boolean;
-}
-
-interface EventRow {
-  id: string;
-  external_id: string;
-  home_team: string;
-  away_team: string;
-  starts_at: string;
-  status: string;
-  source: string;
-  sport_name: string;
-  league_name: string;
-  market_count: number;
-  sport_avg: number;
-  coverage_pct: number | null;
-}
-
-interface EventDetail {
-  event: {
-    id: string;
-    home_team: string;
-    away_team: string;
-    starts_at: string;
-    status: string;
-    source: string;
-    sport_name: string;
-    league_name: string;
-  };
-  market_count: number;
-  market_types: { type: string; count: number; markets: string[] }[];
-}
-
-// ═══ HELPERS ═══
-
-function formatNum(n: number): string {
-  return n.toLocaleString("it-IT");
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString("it-IT", {
-    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function coverageColor(pct: number | null): string {
-  if (pct == null) return "var(--admin-text-muted, #94a3b8)";
-  if (pct >= 90) return "#10b981";
-  if (pct >= 75) return "#f59e0b";
-  return "#ef4444";
-}
-
-function coverageBg(pct: number | null): string {
-  if (pct == null) return "transparent";
-  if (pct >= 90) return "#10b98115";
-  if (pct >= 75) return "#f59e0b15";
-  return "#ef444415";
-}
-
-async function fetchApi(action: string, params: Record<string, string> = {}) {
-  const sp = new URLSearchParams({ action, ...params });
-  const res = await fetch(`/api/admin/market-coverage?${sp}`);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
 }
 
 // ═══ MAIN COMPONENT ═══
 
 export default function MarketCoverageDashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -119,13 +66,7 @@ export default function MarketCoverageDashboard() {
 
   // Collapsible sections
   const [sportTableOpen, setSportTableOpen] = useState(true);
-  const [lowCovOpen, setLowCovOpen] = useState(false);
-
-  // Expanded sport row (drill-down)
-  const [expandedRow, setExpandedRow] = useState<string>("");
-  const [expandedEvents, setExpandedEvents] = useState<EventRow[]>([]);
-  const [expandedTotal, setExpandedTotal] = useState(0);
-  const [expandedLoading, setExpandedLoading] = useState(false);
+  const [gapEventsOpen, setGapEventsOpen] = useState(false);
 
   // Event detail modal
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
@@ -160,15 +101,57 @@ export default function MarketCoverageDashboard() {
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, [loadStats]);
 
-  // ─── Filter summary rows ───
-  const filteredSummary = (stats?.summary || []).filter((row) => {
+  // ─── Filter & aggregate summary rows by sport ───
+  const filteredRaw = (stats?.summary || []).filter((row) => {
     if (sportFilter !== "all" && row.sport_slug !== sportFilter) return false;
     if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
     if (statusFilter !== "all" && row.status !== statusFilter) return false;
     return true;
   });
 
-  const filteredLowCov = (stats?.low_coverage_events || []).filter((row) => {
+  const filteredSummary = (() => {
+    const map = new Map<string, SummaryRow>();
+    for (const row of filteredRaw) {
+      const key = row.sport_slug;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, { ...row });
+      } else {
+        // Weighted merge
+        const prevSrcWeight = existing.events_with_source;
+        const newSrcWeight = row.events_with_source;
+        const totalSrcWeight = prevSrcWeight + newSrcWeight;
+
+        existing.total_events += row.total_events;
+        existing.events_with_source += row.events_with_source;
+        existing.zero_markets += row.zero_markets;
+        existing.gap_total = (existing.gap_total ?? 0) + (row.gap_total ?? 0);
+
+        // Weighted avg_source
+        if (totalSrcWeight > 0) {
+          existing.avg_source = Math.round(
+            (((existing.avg_source ?? 0) * prevSrcWeight) + ((row.avg_source ?? 0) * newSrcWeight)) / totalSrcWeight * 10
+          ) / 10;
+        }
+
+        // Weighted avg_vincitu
+        const prevTotal = existing.total_events - row.total_events;
+        existing.avg_vincitu = Math.round(
+          ((existing.avg_vincitu * prevTotal) + (row.avg_vincitu * row.total_events)) / existing.total_events * 10
+        ) / 10;
+
+        // Weighted gap_pct
+        if (totalSrcWeight > 0) {
+          existing.gap_pct = Math.round(
+            (((existing.gap_pct ?? 0) * prevSrcWeight) + ((row.gap_pct ?? 0) * newSrcWeight)) / totalSrcWeight * 10
+          ) / 10;
+        }
+      }
+    }
+    return Array.from(map.values());
+  })();
+
+  const filteredGapEvents = (stats?.gap_events || []).filter((row) => {
     if (sportFilter !== "all" && row.sport_slug !== sportFilter) return false;
     if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
     if (statusFilter !== "all" && row.status !== statusFilter) return false;
@@ -184,31 +167,20 @@ export default function MarketCoverageDashboard() {
     .sort((a, b) => a.label.localeCompare(b.label));
 
   // ─── KPI totals ───
-  const totalEvents = filteredSummary.reduce((s, r) => s + r.total_events, 0);
-  const totalMarkets = filteredSummary.reduce((s, r) => s + r.total_markets, 0);
-  const avgMarketsGlobal = totalEvents > 0 ? Math.round((totalMarkets / totalEvents) * 10) / 10 : 0;
-  const zeroMarketEvents = filteredSummary.reduce((s, r) => s + r.zero_market_events, 0);
-  const lowCoverageCount = filteredSummary.reduce((s, r) => s + r.low_coverage_events, 0);
+  const avgGapPct = (() => {
+    const rows = filteredSummary.filter(r => r.gap_pct != null && r.events_with_source > 0);
+    if (rows.length === 0) return null;
+    const totalWeighted = rows.reduce((s, r) => s + (r.gap_pct! * r.events_with_source), 0);
+    const totalEvents = rows.reduce((s, r) => s + r.events_with_source, 0);
+    return totalEvents > 0 ? Math.round(totalWeighted / totalEvents * 10) / 10 : null;
+  })();
+  const zeroMarketEvents = filteredSummary.reduce((s, r) => s + r.zero_markets, 0);
+  const worstGapEvent = filteredGapEvents.length > 0 ? filteredGapEvents[0] : null;
 
-  // ─── Expand sport row ───
-  const handleExpandRow = async (rowKey: string, sport: string, source: string, status: string) => {
-    if (expandedRow === rowKey) {
-      setExpandedRow("");
-      return;
-    }
-    setExpandedRow(rowKey);
-    setExpandedLoading(true);
-    try {
-      const data = await fetchApi("events", { sport, source, status, limit: "200" });
-      setExpandedEvents(data.events || []);
-      setExpandedTotal(data.total || 0);
-    } catch {
-      setExpandedEvents([]);
-      setExpandedTotal(0);
-    } finally {
-      setExpandedLoading(false);
-    }
-  };
+  // Data availability
+  const sourcePct = stats && stats.total_events > 0
+    ? Math.round((stats.events_with_source / stats.total_events) * 1000) / 10
+    : 0;
 
   // ─── Event detail ───
   const handleEventDetail = async (eventId: string) => {
@@ -221,6 +193,30 @@ export default function MarketCoverageDashboard() {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  const handleExportSummary = () => {
+    const headers = ["Sport", "Eventi", "Avg Source", "Avg Vincitu", "Gap %", "Mancanti", "Zero"];
+    const rows = filteredSummary.map(r => [
+      r.sport_name,
+      r.total_events,
+      r.avg_source ?? "N/D",
+      r.avg_vincitu,
+      r.gap_pct != null ? `${r.gap_pct}%` : "N/D",
+      r.gap_total ?? "N/D",
+      r.zero_markets,
+    ]);
+    exportCsv("market-coverage-sport.csv", headers, rows);
+  };
+
+  const handleExportGapEvents = () => {
+    const headers = ["Evento", "Sport", "Lega", "Source", "Goldbet", "Vincitu", "Gap", "Coverage %", "Data"];
+    const rows = filteredGapEvents.map(ev => [
+      `${ev.home_team} vs ${ev.away_team}`, ev.sport_name, ev.league_name, ev.source,
+      ev.source_count, ev.vincitu_count, ev.gap, ev.coverage_pct,
+      new Date(ev.starts_at).toLocaleString("it-IT"),
+    ]);
+    exportCsv("market-coverage-gap-eventi.csv", headers, rows);
   };
 
   if (loading) {
@@ -252,13 +248,13 @@ export default function MarketCoverageDashboard() {
         alignItems: "center",
       }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
-          Market Coverage Report
+          Gap Mercati — Source vs Vincitu
         </h2>
-        <div style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
-          Auto-refresh 30s {lastRefresh && `· ${lastRefresh}`}
-          {stats?.has_scraper_data && (
-            <span style={{ marginLeft: 8, color: "#10b981" }}>Scraper data disponibile</span>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
+          <span>
+            Dati source: {stats?.events_with_source ?? 0}/{stats?.total_events ?? 0} eventi ({sourcePct}%)
+          </span>
+          <span>Auto-refresh 30s {lastRefresh && `· ${lastRefresh}`}</span>
         </div>
       </div>
 
@@ -321,19 +317,60 @@ export default function MarketCoverageDashboard() {
             </button>
           ))}
         </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <ExportButton onClick={handleExportSummary} />
+          {filteredGapEvents.length > 0 && (
+            <button
+              onClick={handleExportGapEvents}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 4,
+                border: "1px solid var(--admin-border, #1e3a5f)",
+                background: "transparent",
+                color: "var(--admin-text-muted, #94a3b8)",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#e2e8f0"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+            >
+              Esporta Gap
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <KPICard label="Eventi Attivi" value={formatNum(totalEvents)} color="#60a5fa" />
-        <KPICard label="Avg Mercati/Evento" value={String(avgMarketsGlobal)} color="#8b5cf6" />
-        <KPICard label="Zero Mercati" value={formatNum(zeroMarketEvents)} color={zeroMarketEvents > 0 ? "#ef4444" : "#10b981"} />
-        <KPICard label="Bassa Copertura" value={formatNum(lowCoverageCount)} color={lowCoverageCount > 0 ? "#f59e0b" : "#10b981"} />
+        <KPICard
+          label="Eventi con Gap"
+          value={formatNum(filteredGapEvents.length)}
+          color={filteredGapEvents.length > 0 ? "#f59e0b" : "#10b981"}
+        />
+        <KPICard
+          label="Gap Medio %"
+          value={avgGapPct != null ? `${avgGapPct}%` : "—"}
+          color={gapColor(avgGapPct)}
+        />
+        <KPICard
+          label="Zero Mercati"
+          value={formatNum(zeroMarketEvents)}
+          color={zeroMarketEvents > 0 ? "#ef4444" : "#10b981"}
+        />
+        <KPICard
+          label="Peggior Gap"
+          value={worstGapEvent ? `${worstGapEvent.gap}` : "—"}
+          subtitle={worstGapEvent ? `${worstGapEvent.home_team} vs ${worstGapEvent.away_team}` : undefined}
+          color={worstGapEvent ? "#ef4444" : "#10b981"}
+        />
       </div>
 
       {/* Sport Coverage Table */}
       <CollapsibleSection
-        title={`Coverage per Sport (${filteredSummary.length})`}
+        title={`Gap per Sport (${filteredSummary.length})`}
         open={sportTableOpen}
         onToggle={() => setSportTableOpen(!sportTableOpen)}
       >
@@ -341,7 +378,7 @@ export default function MarketCoverageDashboard() {
           {/* Table header */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.5fr 0.8fr 0.8fr 0.7fr 0.7fr 0.8fr 0.7fr 0.6fr 0.6fr",
+            gridTemplateColumns: "1.5fr 0.6fr 0.8fr 0.8fr 0.7fr 0.7fr 0.5fr",
             padding: "10px 16px",
             background: "rgba(255,255,255,0.03)",
             borderBottom: "1px solid var(--admin-border, #1e3a5f)",
@@ -352,13 +389,11 @@ export default function MarketCoverageDashboard() {
             letterSpacing: 0.5,
           }}>
             <div>Sport</div>
-            <div style={{ textAlign: "center" }}>Source</div>
-            <div style={{ textAlign: "center" }}>Status</div>
             <div style={{ textAlign: "center" }}>Eventi</div>
-            <div style={{ textAlign: "center" }}>Avg DB</div>
-            <div style={{ textAlign: "center" }}>Avg GB</div>
-            <div style={{ textAlign: "center" }}>Diff%</div>
-            <div style={{ textAlign: "center" }}>Low</div>
+            <div style={{ textAlign: "center" }}>Avg Source</div>
+            <div style={{ textAlign: "center" }}>Avg Vincitu</div>
+            <div style={{ textAlign: "center" }}>Gap %</div>
+            <div style={{ textAlign: "center" }}>Mancanti</div>
             <div style={{ textAlign: "center" }}>Zero</div>
           </div>
 
@@ -366,165 +401,59 @@ export default function MarketCoverageDashboard() {
           <div style={{ maxHeight: 500, overflowY: "auto" }}>
             {filteredSummary.map((row, i) => {
               const rowKey = `${row.sport_slug}:${row.source}:${row.status}`;
-              const isExpanded = expandedRow === rowKey;
               return (
-                <div key={rowKey}>
-                  <div
-                    onClick={() => handleExpandRow(rowKey, row.sport_slug, row.source, row.status)}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.5fr 0.8fr 0.8fr 0.7fr 0.7fr 0.8fr 0.7fr 0.6fr 0.6fr",
-                      padding: "8px 16px",
-                      background: isExpanded ? "rgba(37, 99, 235, 0.08)" : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"),
-                      borderBottom: "1px solid rgba(255,255,255,0.03)",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      alignItems: "center",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget.style.background = "rgba(255,255,255,0.04)"); }}
-                    onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"); }}
-                  >
-                    <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 10, color: "var(--admin-text-muted)" }}>{isExpanded ? "▼" : "▶"}</span>
-                      {row.sport_name}
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: 3,
-                        background: row.source === "goldbet" ? "#f59e0b20" : "#8b5cf620",
-                        color: row.source === "goldbet" ? "#f59e0b" : "#8b5cf6",
-                        textTransform: "uppercase",
-                      }}>
-                        {row.source === "goldbet" ? "GB" : "K"}
-                      </span>
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color: row.status === "live" ? "#10b981" : "#94a3b8",
-                        textTransform: "uppercase",
-                      }}>
-                        {row.status}
-                      </span>
-                    </div>
-                    <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
-                      {formatNum(row.total_events)}
-                    </div>
-                    <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)", fontFamily: "monospace" }}>
-                      {row.avg_markets}
-                    </div>
-                    <div style={{ textAlign: "center", fontFamily: "monospace", color: row.goldbet_avg != null ? "#f59e0b" : "var(--admin-text-muted)" }}>
-                      {row.goldbet_avg != null ? row.goldbet_avg : "—"}
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      {row.diff_pct != null ? (
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: "2px 6px",
-                          borderRadius: 3,
-                          background: coverageBg(row.diff_pct),
-                          color: coverageColor(row.diff_pct),
-                        }}>
-                          {row.diff_pct.toFixed(0)}%
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--admin-text-muted)" }}>—</span>
-                      )}
-                    </div>
-                    <div style={{ textAlign: "center", color: row.low_coverage_events > 0 ? "#f59e0b" : "var(--admin-text-muted)", fontWeight: 600 }}>
-                      {row.low_coverage_events}
-                    </div>
-                    <div style={{ textAlign: "center", color: row.zero_market_events > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
-                      {row.zero_market_events}
-                    </div>
+                <div
+                  key={rowKey}
+                  onClick={() => router.push(`/admin/market-coverage/${row.sport_slug}`)}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.5fr 0.6fr 0.8fr 0.8fr 0.7fr 0.7fr 0.5fr",
+                    padding: "8px 16px",
+                    background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+                    borderBottom: "1px solid rgba(255,255,255,0.03)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    alignItems: "center",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)")}
+                >
+                  <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
+                    {row.sport_name}
+                    <span style={{ fontSize: 10, color: "var(--admin-text-muted)", opacity: 0.5 }}>→</span>
                   </div>
-
-                  {/* Expanded: events list */}
-                  {isExpanded && (
-                    <div style={{ padding: "8px 16px 12px 32px", background: "rgba(37, 99, 235, 0.04)", borderBottom: "1px solid var(--admin-border, #1e3a5f)", maxHeight: 500, overflowY: "auto" }}>
-                      {expandedLoading ? (
-                        <div style={{ fontSize: 12, color: "var(--admin-text-muted)", padding: 8 }}>Caricamento eventi...</div>
-                      ) : expandedEvents.length === 0 ? (
-                        <div style={{ fontSize: 12, color: "var(--admin-text-muted)", padding: 8 }}>Nessun evento</div>
-                      ) : (
-                        <div>
-                          {expandedTotal > expandedEvents.length && (
-                            <div style={{ fontSize: 11, color: "var(--admin-text-muted)", padding: "6px 8px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                              Mostrando {expandedEvents.length} di {expandedTotal} eventi (ordinati per coverage crescente)
-                            </div>
-                          )}
-                          <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "2fr 1fr 0.6fr 0.6fr 0.7fr 0.8fr",
-                            padding: "6px 8px",
-                            fontSize: 10,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            color: "var(--admin-text-muted, #94a3b8)",
-                            borderBottom: "1px solid rgba(255,255,255,0.05)",
-                          }}>
-                            <div>Evento</div>
-                            <div>Torneo</div>
-                            <div style={{ textAlign: "center" }}>Mercati</div>
-                            <div style={{ textAlign: "center" }}>Avg</div>
-                            <div style={{ textAlign: "center" }}>Coverage</div>
-                            <div style={{ textAlign: "center" }}>Data</div>
-                          </div>
-                          {expandedEvents.map((ev) => (
-                            <div
-                              key={ev.id}
-                              onClick={() => handleEventDetail(ev.id)}
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "2fr 1fr 0.6fr 0.6fr 0.7fr 0.8fr",
-                                padding: "5px 8px",
-                                fontSize: 12,
-                                cursor: "pointer",
-                                borderBottom: "1px solid rgba(255,255,255,0.02)",
-                                alignItems: "center",
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <div style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
-                                {ev.home_team} vs {ev.away_team}
-                              </div>
-                              <div style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>
-                                {ev.league_name || "—"}
-                              </div>
-                              <div style={{ textAlign: "center", fontWeight: 600, fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)" }}>
-                                {ev.market_count}
-                              </div>
-                              <div style={{ textAlign: "center", fontFamily: "monospace", color: "var(--admin-text-muted)" }}>
-                                {ev.sport_avg}
-                              </div>
-                              <div style={{ textAlign: "center" }}>
-                                <span style={{
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  padding: "2px 6px",
-                                  borderRadius: 3,
-                                  background: coverageBg(ev.coverage_pct),
-                                  color: coverageColor(ev.coverage_pct),
-                                }}>
-                                  {ev.coverage_pct != null ? `${ev.coverage_pct}%` : "—"}
-                                </span>
-                              </div>
-                              <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
-                                {formatTime(ev.starts_at)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
+                    {formatNum(row.total_events)}
+                  </div>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", color: row.avg_source != null ? "#f59e0b" : "var(--admin-text-muted)" }}>
+                    {row.avg_source != null ? row.avg_source : "—"}
+                  </div>
+                  <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)", fontFamily: "monospace" }}>
+                    {row.avg_vincitu}
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    {row.gap_pct != null ? (
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        background: gapBg(row.gap_pct),
+                        color: gapColor(row.gap_pct),
+                      }}>
+                        {row.gap_pct}%
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--admin-text-muted)" }}>—</span>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", color: (row.gap_total ?? 0) > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
+                    {row.gap_total != null ? formatNum(row.gap_total) : "—"}
+                  </div>
+                  <div style={{ textAlign: "center", color: row.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
+                    {row.zero_markets}
+                  </div>
                 </div>
               );
             })}
@@ -538,23 +467,23 @@ export default function MarketCoverageDashboard() {
         </div>
       </CollapsibleSection>
 
-      {/* Low Coverage Events */}
+      {/* Gap Events (replaces Low Coverage) */}
       <CollapsibleSection
-        title={`Eventi a Bassa Copertura (${filteredLowCov.length})`}
-        open={lowCovOpen}
-        onToggle={() => setLowCovOpen(!lowCovOpen)}
-        badge={filteredLowCov.length > 0 ? filteredLowCov.length : undefined}
-        badgeColor={filteredLowCov.length > 0 ? "#f59e0b" : undefined}
+        title={`Gap Maggiori (${filteredGapEvents.length})`}
+        open={gapEventsOpen}
+        onToggle={() => setGapEventsOpen(!gapEventsOpen)}
+        badge={filteredGapEvents.length > 0 ? filteredGapEvents.length : undefined}
+        badgeColor={filteredGapEvents.length > 0 ? "#ef4444" : undefined}
       >
-        {filteredLowCov.length === 0 ? (
+        {filteredGapEvents.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
-            Nessun evento con copertura &lt;30%
+            Nessun evento con gap (source &gt; vincitu)
           </div>
         ) : (
           <div>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "2fr 1fr 0.7fr 0.6fr 0.6fr 0.7fr 0.8fr",
+              gridTemplateColumns: "2fr 0.8fr 0.6fr 0.5fr 0.5fr 0.5fr 0.6fr 0.7fr",
               padding: "10px 16px",
               background: "rgba(255,255,255,0.03)",
               borderBottom: "1px solid var(--admin-border, #1e3a5f)",
@@ -567,20 +496,21 @@ export default function MarketCoverageDashboard() {
               <div>Evento</div>
               <div>Sport</div>
               <div style={{ textAlign: "center" }}>Source</div>
-              <div style={{ textAlign: "center" }}>Mercati</div>
-              <div style={{ textAlign: "center" }}>Avg</div>
+              <div style={{ textAlign: "center" }}>Goldbet</div>
+              <div style={{ textAlign: "center" }}>Vincitu</div>
+              <div style={{ textAlign: "center" }}>Gap</div>
               <div style={{ textAlign: "center" }}>Coverage</div>
               <div style={{ textAlign: "center" }}>Data</div>
             </div>
 
             <div style={{ maxHeight: 400, overflowY: "auto" }}>
-              {filteredLowCov.map((ev, i) => (
+              {filteredGapEvents.map((ev, i) => (
                 <div
                   key={ev.event_id}
                   onClick={() => handleEventDetail(ev.event_id)}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "2fr 1fr 0.7fr 0.6fr 0.6fr 0.7fr 0.8fr",
+                    gridTemplateColumns: "2fr 0.8fr 0.6fr 0.5fr 0.5fr 0.5fr 0.6fr 0.7fr",
                     padding: "7px 16px",
                     background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
                     borderBottom: "1px solid rgba(255,255,255,0.03)",
@@ -610,11 +540,14 @@ export default function MarketCoverageDashboard() {
                       {ev.source === "goldbet" ? "GB" : "K"}
                     </span>
                   </div>
-                  <div style={{ textAlign: "center", fontWeight: 600, fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)" }}>
-                    {ev.market_count}
+                  <div style={{ textAlign: "center", fontFamily: "monospace", color: "#f59e0b", fontWeight: 600 }}>
+                    {ev.source_count}
                   </div>
-                  <div style={{ textAlign: "center", fontFamily: "monospace", color: "var(--admin-text-muted)" }}>
-                    {ev.sport_avg}
+                  <div style={{ textAlign: "center", fontWeight: 600, fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)" }}>
+                    {ev.vincitu_count}
+                  </div>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 700, color: "#ef4444" }}>
+                    {ev.gap > 0 ? `−${ev.gap}` : ev.gap}
                   </div>
                   <div style={{ textAlign: "center" }}>
                     <span style={{
@@ -646,236 +579,6 @@ export default function MarketCoverageDashboard() {
           onClose={() => setSelectedEvent(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ═══ SUB-COMPONENTS ═══
-
-function FilterSelect({ label, value, onChange, options }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)" }}>
-        {label}:
-      </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          background: "var(--admin-bg, #0a1929)",
-          border: "1px solid var(--admin-border, #1e3a5f)",
-          borderRadius: 4,
-          color: "var(--admin-text, #e2e8f0)",
-          padding: "6px 10px",
-          fontSize: 13,
-        }}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function KPICard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{
-      background: "var(--admin-card, #0f1f35)",
-      border: "1px solid var(--admin-border, #1e3a5f)",
-      borderRadius: 8,
-      padding: "16px 20px",
-      textAlign: "center",
-    }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--admin-text-muted, #94a3b8)", marginBottom: 6 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 24, fontWeight: 700, color, fontFamily: "monospace" }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function CollapsibleSection({ title, open, onToggle, children, badge, badgeColor }: {
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-  badge?: number;
-  badgeColor?: string;
-}) {
-  return (
-    <div style={{
-      background: "var(--admin-card, #0f1f35)",
-      border: "1px solid var(--admin-border, #1e3a5f)",
-      borderRadius: 8,
-      overflow: "hidden",
-    }}>
-      <div
-        onClick={onToggle}
-        style={{
-          padding: "12px 16px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          cursor: "pointer",
-          background: "rgba(255,255,255,0.02)",
-          borderBottom: open ? "1px solid var(--admin-border, #1e3a5f)" : "none",
-        }}
-      >
-        <span style={{ fontSize: 12, color: "var(--admin-text-muted)" }}>{open ? "▼" : "▶"}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--admin-text, #e2e8f0)" }}>
-          {title}
-        </span>
-        {badge != null && badge > 0 && (
-          <span style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: "2px 8px",
-            borderRadius: 10,
-            background: `${badgeColor || "#f59e0b"}20`,
-            color: badgeColor || "#f59e0b",
-          }}>
-            {badge}
-          </span>
-        )}
-      </div>
-      {open && children}
-    </div>
-  );
-}
-
-function EventDetailModal({ detail, loading, onClose }: {
-  detail: EventDetail | null;
-  loading: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--admin-card, #0f1f35)",
-          border: "1px solid var(--admin-border, #1e3a5f)",
-          borderRadius: 12,
-          padding: 24,
-          minWidth: 500,
-          maxWidth: 700,
-          maxHeight: "80vh",
-          overflowY: "auto",
-        }}
-      >
-        {loading ? (
-          <div style={{ padding: 20, textAlign: "center", color: "var(--admin-text-muted)" }}>Caricamento...</div>
-        ) : detail ? (
-          <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
-                  {detail.event.home_team} vs {detail.event.away_team}
-                </h3>
-                <div style={{ fontSize: 12, color: "var(--admin-text-muted)", marginTop: 4, display: "flex", gap: 12 }}>
-                  <span>{detail.event.sport_name} · {detail.event.league_name}</span>
-                  <span style={{ color: detail.event.status === "live" ? "#10b981" : "#94a3b8", fontWeight: 600, textTransform: "uppercase" }}>
-                    {detail.event.status}
-                  </span>
-                  <span>{formatTime(detail.event.starts_at)}</span>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--admin-text-muted)",
-                  fontSize: 18,
-                  cursor: "pointer",
-                  padding: "4px 8px",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{
-              padding: "12px 16px",
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: 8,
-              marginBottom: 16,
-              display: "flex",
-              gap: 24,
-            }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "var(--admin-text-muted)" }}>Mercati</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#60a5fa", fontFamily: "monospace" }}>{detail.market_count}</div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "var(--admin-text-muted)" }}>Tipi</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#8b5cf6", fontFamily: "monospace" }}>{detail.market_types.length}</div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "var(--admin-text-muted)" }}>Source</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: detail.event.source === "goldbet" ? "#f59e0b" : "#8b5cf6", textTransform: "uppercase", marginTop: 4 }}>
-                  {detail.event.source}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "var(--admin-text-muted)", marginBottom: 8, letterSpacing: 0.5 }}>
-              Distribuzione per Tipo
-            </div>
-
-            <div style={{ maxHeight: 300, overflowY: "auto" }}>
-              {detail.market_types.map((mt) => (
-                <div
-                  key={mt.type}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "6px 12px",
-                    borderBottom: "1px solid rgba(255,255,255,0.03)",
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: "var(--admin-text, #e2e8f0)" }}>
-                    {mt.type}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{
-                      width: Math.max(4, (mt.count / (detail.market_types[0]?.count || 1)) * 120),
-                      height: 8,
-                      borderRadius: 4,
-                      background: "#2563eb",
-                    }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)", minWidth: 24, textAlign: "right" }}>
-                      {mt.count}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div style={{ padding: 20, textAlign: "center", color: "var(--admin-text-muted)" }}>Nessun dettaglio</div>
-        )}
-      </div>
     </div>
   );
 }

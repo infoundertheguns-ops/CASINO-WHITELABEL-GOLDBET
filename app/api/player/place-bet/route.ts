@@ -7,6 +7,7 @@ import {
   evaluateAcceptance,
   runRiskAnalysis,
 } from "@/lib/risk/engine";
+import { sendTelegramMessage } from "@/lib/telegram";
 
 // ═══════════════════════════════════════════════════
 // PLACE BET API — Secure server-side bet placement
@@ -462,6 +463,13 @@ export async function POST(req: NextRequest) {
         details: { acceptance, risk_score: riskResult?.final_score || 0, system: systemType, combo_count: numCombos },
       });
 
+      // Telegram alert (fire-and-forget)
+      const sysSelNames = validatedSelections.map(s => s.outcome_name).join(", ");
+      const sysHighStake = totalSystemStake >= 50 ? " \u26a0\ufe0f HIGH STAKE" : "";
+      sendTelegramMessage(
+        `\ud83c\udfb0 <b>NUOVA SCOMMESSA</b>${sysHighStake}\n\ud83d\udc64 @${user.username || user.id} \u2022 \u20ac${totalSystemStake} \u2022 sistema ${systemType}\n\ud83d\udccb ${sysSelNames}\n\ud83d\udcca Quota: ${totalOdds.toFixed(2)} \u2192 Vincita: \u20ac${totalPotentialWin.toFixed(2)}`
+      ).catch(() => {});
+
       return NextResponse.json({
         success: true,
         bet_id: parentBet.id,
@@ -597,6 +605,13 @@ export async function POST(req: NextRequest) {
       performed_by_system: true,
       details: { acceptance, risk_score: riskResult?.final_score || 0 },
     });
+
+    // Telegram alert (fire-and-forget)
+    const selNames = validatedSelections.map(s => s.outcome_name).join(", ");
+    const highStake = finalStake >= 50 ? " \u26a0\ufe0f HIGH STAKE" : "";
+    sendTelegramMessage(
+      `\ud83c\udfb0 <b>NUOVA SCOMMESSA</b>${highStake}\n\ud83d\udc64 @${user.username || user.id} \u2022 \u20ac${finalStake} \u2022 ${betType}\n\ud83d\udccb ${selNames}\n\ud83d\udcca Quota: ${totalOdds.toFixed(2)} \u2192 Vincita: \u20ac${finalPotentialWin.toFixed(2)}`
+    ).catch(() => {});
 
     return NextResponse.json({
       success: true,

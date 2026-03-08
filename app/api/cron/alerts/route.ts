@@ -146,41 +146,17 @@ export async function POST(req: NextRequest) {
       if (sent7) alerts.push(`settlement_backlog: recovered`);
     }
 
-    // ── Check 8: Market Coverage ──
+    // ── Check 8: Market Coverage (gap-based from DB) ──
     const coverageScores: Record<string, number> = {};
     try {
       const { data: coverageData } = await supabase.rpc("get_market_coverage").single() as { data: any };
       if (coverageData?.summary) {
-        // Build goldbet avg from scraper snapshots
-        const g = globalThis as any;
-        const snapshotsBySource: Record<string, any[]> = g.__scraperSnapshotsBySource || {};
-        const scraperAvg: Record<string, { live: number; prematch: number }> = {};
-
-        for (const [, snapshots] of Object.entries(snapshotsBySource)) {
-          if (!snapshots || snapshots.length === 0) continue;
-          const latest = snapshots[snapshots.length - 1];
-          if (!latest?.by_sport) continue;
-          for (const [sportName, sportData] of Object.entries(latest.by_sport as Record<string, any>)) {
-            const gb = (sportData as any).goldbet;
-            if (!gb) continue;
-            const liveAvg = gb.live?.events > 0 ? gb.live.markets / gb.live.events : 0;
-            const prematchAvg = gb.prematch?.events > 0 ? gb.prematch.markets / gb.prematch.events : 0;
-            scraperAvg[sportName] = {
-              live: Math.max(scraperAvg[sportName]?.live || 0, liveAvg),
-              prematch: Math.max(scraperAvg[sportName]?.prematch || 0, prematchAvg),
-            };
-          }
-        }
-
-        // Per-sport coverage check (only goldbet with ≥10 events)
         for (const row of coverageData.summary) {
-          if (row.source !== "goldbet" || row.total_events < 10) continue;
-          const gbAvg = scraperAvg[row.sport_name];
-          if (!gbAvg) continue;
-          const goldbetAvg = row.status === "live" ? gbAvg.live : gbAvg.prematch;
-          if (goldbetAvg <= 0) continue;
+          // Only check rows with source data and ≥10 events
+          if (row.events_with_source < 10 || row.gap_pct == null) continue;
 
-          const score = Math.round((row.avg_markets / goldbetAvg) * 100);
+          // gap_pct is "missing %" — convert to coverage score (100 - gap)
+          const score = Math.max(0, Math.round(100 - row.gap_pct));
           const key = `${row.sport_slug}_${row.status}`;
           coverageScores[key] = score;
 

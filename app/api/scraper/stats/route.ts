@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { sendTelegramAlert } from "@/lib/telegram";
+// Telegram alerts now handled by dedicated /api/cron/alerts route
 
 // ═══ TYPES ═══
 
@@ -87,47 +87,6 @@ function addSnapshot(snap: Snapshot, source: string) {
 function calcDiffPct(goldbet: number, vincitu: number): number {
   if (goldbet === 0) return vincitu === 0 ? 0 : 100;
   return Math.round(((vincitu - goldbet) / goldbet) * 1000) / 10; // 1 decimal
-}
-
-// ═══ TELEGRAM ALERTS ═══
-
-const ALERT_THRESHOLD_PCT = 25; // Send alert when diff > 25%
-
-async function checkAndAlert(snap: Snapshot) {
-  const alerts: string[] = [];
-  const d = snap.diffs;
-
-  const gbLiveCycle = snap.goldbet.live_events_current_cycle ?? snap.goldbet.live_events;
-
-  if (Math.abs(d.live_events_pct) > ALERT_THRESHOLD_PCT) {
-    alerts.push(
-      `📊 <b>Eventi Live</b>\nGoldbet (ciclo): ${gbLiveCycle}\nVincitu: ${snap.vincitu.live_events}\nDiff: ${d.live_events_pct > 0 ? "+" : ""}${d.live_events_pct}%`
-    );
-  }
-  if (Math.abs(d.prematch_events_pct) > ALERT_THRESHOLD_PCT) {
-    alerts.push(
-      `📊 <b>Eventi Prematch</b>\nGoldbet: ${snap.goldbet.prematch_events}\nVincitu: ${snap.vincitu.prematch_events}\nDiff: ${d.prematch_events_pct > 0 ? "+" : ""}${d.prematch_events_pct}%`
-    );
-  }
-  if (Math.abs(d.markets_pct) > ALERT_THRESHOLD_PCT) {
-    const gbMarkets = snap.goldbet.live_markets + snap.goldbet.prematch_markets;
-    alerts.push(
-      `📊 <b>Mercati Attivi</b>\nGoldbet: ${gbMarkets.toLocaleString()}\nVincitu: ${snap.vincitu.active_markets.toLocaleString()}\nDiff: ${d.markets_pct > 0 ? "+" : ""}${d.markets_pct}%`
-    );
-  }
-  if (Math.abs(d.outcomes_pct) > ALERT_THRESHOLD_PCT) {
-    const gbOutcomes = snap.goldbet.live_outcomes + snap.goldbet.prematch_outcomes;
-    alerts.push(
-      `📊 <b>Outcomes Attivi</b>\nGoldbet: ${gbOutcomes.toLocaleString()}\nVincitu: ${snap.vincitu.active_outcomes.toLocaleString()}\nDiff: ${d.outcomes_pct > 0 ? "+" : ""}${d.outcomes_pct}%`
-    );
-  }
-
-  if (alerts.length === 0) return;
-
-  const now = new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" });
-  const message = `⚠️ <b>SCRAPER DISCREPANZA</b>\n\n${alerts.join("\n\n")}\n\n🕐 ${now}`;
-
-  await sendTelegramAlert(message, "scraper_discrepancy");
 }
 
 // ═══ POST — Receive stats from scraper ═══
@@ -310,11 +269,6 @@ export async function POST(req: NextRequest) {
     const redis = await getRedisClient();
     await redis.set(`scraper:snapshot:${source}`, JSON.stringify(snap), { EX: 300 });
   } catch { /* Redis persistence is best-effort */ }
-
-  // Check for alerts (non-blocking) — only for main server
-  if (source === 'main') {
-    checkAndAlert(snap).catch(() => {});
-  }
 
   return NextResponse.json({ ok: true, snapshot: snap });
 }
