@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
   let settled = 0;
   let deactivated = 0;
   let endedFixed = 0;
+  let stalePrematchEnded = 0;
   const errors: string[] = [];
 
   // ── 1. Process finished events backlog (oldest first, max 50) ──
@@ -78,6 +79,27 @@ export async function POST(req: NextRequest) {
       .update({ status: "finished", is_live: false, updated_at: new Date().toISOString() })
       .in("id", ids);
     staleLiveFinished = ids.length;
+  }
+
+  // ── 2b. End abandoned prematch events (no scraper update for 2+ hours) ──
+  // If scraper stopped processing an event (removed from Goldbet), it becomes stale.
+  // 2h threshold = ~5 prematch cycles. Mark as ended (no score/settlement needed).
+  const prematchStaleThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { data: stalePrematch } = await supabase
+    .from("events")
+    .select("id")
+    .eq("status", "prematch")
+    .eq("is_live", false)
+    .lt("updated_at", prematchStaleThreshold)
+    .limit(500);
+
+  if (stalePrematch && stalePrematch.length > 0) {
+    const ids = stalePrematch.map((e: { id: string }) => e.id);
+    await supabase
+      .from("events")
+      .update({ status: "ended", updated_at: new Date().toISOString() })
+      .in("id", ids);
+    stalePrematchEnded = ids.length;
   }
 
   // ── 3. Bulk-fix ended events that still have active markets (single RPC) ──
@@ -179,6 +201,7 @@ export async function POST(req: NextRequest) {
     settled,
     deactivated,
     stale_live_finished: staleLiveFinished || undefined,
+    stale_prematch_ended: stalePrematchEnded || undefined,
     ended_fixed: endedFixed || undefined,
     multis_resolved: multisResolved || undefined,
     orphan_markets: orphanMarkets || undefined,

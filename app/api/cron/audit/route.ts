@@ -167,16 +167,17 @@ export async function POST(req: NextRequest) {
   if (bulkFixed.markets_fixed > 0) fixes.ended_markets_fixed = bulkFixed.markets_fixed;
   if (bulkFixed.outcomes_fixed > 0) fixes.ended_outcomes_fixed = bulkFixed.outcomes_fixed;
 
-  // ═══ FIX 3: Stale prematch (started 30+ min ago, never went live) ═══
+  // ═══ FIX 3: Stale prematch (started 30+ min ago OR abandoned by scraper 2+ hours) ═══
 
-  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const startsAtThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const updatedAtThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
   const { data: stalePrematch } = await supabase
     .from("events")
     .select("id")
     .eq("status", "prematch")
     .eq("is_live", false)
-    .lt("starts_at", staleThreshold)
-    .limit(200);
+    .or(`starts_at.lt.${startsAtThreshold},updated_at.lt.${updatedAtThreshold}`)
+    .limit(500);
 
   if (stalePrematch && stalePrematch.length > 0) {
     const staleIds = stalePrematch.map((e: { id: string }) => e.id);
