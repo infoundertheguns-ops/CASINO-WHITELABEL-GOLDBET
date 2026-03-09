@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/home", icon: "🏠", label: "Home" },
   { href: "/live", icon: "🔴", label: "Live" },
   { href: "/sport", icon: "⚽", label: "Sport" },
+  { href: "/marcatori", icon: "🎯", label: "Marcatori" },
   { href: "/bets", icon: "🎫", label: "Le Mie Bet" },
   { href: "/wallet", icon: "💰", label: "Wallet" },
 ];

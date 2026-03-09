@@ -89,6 +89,8 @@ export function useSportCounts(timeFilter: TimeFilter = "all") {
       for (const row of data as any[]) {
         const sport = row.sports;
         if (!sport) continue;
+        // Skip Giocatori sports — they have their own /marcatori page
+        if ((sport.slug || "").startsWith("giocatori-")) continue;
         const existing = sportMap.get(sport.id);
         if (existing) {
           existing.eventCount++;

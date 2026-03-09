@@ -88,7 +88,7 @@ export interface BetslipItem {
 // Covers all Goldbet market types: 1X2, DC, U/O, GG/NG, combos, handicap,
 // risultato esatto, prossimo gol, pari/dispari, somma gol, si/no, etc.
 
-function sortSelections(marketName: string, selections: Selection[]): Selection[] {
+export function sortSelections(marketName: string, selections: Selection[]): Selection[] {
   if (selections.length <= 1) return selections;
 
   const name = (marketName || "").toLowerCase();
@@ -452,6 +452,8 @@ export function useSportsbook() {
         const mapped = rows.map((row: any) => mapDbToSportEvent(row));
         const seen = new Set<string>();
         const deduped = mapped.filter((e) => {
+          // Exclude Giocatori (player props) — they have their own /marcatori page
+          if ((e.sportSlug || "").startsWith("giocatori-")) return false;
           const key = `${e.home}|${e.away}|${e.league}`.toLowerCase();
           if (seen.has(key)) return false;
           seen.add(key);
