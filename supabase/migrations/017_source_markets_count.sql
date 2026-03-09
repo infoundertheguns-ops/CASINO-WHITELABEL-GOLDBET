@@ -111,8 +111,8 @@ BEGIN
 
       v_processed := v_processed + 1;
 
-      -- ── NEW: Save source_markets_count (only for full detail scrapes) ──
-      IF NOT v_overview_only AND v_ev -> 'markets' IS NOT NULL
+      -- ── Save source_markets_count: always overwrite (scraper deduplicates before sending) ──
+      IF v_ev -> 'markets' IS NOT NULL
          AND jsonb_array_length(COALESCE(v_ev -> 'markets', '[]'::JSONB)) > 0 THEN
         UPDATE events SET source_markets_count = jsonb_array_length(v_ev -> 'markets')
         WHERE id = v_event_id;
