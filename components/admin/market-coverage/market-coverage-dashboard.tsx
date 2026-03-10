@@ -15,14 +15,13 @@ import type { EventDetail } from "./shared";
 interface SummaryRow {
   sport_name: string;
   sport_slug: string;
-  source: string;
   status: string;
   total_events: number;
   events_with_source: number;
   avg_source: number | null;
   avg_vincitu: number;
   gap_pct: number | null;
-  gap_total: number | null;
+  gap_total: number;
   zero_markets: number;
 }
 
@@ -61,7 +60,6 @@ export default function MarketCoverageDashboard() {
 
   // Filters
   const [sportFilter, setSportFilter] = useState<string>("all");
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Collapsible sections
@@ -101,59 +99,59 @@ export default function MarketCoverageDashboard() {
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, [loadStats]);
 
-  // ─── Filter & aggregate summary rows by sport ───
+  // ─── Filter summary rows ───
   const filteredRaw = (stats?.summary || []).filter((row) => {
     if (sportFilter !== "all" && row.sport_slug !== sportFilter) return false;
-    if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
     if (statusFilter !== "all" && row.status !== statusFilter) return false;
     return true;
   });
 
+  // Aggregate by sport (merge live/prematch rows)
   const filteredSummary = (() => {
-    const map = new Map<string, SummaryRow>();
+    const map = new Map<string, SummaryRow & { _sourceWeightedSum: number; _sourceCount: number }>();
     for (const row of filteredRaw) {
       const key = row.sport_slug;
       const existing = map.get(key);
       if (!existing) {
-        map.set(key, { ...row });
+        map.set(key, {
+          ...row,
+          _sourceWeightedSum: (row.avg_source || 0) * row.events_with_source,
+          _sourceCount: row.events_with_source,
+        });
       } else {
-        // Weighted merge
-        const prevSrcWeight = existing.events_with_source;
-        const newSrcWeight = row.events_with_source;
-        const totalSrcWeight = prevSrcWeight + newSrcWeight;
-
-        existing.total_events += row.total_events;
-        existing.events_with_source += row.events_with_source;
-        existing.zero_markets += row.zero_markets;
-        existing.gap_total = (existing.gap_total ?? 0) + (row.gap_total ?? 0);
-
-        // Weighted avg_source
-        if (totalSrcWeight > 0) {
-          existing.avg_source = Math.round(
-            (((existing.avg_source ?? 0) * prevSrcWeight) + ((row.avg_source ?? 0) * newSrcWeight)) / totalSrcWeight * 10
-          ) / 10;
-        }
+        const prevTotal = existing.total_events;
+        const newTotal = prevTotal + row.total_events;
 
         // Weighted avg_vincitu
-        const prevTotal = existing.total_events - row.total_events;
         existing.avg_vincitu = Math.round(
-          ((existing.avg_vincitu * prevTotal) + (row.avg_vincitu * row.total_events)) / existing.total_events * 10
+          ((existing.avg_vincitu * prevTotal) + (row.avg_vincitu * row.total_events)) / newTotal * 10
         ) / 10;
 
-        // Weighted gap_pct
-        if (totalSrcWeight > 0) {
-          existing.gap_pct = Math.round(
-            (((existing.gap_pct ?? 0) * prevSrcWeight) + ((row.gap_pct ?? 0) * newSrcWeight)) / totalSrcWeight * 10
-          ) / 10;
-        }
+        // Weighted avg_source
+        existing._sourceWeightedSum += (row.avg_source || 0) * row.events_with_source;
+        existing._sourceCount += row.events_with_source;
+        existing.avg_source = existing._sourceCount > 0
+          ? Math.round(existing._sourceWeightedSum / existing._sourceCount * 10) / 10
+          : null;
+
+        existing.total_events = newTotal;
+        existing.events_with_source += row.events_with_source;
+        existing.gap_total += row.gap_total;
+        existing.zero_markets += row.zero_markets;
+
+        // Recompute gap_pct
+        existing.gap_pct = existing.avg_source != null && existing.avg_source > 0
+          ? Math.round((1 - existing.avg_vincitu / existing.avg_source) * 1000) / 10
+          : null;
       }
     }
-    return Array.from(map.values());
+    return Array.from(map.values())
+      .map(({ _sourceWeightedSum, _sourceCount, ...rest }) => rest)
+      .sort((a, b) => b.total_events - a.total_events);
   })();
 
   const filteredGapEvents = (stats?.gap_events || []).filter((row) => {
     if (sportFilter !== "all" && row.sport_slug !== sportFilter) return false;
-    if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
     if (statusFilter !== "all" && row.status !== statusFilter) return false;
     return true;
   });
@@ -167,20 +165,18 @@ export default function MarketCoverageDashboard() {
     .sort((a, b) => a.label.localeCompare(b.label));
 
   // ─── KPI totals ───
-  const avgGapPct = (() => {
-    const rows = filteredSummary.filter(r => r.gap_pct != null && r.events_with_source > 0);
-    if (rows.length === 0) return null;
-    const totalWeighted = rows.reduce((s, r) => s + (r.gap_pct! * r.events_with_source), 0);
-    const totalEvents = rows.reduce((s, r) => s + r.events_with_source, 0);
-    return totalEvents > 0 ? Math.round(totalWeighted / totalEvents * 10) / 10 : null;
-  })();
+  const totalEvents = stats?.total_events || 0;
+  const eventsWithSource = stats?.events_with_source || 0;
+  const sourceDataPct = totalEvents > 0 ? Math.round((eventsWithSource / totalEvents) * 100) : 0;
+  const totalGap = filteredSummary.reduce((s, r) => s + r.gap_total, 0);
   const zeroMarketEvents = filteredSummary.reduce((s, r) => s + r.zero_markets, 0);
-  const worstGapEvent = filteredGapEvents.length > 0 ? filteredGapEvents[0] : null;
 
-  // Data availability
-  const sourcePct = stats && stats.total_events > 0
-    ? Math.round((stats.events_with_source / stats.total_events) * 1000) / 10
-    : 0;
+  // Weighted gap %
+  const totalVincitu = filteredSummary.reduce((s, r) => s + r.avg_vincitu * r.total_events, 0);
+  const totalSource = filteredSummary.reduce((s, r) => s + (r.avg_source || 0) * r.events_with_source, 0);
+  const avgGapPct = totalSource > 0
+    ? Math.round((1 - totalVincitu / (filteredSummary.reduce((s, r) => s + r.total_events, 0) || 1) / (totalSource / (filteredSummary.reduce((s, r) => s + r.events_with_source, 0) || 1))) * 1000) / 10
+    : null;
 
   // ─── Event detail ───
   const handleEventDetail = async (eventId: string) => {
@@ -196,27 +192,28 @@ export default function MarketCoverageDashboard() {
   };
 
   const handleExportSummary = () => {
-    const headers = ["Sport", "Eventi", "Avg Source", "Avg Vincitu", "Gap %", "Mancanti", "Zero"];
+    const headers = ["Sport", "Eventi", "Con Source", "Avg Source", "Avg Vincitu", "Gap %", "Mancanti", "Zero"];
     const rows = filteredSummary.map(r => [
       r.sport_name,
       r.total_events,
-      r.avg_source ?? "N/D",
+      r.events_with_source,
+      r.avg_source,
       r.avg_vincitu,
-      r.gap_pct != null ? `${r.gap_pct}%` : "N/D",
-      r.gap_total ?? "N/D",
+      r.gap_pct,
+      r.gap_total,
       r.zero_markets,
     ]);
-    exportCsv("market-coverage-sport.csv", headers, rows);
+    exportCsv("market-coverage-gap.csv", headers, rows);
   };
 
-  const handleExportGapEvents = () => {
-    const headers = ["Evento", "Sport", "Lega", "Source", "Goldbet", "Vincitu", "Gap", "Coverage %", "Data"];
+  const handleExportGap = () => {
+    const headers = ["Evento", "Sport", "Lega", "Source", "Vincitu", "Gap", "Coverage %", "Data"];
     const rows = filteredGapEvents.map(ev => [
-      `${ev.home_team} vs ${ev.away_team}`, ev.sport_name, ev.league_name, ev.source,
+      `${ev.home_team} vs ${ev.away_team}`, ev.sport_name, ev.league_name,
       ev.source_count, ev.vincitu_count, ev.gap, ev.coverage_pct,
       new Date(ev.starts_at).toLocaleString("it-IT"),
     ]);
-    exportCsv("market-coverage-gap-eventi.csv", headers, rows);
+    exportCsv("market-coverage-gap-events.csv", headers, rows);
   };
 
   if (loading) {
@@ -247,14 +244,16 @@ export default function MarketCoverageDashboard() {
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
-          Gap Mercati — Source vs Vincitu
-        </h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
-          <span>
-            Dati source: {stats?.events_with_source ?? 0}/{stats?.total_events ?? 0} eventi ({sourcePct}%)
-          </span>
-          <span>Auto-refresh 30s {lastRefresh && `· ${lastRefresh}`}</span>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
+            Gap Mercati — Source vs Vincitu
+          </h2>
+          <div style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)", marginTop: 4 }}>
+            Source data disponibile per {eventsWithSource}/{totalEvents} eventi ({sourceDataPct}%)
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
+          Auto-refresh 30s {lastRefresh && `· ${lastRefresh}`}
         </div>
       </div>
 
@@ -275,27 +274,6 @@ export default function MarketCoverageDashboard() {
           onChange={setSportFilter}
           options={[{ value: "all", label: "Tutti" }, ...sportOptions]}
         />
-        <div style={{ display: "flex", gap: 4 }}>
-          {["all", "goldbet", "kambi"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setSourceFilter(s)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 4,
-                border: "1px solid var(--admin-border, #1e3a5f)",
-                background: sourceFilter === s ? "#2563eb" : "transparent",
-                color: sourceFilter === s ? "#fff" : "var(--admin-text-muted, #94a3b8)",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                textTransform: "uppercase",
-              }}
-            >
-              {s === "all" ? "Tutte" : s === "goldbet" ? "Goldbet" : "Kambi"}
-            </button>
-          ))}
-        </div>
         <div style={{ display: "flex", gap: 4 }}>
           {["all", "live", "prematch"].map((s) => (
             <button
@@ -319,27 +297,6 @@ export default function MarketCoverageDashboard() {
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <ExportButton onClick={handleExportSummary} />
-          {filteredGapEvents.length > 0 && (
-            <button
-              onClick={handleExportGapEvents}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 4,
-                border: "1px solid var(--admin-border, #1e3a5f)",
-                background: "transparent",
-                color: "var(--admin-text-muted, #94a3b8)",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                textTransform: "uppercase",
-                transition: "background 0.15s, color 0.15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#e2e8f0"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
-            >
-              Esporta Gap
-            </button>
-          )}
         </div>
       </div>
 
@@ -349,11 +306,12 @@ export default function MarketCoverageDashboard() {
           label="Eventi con Gap"
           value={formatNum(filteredGapEvents.length)}
           color={filteredGapEvents.length > 0 ? "#f59e0b" : "#10b981"}
+          subtitle={`su ${eventsWithSource} con source data`}
         />
         <KPICard
-          label="Gap Medio %"
-          value={avgGapPct != null ? `${avgGapPct}%` : "—"}
-          color={gapColor(avgGapPct)}
+          label="Gap Medio"
+          value={avgGapPct != null ? `${avgGapPct}%` : "N/D"}
+          color={avgGapPct != null ? gapColor(avgGapPct) : "var(--admin-text-muted)"}
         />
         <KPICard
           label="Zero Mercati"
@@ -361,16 +319,16 @@ export default function MarketCoverageDashboard() {
           color={zeroMarketEvents > 0 ? "#ef4444" : "#10b981"}
         />
         <KPICard
-          label="Peggior Gap"
-          value={worstGapEvent ? `${worstGapEvent.gap}` : "—"}
-          subtitle={worstGapEvent ? `${worstGapEvent.home_team} vs ${worstGapEvent.away_team}` : undefined}
-          color={worstGapEvent ? "#ef4444" : "#10b981"}
+          label="Mercati Mancanti"
+          value={formatNum(totalGap)}
+          color={totalGap > 0 ? "#ef4444" : "#10b981"}
+          subtitle="source − vincitu"
         />
       </div>
 
       {/* Sport Coverage Table */}
       <CollapsibleSection
-        title={`Gap per Sport (${filteredSummary.length})`}
+        title={`Copertura per Sport (${filteredSummary.length})`}
         open={sportTableOpen}
         onToggle={() => setSportTableOpen(!sportTableOpen)}
       >
@@ -378,7 +336,7 @@ export default function MarketCoverageDashboard() {
           {/* Table header */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.5fr 0.6fr 0.8fr 0.8fr 0.7fr 0.7fr 0.5fr",
+            gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.6fr 0.6fr 0.6fr 0.6fr 0.5fr",
             padding: "10px 16px",
             background: "rgba(255,255,255,0.03)",
             borderBottom: "1px solid var(--admin-border, #1e3a5f)",
@@ -390,6 +348,7 @@ export default function MarketCoverageDashboard() {
           }}>
             <div>Sport</div>
             <div style={{ textAlign: "center" }}>Eventi</div>
+            <div style={{ textAlign: "center" }}>Source</div>
             <div style={{ textAlign: "center" }}>Avg Source</div>
             <div style={{ textAlign: "center" }}>Avg Vincitu</div>
             <div style={{ textAlign: "center" }}>Gap %</div>
@@ -399,64 +358,65 @@ export default function MarketCoverageDashboard() {
 
           {/* Table rows */}
           <div style={{ maxHeight: 500, overflowY: "auto" }}>
-            {filteredSummary.map((row, i) => {
-              const rowKey = `${row.sport_slug}:${row.source}:${row.status}`;
-              return (
-                <div
-                  key={rowKey}
-                  onClick={() => router.push(`/admin/market-coverage/${row.sport_slug}`)}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.5fr 0.6fr 0.8fr 0.8fr 0.7fr 0.7fr 0.5fr",
-                    padding: "8px 16px",
-                    background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
-                    borderBottom: "1px solid rgba(255,255,255,0.03)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    alignItems: "center",
-                    transition: "background 0.15s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)")}
-                >
-                  <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
-                    {row.sport_name}
-                    <span style={{ fontSize: 10, color: "var(--admin-text-muted)", opacity: 0.5 }}>→</span>
-                  </div>
-                  <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
-                    {formatNum(row.total_events)}
-                  </div>
-                  <div style={{ textAlign: "center", fontFamily: "monospace", color: row.avg_source != null ? "#f59e0b" : "var(--admin-text-muted)" }}>
-                    {row.avg_source != null ? row.avg_source : "—"}
-                  </div>
-                  <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)", fontFamily: "monospace" }}>
-                    {row.avg_vincitu}
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    {row.gap_pct != null ? (
-                      <span style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "2px 6px",
-                        borderRadius: 3,
-                        background: gapBg(row.gap_pct),
-                        color: gapColor(row.gap_pct),
-                      }}>
-                        {row.gap_pct}%
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--admin-text-muted)" }}>—</span>
-                    )}
-                  </div>
-                  <div style={{ textAlign: "center", fontFamily: "monospace", color: (row.gap_total ?? 0) > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
-                    {row.gap_total != null ? formatNum(row.gap_total) : "—"}
-                  </div>
-                  <div style={{ textAlign: "center", color: row.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
-                    {row.zero_markets}
-                  </div>
+            {filteredSummary.map((row, i) => (
+              <div
+                key={row.sport_slug}
+                onClick={() => router.push(`/admin/market-coverage/${row.sport_slug}`)}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.6fr 0.6fr 0.6fr 0.6fr 0.5fr",
+                  padding: "8px 16px",
+                  background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+                  borderBottom: "1px solid rgba(255,255,255,0.03)",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  alignItems: "center",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)")}
+              >
+                <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
+                  {row.sport_name}
+                  <span style={{ fontSize: 10, color: "var(--admin-text-muted)", opacity: 0.5 }}>→</span>
                 </div>
-              );
-            })}
+                <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
+                  {formatNum(row.total_events)}
+                </div>
+                <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
+                  {row.events_with_source}/{row.total_events}
+                </div>
+                <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
+                  {row.avg_source != null ? row.avg_source : "—"}
+                </div>
+                <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
+                  {row.avg_vincitu}
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  {row.gap_pct != null ? (
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      fontFamily: "monospace",
+                      padding: "2px 6px",
+                      borderRadius: 3,
+                      background: gapBg(row.gap_pct),
+                      color: gapColor(row.gap_pct),
+                    }}>
+                      {row.gap_pct}%
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--admin-text-muted)", fontSize: 12 }}>—</span>
+                  )}
+                </div>
+                <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: row.gap_total > 0 ? "#ef4444" : "var(--admin-text-muted)", fontSize: 12 }}>
+                  {formatNum(row.gap_total)}
+                </div>
+                <div style={{ textAlign: "center", color: row.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
+                  {row.zero_markets}
+                </div>
+              </div>
+            ))}
 
             {filteredSummary.length === 0 && (
               <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
@@ -467,23 +427,36 @@ export default function MarketCoverageDashboard() {
         </div>
       </CollapsibleSection>
 
-      {/* Gap Events (replaces Low Coverage) */}
+      {/* Gap Events */}
       <CollapsibleSection
-        title={`Gap Maggiori (${filteredGapEvents.length})`}
+        title={`Eventi con Gap (${filteredGapEvents.length})`}
         open={gapEventsOpen}
         onToggle={() => setGapEventsOpen(!gapEventsOpen)}
         badge={filteredGapEvents.length > 0 ? filteredGapEvents.length : undefined}
-        badgeColor={filteredGapEvents.length > 0 ? "#ef4444" : undefined}
+        badgeColor={filteredGapEvents.length > 0 ? "#f59e0b" : undefined}
       >
         {filteredGapEvents.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
-            Nessun evento con gap (source &gt; vincitu)
+            Nessun evento con gap source → vincitu
           </div>
         ) : (
           <div>
+            <div style={{ padding: "4px 16px", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={handleExportGap}
+                style={{
+                  padding: "4px 10px", borderRadius: 4,
+                  border: "1px solid var(--admin-border, #1e3a5f)",
+                  background: "transparent", color: "var(--admin-text-muted, #94a3b8)",
+                  cursor: "pointer", fontSize: 10, fontWeight: 600, textTransform: "uppercase",
+                }}
+              >
+                Esporta
+              </button>
+            </div>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "2fr 0.8fr 0.6fr 0.5fr 0.5fr 0.5fr 0.6fr 0.7fr",
+              gridTemplateColumns: "1.8fr 0.8fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
               padding: "10px 16px",
               background: "rgba(255,255,255,0.03)",
               borderBottom: "1px solid var(--admin-border, #1e3a5f)",
@@ -496,7 +469,6 @@ export default function MarketCoverageDashboard() {
               <div>Evento</div>
               <div>Sport</div>
               <div style={{ textAlign: "center" }}>Source</div>
-              <div style={{ textAlign: "center" }}>Goldbet</div>
               <div style={{ textAlign: "center" }}>Vincitu</div>
               <div style={{ textAlign: "center" }}>Gap</div>
               <div style={{ textAlign: "center" }}>Coverage</div>
@@ -510,7 +482,7 @@ export default function MarketCoverageDashboard() {
                   onClick={() => handleEventDetail(ev.event_id)}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "2fr 0.8fr 0.6fr 0.5fr 0.5fr 0.5fr 0.6fr 0.7fr",
+                    gridTemplateColumns: "1.8fr 0.8fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
                     padding: "7px 16px",
                     background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
                     borderBottom: "1px solid rgba(255,255,255,0.03)",
@@ -527,27 +499,14 @@ export default function MarketCoverageDashboard() {
                   <div style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>
                     {ev.sport_name}
                   </div>
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: "2px 6px",
-                      borderRadius: 3,
-                      background: ev.source === "goldbet" ? "#f59e0b20" : "#8b5cf620",
-                      color: ev.source === "goldbet" ? "#f59e0b" : "#8b5cf6",
-                      textTransform: "uppercase",
-                    }}>
-                      {ev.source === "goldbet" ? "GB" : "K"}
-                    </span>
-                  </div>
-                  <div style={{ textAlign: "center", fontFamily: "monospace", color: "#f59e0b", fontWeight: 600 }}>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b" }}>
                     {ev.source_count}
                   </div>
-                  <div style={{ textAlign: "center", fontWeight: 600, fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)" }}>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa" }}>
                     {ev.vincitu_count}
                   </div>
                   <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 700, color: "#ef4444" }}>
-                    {ev.gap > 0 ? `−${ev.gap}` : ev.gap}
+                    −{ev.gap}
                   </div>
                   <div style={{ textAlign: "center" }}>
                     <span style={{

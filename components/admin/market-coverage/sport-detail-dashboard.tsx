@@ -17,19 +17,23 @@ interface LeagueRow {
   league_name: string;
   country: string;
   events_count: number;
-  avg_source: number | null;
+  events_with_source: number;
   avg_vincitu: number;
+  avg_source: number | null;
   gap_pct: number | null;
   gap_total: number;
   zero_markets: number;
-  source_events: number;
+  gap_events: number;
 }
 
 interface SportKPIs {
   total_events: number;
-  avg_gap_pct: number | null;
-  gap_total: number;
+  events_with_source: number;
+  avg_vincitu: number;
+  avg_source: number;
+  gap_pct: number | null;
   zero_markets: number;
+  gap_events: number;
 }
 
 interface LeagueEventRow {
@@ -61,7 +65,6 @@ export default function SportDetailDashboard() {
   const [error, setError] = useState("");
 
   // Filters
-  const [sourceFilter, setSourceFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
   // Expanded league row
@@ -80,11 +83,10 @@ export default function SportDetailDashboard() {
   // ─── Load sport leagues ───
   const loadData = useCallback(async () => {
     try {
-      const params: Record<string, string> = { sport: slug };
-      if (sourceFilter !== "all") params.source = sourceFilter;
-      if (statusFilter !== "all") params.status = statusFilter;
+      const p: Record<string, string> = { sport: slug };
+      if (statusFilter !== "all") p.status = statusFilter;
 
-      const data = await fetchApi("sport-leagues", params);
+      const data = await fetchApi("sport-leagues", p);
       setSportName(data.sport?.name || slug);
       setLeagues(data.leagues || []);
       setKpis(data.kpis || null);
@@ -95,7 +97,7 @@ export default function SportDetailDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [slug, sourceFilter, statusFilter]);
+  }, [slug, statusFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -118,11 +120,10 @@ export default function SportDetailDashboard() {
     setExpandedLeague(leagueId);
     setLeagueEventsLoading(true);
     try {
-      const params: Record<string, string> = { league_id: leagueId };
-      if (sourceFilter !== "all") params.source = sourceFilter;
-      if (statusFilter !== "all") params.status = statusFilter;
+      const p: Record<string, string> = { league_id: leagueId };
+      if (statusFilter !== "all") p.status = statusFilter;
 
-      const data = await fetchApi("league-events", params);
+      const data = await fetchApi("league-events", p);
       setLeagueEvents(data.events || []);
     } catch {
       setLeagueEvents([]);
@@ -145,15 +146,17 @@ export default function SportDetailDashboard() {
   };
 
   const handleExportLeagues = () => {
-    const headers = ["Lega", "Paese", "Eventi", "Avg Source", "Avg Vincitu", "Gap %", "Mancanti", "Zero"];
+    const headers = ["Lega", "Paese", "Eventi", "Con Source", "Avg Source", "Avg Vincitu", "Gap %", "Mancanti", "Con Gap", "Zero"];
     const rows = leagues.map(l => [
       l.league_name,
       l.country || "N/D",
       l.events_count,
-      l.avg_source ?? "N/D",
+      l.events_with_source,
+      l.avg_source,
       l.avg_vincitu,
-      l.gap_pct != null ? `${l.gap_pct}%` : "N/D",
+      l.gap_pct,
       l.gap_total,
+      l.gap_events,
       l.zero_markets,
     ]);
     const filename = `market-coverage-${slug}.csv`;
@@ -206,7 +209,7 @@ export default function SportDetailDashboard() {
             ← Indietro
           </button>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
-            {sportName} — Coverage Leghe
+            {sportName} — Gap per Lega
           </h2>
         </div>
         <div style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
@@ -225,27 +228,6 @@ export default function SportDetailDashboard() {
         alignItems: "center",
         flexWrap: "wrap",
       }}>
-        <div style={{ display: "flex", gap: 4 }}>
-          {["all", "goldbet", "kambi"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setSourceFilter(s)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 4,
-                border: "1px solid var(--admin-border, #1e3a5f)",
-                background: sourceFilter === s ? "#2563eb" : "transparent",
-                color: sourceFilter === s ? "#fff" : "var(--admin-text-muted, #94a3b8)",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                textTransform: "uppercase",
-              }}
-            >
-              {s === "all" ? "Tutte" : s === "goldbet" ? "Goldbet" : "Kambi"}
-            </button>
-          ))}
-        </div>
         <div style={{ display: "flex", gap: 4 }}>
           {["all", "live", "prematch"].map((s) => (
             <button
@@ -279,16 +261,17 @@ export default function SportDetailDashboard() {
             label="Eventi Totali"
             value={formatNum(kpis.total_events)}
             color="var(--admin-text, #e2e8f0)"
+            subtitle={`${kpis.events_with_source} con source data`}
           />
           <KPICard
-            label="Gap Medio %"
-            value={kpis.avg_gap_pct != null ? `${kpis.avg_gap_pct}%` : "—"}
-            color={gapColor(kpis.avg_gap_pct)}
+            label="Avg Source → Vincitu"
+            value={`${kpis.avg_source || "—"} → ${kpis.avg_vincitu}`}
+            color={kpis.gap_pct != null && kpis.gap_pct > 5 ? "#f59e0b" : "#10b981"}
           />
           <KPICard
-            label="Mercati Mancanti"
-            value={formatNum(kpis.gap_total)}
-            color={kpis.gap_total > 0 ? "#ef4444" : "#10b981"}
+            label="Gap Medio"
+            value={kpis.gap_pct != null ? `${kpis.gap_pct}%` : "N/D"}
+            color={kpis.gap_pct != null ? gapColor(kpis.gap_pct) : "var(--admin-text-muted)"}
           />
           <KPICard
             label="Zero Mercati"
@@ -308,7 +291,7 @@ export default function SportDetailDashboard() {
           {/* Table header */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.8fr 0.8fr 0.6fr 0.8fr 0.8fr 0.7fr 0.7fr 0.5fr",
+            gridTemplateColumns: "1.6fr 0.6fr 0.5fr 0.6fr 0.6fr 0.6fr 0.5fr 0.5fr 0.4fr",
             padding: "10px 16px",
             background: "rgba(255,255,255,0.03)",
             borderBottom: "1px solid var(--admin-border, #1e3a5f)",
@@ -319,12 +302,13 @@ export default function SportDetailDashboard() {
             letterSpacing: 0.5,
           }}>
             <div>Lega</div>
-            <div>Paese</div>
             <div style={{ textAlign: "center" }}>Eventi</div>
-            <div style={{ textAlign: "center" }}>Avg Source</div>
-            <div style={{ textAlign: "center" }}>Avg Vincitu</div>
+            <div style={{ textAlign: "center" }}>Source</div>
+            <div style={{ textAlign: "center" }}>Avg Src</div>
+            <div style={{ textAlign: "center" }}>Avg Vin</div>
             <div style={{ textAlign: "center" }}>Gap %</div>
             <div style={{ textAlign: "center" }}>Mancanti</div>
+            <div style={{ textAlign: "center" }}>Con Gap</div>
             <div style={{ textAlign: "center" }}>Zero</div>
           </div>
 
@@ -338,7 +322,7 @@ export default function SportDetailDashboard() {
                     onClick={() => handleExpandLeague(league.league_id)}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1.8fr 0.8fr 0.6fr 0.8fr 0.8fr 0.7fr 0.7fr 0.5fr",
+                      gridTemplateColumns: "1.6fr 0.6fr 0.5fr 0.6fr 0.6fr 0.6fr 0.5fr 0.5fr 0.4fr",
                       padding: "8px 16px",
                       background: isExpanded ? "rgba(37, 99, 235, 0.08)" : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"),
                       borderBottom: "1px solid rgba(255,255,255,0.03)",
@@ -354,23 +338,24 @@ export default function SportDetailDashboard() {
                       <span style={{ fontSize: 10, color: "var(--admin-text-muted)" }}>{isExpanded ? "▼" : "▶"}</span>
                       {league.league_name}
                     </div>
-                    <div style={{ color: "var(--admin-text-muted, #94a3b8)", fontSize: 12 }}>
-                      {league.country || "—"}
-                    </div>
                     <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
                       {formatNum(league.events_count)}
                     </div>
-                    <div style={{ textAlign: "center", fontFamily: "monospace", color: league.avg_source != null ? "#f59e0b" : "var(--admin-text-muted)" }}>
+                    <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
+                      {league.events_with_source}/{league.events_count}
+                    </div>
+                    <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
                       {league.avg_source != null ? league.avg_source : "—"}
                     </div>
-                    <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)", fontFamily: "monospace" }}>
+                    <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
                       {league.avg_vincitu}
                     </div>
                     <div style={{ textAlign: "center" }}>
                       {league.gap_pct != null ? (
                         <span style={{
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: 600,
+                          fontFamily: "monospace",
                           padding: "2px 6px",
                           borderRadius: 3,
                           background: gapBg(league.gap_pct),
@@ -379,11 +364,14 @@ export default function SportDetailDashboard() {
                           {league.gap_pct}%
                         </span>
                       ) : (
-                        <span style={{ color: "var(--admin-text-muted)" }}>—</span>
+                        <span style={{ color: "var(--admin-text-muted)", fontSize: 12 }}>—</span>
                       )}
                     </div>
-                    <div style={{ textAlign: "center", fontFamily: "monospace", color: league.gap_total > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
+                    <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: league.gap_total > 0 ? "#ef4444" : "var(--admin-text-muted)", fontSize: 12 }}>
                       {formatNum(league.gap_total)}
+                    </div>
+                    <div style={{ textAlign: "center", fontWeight: 600, color: league.gap_events > 0 ? "#f59e0b" : "var(--admin-text-muted)" }}>
+                      {league.gap_events}
                     </div>
                     <div style={{ textAlign: "center", color: league.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
                       {league.zero_markets}
@@ -408,7 +396,7 @@ export default function SportDetailDashboard() {
                           {/* Events header */}
                           <div style={{
                             display: "grid",
-                            gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.7fr",
+                            gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
                             padding: "6px 8px",
                             fontSize: 10,
                             fontWeight: 700,
@@ -431,7 +419,7 @@ export default function SportDetailDashboard() {
                               onClick={() => handleEventDetail(ev.id)}
                               style={{
                                 display: "grid",
-                                gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.7fr",
+                                gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
                                 padding: "5px 8px",
                                 fontSize: 12,
                                 cursor: "pointer",
@@ -444,26 +432,30 @@ export default function SportDetailDashboard() {
                               <div style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
                                 {ev.home_team} vs {ev.away_team}
                               </div>
-                              <div style={{ textAlign: "center", fontFamily: "monospace", color: "#f59e0b", fontWeight: 600 }}>
+                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
                                 {ev.source_count != null ? ev.source_count : "—"}
                               </div>
-                              <div style={{ textAlign: "center", fontWeight: 600, fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)" }}>
+                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
                                 {ev.vincitu_count}
                               </div>
-                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 700, color: (ev.gap ?? 0) > 0 ? "#ef4444" : "var(--admin-text-muted)" }}>
+                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: ev.gap != null && ev.gap > 0 ? "#ef4444" : "var(--admin-text-muted)" }}>
                                 {ev.gap != null ? (ev.gap > 0 ? `−${ev.gap}` : ev.gap === 0 ? "0" : `+${Math.abs(ev.gap)}`) : "—"}
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <span style={{
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  padding: "2px 6px",
-                                  borderRadius: 3,
-                                  background: coverageBg(ev.coverage_pct),
-                                  color: coverageColor(ev.coverage_pct),
-                                }}>
-                                  {ev.coverage_pct != null ? `${ev.coverage_pct}%` : "—"}
-                                </span>
+                                {ev.coverage_pct != null ? (
+                                  <span style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    padding: "2px 6px",
+                                    borderRadius: 3,
+                                    background: coverageBg(ev.coverage_pct),
+                                    color: coverageColor(ev.coverage_pct),
+                                  }}>
+                                    {ev.coverage_pct}%
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>—</span>
+                                )}
                               </div>
                               <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
                                 {formatTime(ev.starts_at)}
