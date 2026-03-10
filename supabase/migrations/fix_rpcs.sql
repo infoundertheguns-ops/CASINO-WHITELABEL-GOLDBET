@@ -83,11 +83,13 @@ BEGIN
 
       v_processed := v_processed + 1;
 
-      -- Track source_markets_count: always overwrite (scraper deduplicates before sending)
+      -- Track source_markets_count: use GREATEST so partial scrapes (incomplete extra sections)
+      -- never lower the count. With overview_only=true old markets stay active, so count should
+      -- reflect the maximum ever seen from the source.
       IF v_ev -> 'markets' IS NOT NULL
          AND jsonb_array_length(COALESCE(v_ev -> 'markets', '[]'::JSONB)) > 0 THEN
         v_batch_count := jsonb_array_length(v_ev -> 'markets');
-        UPDATE events SET source_markets_count = v_batch_count
+        UPDATE events SET source_markets_count = GREATEST(COALESCE(source_markets_count, 0), v_batch_count)
         WHERE id = v_event_id;
       END IF;
 
