@@ -72,20 +72,87 @@ export function parsePlayerPrefix(homeTeam: string): ParsedPlayerEvent | null {
   return { matchKey, playerName, playerTeam: team1, opponentTeam: team2, side: "home" };
 }
 
+/** Abbreviation → full team name map */
+export type TeamNameMap = Map<string, string>;
+
+/** Minimal regular event for cross-reference */
+export interface RegularEventRef {
+  home_team: string;
+  away_team: string;
+  starts_at: string;
+}
+
+/**
+ * Build a map of abbreviations → full team names by cross-referencing
+ * giocatori events with regular events that share the same starts_at.
+ */
+export function buildTeamNameMap(
+  giocatoriEvents: PlayerEventRow[],
+  regularEvents: RegularEventRef[]
+): TeamNameMap {
+  const map: TeamNameMap = new Map();
+
+  // Index regular events by starts_at
+  const byTime = new Map<string, RegularEventRef[]>();
+  for (const re of regularEvents) {
+    const arr = byTime.get(re.starts_at) || [];
+    arr.push(re);
+    byTime.set(re.starts_at, arr);
+  }
+
+  // Collect unique matches from giocatori (matchKey + starts_at)
+  const seen = new Set<string>();
+  for (const ev of giocatoriEvents) {
+    const key = `${ev.parsed.matchKey}|${ev.starts_at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const candidates = byTime.get(ev.starts_at);
+    if (!candidates || candidates.length === 0) continue;
+
+    const homeAbbr = ev.parsed.matchKey.split("-")[0];
+    const awayAbbr = ev.parsed.matchKey.split("-")[1];
+
+    if (candidates.length === 1) {
+      // Single candidate → positional assignment
+      map.set(homeAbbr, candidates[0].home_team);
+      map.set(awayAbbr, candidates[0].away_team);
+    } else {
+      // Multiple candidates → prefix match
+      const match = candidates.find(
+        (c) =>
+          c.home_team.toUpperCase().startsWith(homeAbbr.toUpperCase()) ||
+          c.away_team.toUpperCase().startsWith(awayAbbr.toUpperCase())
+      );
+      if (match) {
+        map.set(homeAbbr, match.home_team);
+        map.set(awayAbbr, match.away_team);
+      }
+    }
+  }
+
+  return map;
+}
+
 /**
  * Group parsed player events by match + league
  */
-export function groupEventsByMatch(events: PlayerEventRow[]): MatchGroup[] {
+export function groupEventsByMatch(
+  events: PlayerEventRow[],
+  teamNameMap?: TeamNameMap
+): MatchGroup[] {
   const groupMap = new Map<string, MatchGroup>();
 
   for (const ev of events) {
     const key = `${ev.parsed.matchKey}|${ev.league_slug}`;
     let group = groupMap.get(key);
     if (!group) {
+      const homeAbbr = ev.parsed.matchKey.split("-")[0];
+      const awayAbbr = ev.parsed.matchKey.split("-")[1];
       group = {
         matchKey: ev.parsed.matchKey,
-        homeTeam: ev.parsed.matchKey.split("-")[0],
-        awayTeam: ev.parsed.matchKey.split("-")[1],
+        homeTeam: teamNameMap?.get(homeAbbr) || homeAbbr,
+        awayTeam: teamNameMap?.get(awayAbbr) || awayAbbr,
         league: ev.league_name,
         leagueSlug: ev.league_slug,
         sportName: ev.sport_name,

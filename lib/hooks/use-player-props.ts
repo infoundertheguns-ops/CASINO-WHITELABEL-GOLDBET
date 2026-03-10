@@ -5,8 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import {
   parsePlayerPrefix,
   groupEventsByMatch,
+  buildTeamNameMap,
   type PlayerEventRow,
   type MatchGroup,
+  type TeamNameMap,
+  type RegularEventRef,
 } from "@/lib/utils/player-props";
 import {
   sortSelections,
@@ -44,6 +47,7 @@ export function usePlayerProps(): UsePlayerPropsReturn {
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [loadingMarkets, setLoadingMarkets] = useState<Set<string>>(new Set());
+  const [teamNameMap, setTeamNameMap] = useState<TeamNameMap>(new Map());
   const marketCache = useRef<Map<string, Market[]>>(new Map());
 
   // Phase 1: fetch all Giocatori events (metadata only, no markets)
@@ -94,6 +98,22 @@ export function usePlayerProps(): UsePlayerPropsReturn {
         }
 
         setAllEvents(rows);
+
+        // Cross-reference: fetch regular events to resolve team abbreviations
+        if (rows.length > 0) {
+          const uniqueTimes = [...new Set(rows.map((r) => r.starts_at))];
+          const { data: regData } = await supabase
+            .from("events")
+            .select("home_team, away_team, starts_at")
+            .in("starts_at", uniqueTimes)
+            .not("external_id", "like", "giocatori:%")
+            .in("status", ["prematch", "live"]);
+
+          if (!cancelled && regData) {
+            const tnMap = buildTeamNameMap(rows, regData as RegularEventRef[]);
+            setTeamNameMap(tnMap);
+          }
+        }
       } catch (err: any) {
         if (!cancelled) {
           console.error("[usePlayerProps] fetch error:", err.message);
@@ -121,13 +141,19 @@ export function usePlayerProps(): UsePlayerPropsReturn {
     if (activeSport === "basket" && e.sport_slug !== "giocatori-basket") return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
+      const homeAbbr = e.parsed.matchKey.split("-")[0];
+      const awayAbbr = e.parsed.matchKey.split("-")[1];
+      const homeFull = teamNameMap.get(homeAbbr)?.toLowerCase() || "";
+      const awayFull = teamNameMap.get(awayAbbr)?.toLowerCase() || "";
       if (!e.parsed.playerName.toLowerCase().includes(q) &&
-          !e.parsed.matchKey.toLowerCase().includes(q)) return false;
+          !e.parsed.matchKey.toLowerCase().includes(q) &&
+          !homeFull.includes(q) &&
+          !awayFull.includes(q)) return false;
     }
     return true;
   });
 
-  const groups = groupEventsByMatch(filtered);
+  const groups = groupEventsByMatch(filtered, teamNameMap);
 
   // Phase 3: lazy load markets for a single player event
   const loadPlayerMarkets = useCallback(async (eventId: string) => {
