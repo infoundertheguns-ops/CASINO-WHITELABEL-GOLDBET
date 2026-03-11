@@ -81,10 +81,10 @@ export async function POST(req: NextRequest) {
     staleLiveFinished = ids.length;
   }
 
-  // ── 2b. End abandoned prematch events (no scraper update for 2+ hours) ──
+  // ── 2b. End abandoned prematch events (no scraper update for 4+ hours) ──
   // If scraper stopped processing an event (removed from Goldbet), it becomes stale.
-  // 2h threshold = ~5 prematch cycles. Mark as ended (no score/settlement needed).
-  const prematchStaleThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  // 4h threshold = ~24 prematch cycles. Mark as ended (no score/settlement needed).
+  const prematchStaleThreshold = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
   const { data: stalePrematch } = await supabase
     .from("events")
     .select("id")
