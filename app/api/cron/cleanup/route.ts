@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
   try {
     const { data: purgeData, error: purgeErr } = await supabase.rpc("purge_old_ended_events", {
       p_hours_old: 48,
-      p_batch_limit: 500,
+      p_batch_limit: 2000,
     });
     if (!purgeErr && purgeData) {
       purgeResult = typeof purgeData === "string" ? JSON.parse(purgeData) : purgeData;
