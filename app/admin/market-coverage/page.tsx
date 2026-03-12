@@ -1,7 +1,7 @@
 "use client";
 
-import MarketCoverageDashboard from "@/components/admin/market-coverage/market-coverage-dashboard";
+import LeonCoverageDashboard from "@/components/admin/market-coverage/leon-coverage-dashboard";
 
 export default function MarketCoveragePage() {
-  return <MarketCoverageDashboard />;
+  return <LeonCoverageDashboard />;
 }

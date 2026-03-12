@@ -62,7 +62,6 @@ function getScraperInfo(source: string, type: "live" | "prematch"): ScraperInfo 
 
   // Fallback: if cycle timestamp is stale (>1h) but snapshot is fresh (<5min),
   // the scraper is alive but cycle timestamps are stale after restart.
-  // Use snapshot age instead.
   const snapshotAge = latest?.timestamp
     ? (Date.now() - new Date(latest.timestamp).getTime()) / 1000
     : Infinity;
@@ -130,7 +129,7 @@ export async function GET() {
     try {
       const { getRedisClient } = await import("@/lib/redis");
       const redis = await getRedisClient();
-      for (const source of ["main", "prematch"]) {
+      for (const source of ["leon"]) {
         const raw = await redis.get(`scraper:snapshot:${source}`);
         if (raw) {
           if (!g.__scraperSnapshotsBySource) g.__scraperSnapshotsBySource = {};
@@ -140,14 +139,9 @@ export async function GET() {
     } catch { /* Redis fallback is best-effort */ }
   }
 
-  // 2. Scraper info from in-memory snapshots (or Redis-hydrated)
-  const scraperLive = getScraperInfo("main", "live");
-  const scraperPrematch: ScraperInfo = (() => {
-    // Try prematch VPS first, fallback to main
-    const pre = getScraperInfo("prematch", "prematch");
-    if (pre.connected) return pre;
-    return getScraperInfo("main", "prematch");
-  })();
+  // 2. Leon scraper info from in-memory snapshots
+  const leonLive = getScraperInfo("leon", "live");
+  const leonPrematch = getScraperInfo("leon", "prematch");
 
   // 3. Redis info
   let redisInfo: RedisInfo = { connected: false };
@@ -164,10 +158,10 @@ export async function GET() {
     redisInfo = { connected: false };
   }
 
-  // 4. Compute scores
+  // 4. Compute scores — Leon-centric
   const scores = computeHealthScores(
     rpc,
-    { live: scraperLive, prematch: scraperPrematch },
+    { live: leonLive, prematch: leonPrematch },
     redisInfo
   );
 
@@ -175,8 +169,8 @@ export async function GET() {
     scores,
     metrics: rpc,
     scraper: {
-      live: scraperLive,
-      prematch: scraperPrematch,
+      live: leonLive,
+      prematch: leonPrematch,
     },
     redis: redisInfo,
     cached_at: new Date().toISOString(),

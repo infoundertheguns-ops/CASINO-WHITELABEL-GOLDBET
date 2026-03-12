@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// System Health Scoring Engine
+// System Health Scoring Engine — Leon-centric
 // 7 subsystems with weighted scores → overall 0-100 + traffic light
 // ═══════════════════════════════════════════════════════════════
 
@@ -16,7 +16,7 @@ export interface FreshnessBuckets {
 }
 
 export interface SystemHealthRPC {
-  events: Record<string, number>; // "goldbet_live": N, "kambi_prematch": N, etc.
+  events: Record<string, number>; // "leon_live": N, "kambi_prematch": N, etc.
   active_by_source: {
     markets: Record<string, number> | null;
     outcomes_total: number;
@@ -104,13 +104,13 @@ function freshPercent(
 
 // ═══ SCORING FUNCTIONS ═══
 
-function scoreScraperLive(scraper: ScraperInfo): SubsystemScore {
+function scoreLeonLive(scraper: ScraperInfo): SubsystemScore {
   let score = 0;
   let details = "";
 
   if (!scraper.connected) {
     details = "Disconnesso";
-    return { score: 0, weight: 25, label: "Scraper Live", details };
+    return { score: 0, weight: 25, label: "Leon Live", details };
   }
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
@@ -126,16 +126,16 @@ function scoreScraperLive(scraper: ScraperInfo): SubsystemScore {
   score = clamp(score - errorPenalty);
 
   details = `Ciclo: ${Math.round(cycle)}s, Errori: ${errors}/h`;
-  return { score, weight: 25, label: "Scraper Live", details };
+  return { score, weight: 25, label: "Leon Live", details };
 }
 
-function scoreScraperPrematch(scraper: ScraperInfo): SubsystemScore {
+function scoreLeonPrematch(scraper: ScraperInfo): SubsystemScore {
   let score = 0;
   let details = "";
 
   if (!scraper.connected) {
     details = "Disconnesso";
-    return { score: 0, weight: 15, label: "Scraper Prematch", details };
+    return { score: 0, weight: 15, label: "Leon Prematch", details };
   }
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
@@ -147,18 +147,16 @@ function scoreScraperPrematch(scraper: ScraperInfo): SubsystemScore {
 
   score = clamp(score);
   details = `Ciclo: ${Math.round(cycle / 60)}min`;
-  return { score, weight: 15, label: "Scraper Prematch", details };
+  return { score, weight: 15, label: "Leon Prematch", details };
 }
 
 function scoreFreshnessLive(
   outcomeFreshness: Record<string, FreshnessBuckets> | null
 ): SubsystemScore {
-  // Uses market-level freshness: markets update when detail workers fetch them
-  // Live detail cycle: ~30s for all events, but individual markets may lag
   if (!outcomeFreshness || Object.keys(outcomeFreshness).length === 0) {
     return {
       score: 100,
-      weight: 25,
+      weight: 20,
       label: "Freshness Live",
       details: "Nessun evento live",
     };
@@ -174,7 +172,6 @@ function scoreFreshnessLive(
     }
   }
 
-  // Market freshness for live: >70% within 5 min → 100, <20% → 0
   const pctFresh = freshPercent(merged, ["lt_30s", "30s_2m", "2m_5m"]);
   let score: number;
   if (pctFresh >= 70) score = 100;
@@ -184,7 +181,7 @@ function scoreFreshnessLive(
   score = clamp(score);
   return {
     score,
-    weight: 25,
+    weight: 20,
     label: "Freshness Live",
     details: `${Math.round(pctFresh)}% entro 5 min`,
   };
@@ -193,8 +190,6 @@ function scoreFreshnessLive(
 function scoreFreshnessPrematch(
   outcomeFreshness: Record<string, FreshnessBuckets> | null
 ): SubsystemScore {
-  // Prematch markets update during full prematch cycles (every 15-30 min)
-  // Many markets are created once and not touched until next full cycle
   if (!outcomeFreshness || Object.keys(outcomeFreshness).length === 0) {
     return {
       score: 100,
@@ -214,7 +209,6 @@ function scoreFreshnessPrematch(
     }
   }
 
-  // Market freshness for prematch: >50% within 1h → 100, <10% → 0
   const pctFresh = freshPercent(merged, [
     "lt_30s", "30s_2m", "2m_5m", "5m_15m", "15m_30m", "30m_1h",
   ]);
@@ -236,28 +230,24 @@ function scoreDataQuality(quality: SystemHealthRPC["quality"]): SubsystemScore {
   let score = 100;
   const issues: string[] = [];
 
-  // Orphan markets: -5 per 10, max -30
   if (quality.orphan_markets > 0) {
     const penalty = Math.min(30, Math.floor(quality.orphan_markets / 10) * 5);
     score -= penalty;
     issues.push(`${quality.orphan_markets} orfani`);
   }
 
-  // Finished backlog: -10 per 50, max -30
   if (quality.finished_backlog > 0) {
     const penalty = Math.min(30, Math.floor(quality.finished_backlog / 50) * 10);
     score -= penalty;
     issues.push(`${quality.finished_backlog} backlog`);
   }
 
-  // Stale prematch: -5 per 20, max -20
   if (quality.stale_prematch > 0) {
     const penalty = Math.min(20, Math.floor(quality.stale_prematch / 20) * 5);
     score -= penalty;
     issues.push(`${quality.stale_prematch} stale`);
   }
 
-  // Events no markets: -5 per 50, max -10
   if (quality.events_no_markets > 0) {
     const penalty = Math.min(10, Math.floor(quality.events_no_markets / 50) * 5);
     score -= penalty;
@@ -285,8 +275,6 @@ function scoreRedisPipeline(redis: RedisInfo): SubsystemScore {
   let score = 100;
   const latency = redis.latencyMs ?? 0;
 
-  // Latency: 100 at <=10ms, linear to 0 at >50ms
-  // Localhost Redis can spike to 20-30ms due to event loop jitter
   if (latency > 10) {
     const penalty = Math.min(100, Math.round(((latency - 10) / 40) * 100));
     score -= penalty;
@@ -308,14 +296,12 @@ function scoreSettlement(quality: SystemHealthRPC["quality"]): SubsystemScore {
   let score = 100;
   const issues: string[] = [];
 
-  // Unsettled bets: -10 per 50, max -50
   if (unsettled > 0) {
     const penalty = Math.min(50, Math.floor(unsettled / 50) * 10);
     score -= penalty;
     issues.push(`${unsettled} non settled`);
   }
 
-  // Finished backlog also relevant: -5 per 100, max -50
   if (backlog > 0) {
     const penalty = Math.min(50, Math.floor(backlog / 100) * 5);
     score -= penalty;
@@ -325,22 +311,24 @@ function scoreSettlement(quality: SystemHealthRPC["quality"]): SubsystemScore {
   score = clamp(score);
   return {
     score,
-    weight: 5,
+    weight: 10,
     label: "Settlement",
     details: issues.length > 0 ? issues.join(", ") : "OK",
   };
 }
 
 // ═══ MAIN SCORING ═══
+// Weights: Leon Live 25, Leon Prematch 15, Freshness Live 20,
+//          Freshness Prematch 10, Data Quality 10, Redis 10, Settlement 10 = 100
 
 export function computeHealthScores(
   rpc: SystemHealthRPC,
-  scraper: { live: ScraperInfo; prematch: ScraperInfo },
+  leonScraper: { live: ScraperInfo; prematch: ScraperInfo },
   redis: RedisInfo
 ): HealthScores {
   const subsystems: Record<string, SubsystemScore> = {
-    scraper_live: scoreScraperLive(scraper.live),
-    scraper_prematch: scoreScraperPrematch(scraper.prematch),
+    leon_live: scoreLeonLive(leonScraper.live),
+    leon_prematch: scoreLeonPrematch(leonScraper.prematch),
     freshness_live: scoreFreshnessLive(rpc.outcome_freshness?.live ?? null),
     freshness_prematch: scoreFreshnessPrematch(rpc.outcome_freshness?.prematch ?? null),
     data_quality: scoreDataQuality(rpc.quality),

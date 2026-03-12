@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
-// ═══ GET — Market Coverage Report (Source vs Vincitu Gap) ═══
+// ═══ GET — Leon Market Coverage Report ═══
 // Query params: action=stats|event-detail|sport-leagues|league-events
 
 export async function GET(req: NextRequest) {
@@ -29,17 +29,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── Stats: RPC summary + gap events ───
+// ─── Stats: Leon-only RPC ───
 
 async function getStats(supabase: any) {
-  const { data, error } = await supabase.rpc("get_market_coverage").single();
+  const { data, error } = await supabase.rpc("get_leon_coverage").single();
   if (error) throw error;
 
   return NextResponse.json({
+    kpis: data.kpis || {},
     summary: data.summary || [],
     gap_events: data.gap_events || [],
-    total_events: data.total_events || 0,
-    events_with_source: data.events_with_source || 0,
     generated_at: data.generated_at,
   });
 }
@@ -112,7 +111,7 @@ async function getEventDetail(supabase: any, sp: URLSearchParams) {
   });
 }
 
-// ─── Sport Leagues: aggregate coverage by league for a sport ───
+// ─── Sport Leagues: aggregate coverage by league for a sport (Leon only) ───
 
 async function getSportLeagues(supabase: any, sp: URLSearchParams) {
   const sportSlug = sp.get("sport");
@@ -129,11 +128,12 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
     .single();
   if (sErr || !sportRow) return NextResponse.json({ error: "Sport not found" }, { status: 404 });
 
-  // Fetch all events for this sport (include source_markets_count)
+  // Fetch all Leon events for this sport
   let query = supabase
     .from("events")
     .select("id, league_id, status, source_markets_count, leagues(id, name, country)")
     .eq("sport_id", sportRow.id)
+    .eq("source", "leon")
     .in("status", ["prematch", "live"]);
 
   if (status === "live") query = query.eq("status", "live");
@@ -182,9 +182,8 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
     league_name: string;
     country: string;
     events_count: number;
-    events_with_source: number;
-    total_vincitu: number;
-    total_source: number;
+    total_db: number;
+    total_leon: number;
     zero_markets: number;
     gap_events: number;
   }>();
@@ -193,8 +192,8 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
     const lid = ev.league_id || "unknown";
     const lname = ev.leagues?.name || "Sconosciuto";
     const lcountry = ev.leagues?.country || "";
-    const vincituCount = countMap.get(ev.id) || 0;
-    const sourceCount = ev.source_markets_count as number | null;
+    const dbCount = countMap.get(ev.id) || 0;
+    const leonCount = ev.source_markets_count as number | null;
 
     let entry = leagueMap.get(lid);
     if (!entry) {
@@ -203,9 +202,8 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
         league_name: lname,
         country: lcountry,
         events_count: 0,
-        events_with_source: 0,
-        total_vincitu: 0,
-        total_source: 0,
+        total_db: 0,
+        total_leon: 0,
         zero_markets: 0,
         gap_events: 0,
       };
@@ -213,33 +211,29 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
     }
 
     entry.events_count++;
-    entry.total_vincitu += vincituCount;
-    if (vincituCount === 0) entry.zero_markets++;
-    if (sourceCount != null) {
-      entry.events_with_source++;
-      entry.total_source += sourceCount;
-      if (sourceCount > vincituCount) entry.gap_events++;
+    entry.total_db += dbCount;
+    if (dbCount === 0) entry.zero_markets++;
+    if (leonCount != null) {
+      entry.total_leon += leonCount;
+      if (leonCount > dbCount) entry.gap_events++;
     }
   }
 
   const leagues = Array.from(leagueMap.values()).map((l) => {
-    const avgVincitu = l.events_count > 0 ? Math.round((l.total_vincitu / l.events_count) * 10) / 10 : 0;
-    const avgSource = l.events_with_source > 0 ? Math.round((l.total_source / l.events_with_source) * 10) / 10 : null;
-    const gapPct = avgSource != null && avgSource > 0
-      ? Math.round((1 - avgVincitu / avgSource) * 1000) / 10
-      : null;
-    const gapTotal = l.total_source > l.total_vincitu ? l.total_source - l.total_vincitu : 0;
+    const avgDb = l.events_count > 0 ? Math.round((l.total_db / l.events_count) * 10) / 10 : 0;
+    const avgLeon = l.events_count > 0 ? Math.round((l.total_leon / l.events_count) * 10) / 10 : 0;
+    const coveragePct = l.total_leon > 0
+      ? Math.round((l.total_db / l.total_leon) * 1000) / 10
+      : 100;
 
     return {
       league_id: l.league_id,
       league_name: l.league_name,
       country: l.country,
       events_count: l.events_count,
-      events_with_source: l.events_with_source,
-      avg_vincitu: avgVincitu,
-      avg_source: avgSource,
-      gap_pct: gapPct,
-      gap_total: gapTotal,
+      avg_leon: avgLeon,
+      avg_db: avgDb,
+      coverage_pct: coveragePct,
       zero_markets: l.zero_markets,
       gap_events: l.gap_events,
     };
@@ -250,12 +244,11 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
 
   // KPIs
   const totalEvents = allEvents.length;
-  const eventsWithSource = allEvents.filter((e: any) => e.source_markets_count != null).length;
-  const totalVincitu = Array.from(countMap.values()).reduce((a, b) => a + b, 0);
-  const totalSource = allEvents.reduce((s: number, e: any) => s + (e.source_markets_count || 0), 0);
-  const avgVincitu = totalEvents > 0 ? Math.round(totalVincitu / totalEvents * 10) / 10 : 0;
-  const avgSource = eventsWithSource > 0 ? Math.round(totalSource / eventsWithSource * 10) / 10 : 0;
-  const gapPct = avgSource > 0 ? Math.round((1 - avgVincitu / avgSource) * 1000) / 10 : null;
+  const totalDb = Array.from(countMap.values()).reduce((a, b) => a + b, 0);
+  const totalLeon = allEvents.reduce((s: number, e: any) => s + (e.source_markets_count || 0), 0);
+  const avgDb = totalEvents > 0 ? Math.round(totalDb / totalEvents * 10) / 10 : 0;
+  const avgLeon = totalEvents > 0 ? Math.round(totalLeon / totalEvents * 10) / 10 : 0;
+  const coveragePctTotal = totalLeon > 0 ? Math.round((totalDb / totalLeon) * 1000) / 10 : 100;
   const totalZero = leagues.reduce((s, l) => s + l.zero_markets, 0);
   const totalGapEvents = leagues.reduce((s, l) => s + l.gap_events, 0);
 
@@ -264,17 +257,16 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
     leagues,
     kpis: {
       total_events: totalEvents,
-      events_with_source: eventsWithSource,
-      avg_vincitu: avgVincitu,
-      avg_source: avgSource,
-      gap_pct: gapPct,
+      avg_leon: avgLeon,
+      avg_db: avgDb,
+      coverage_pct: coveragePctTotal,
       zero_markets: totalZero,
       gap_events: totalGapEvents,
     },
   });
 }
 
-// ─── League Events: events for a specific league with coverage data ───
+// ─── League Events: events for a specific league with coverage data (Leon only) ───
 
 async function getLeagueEvents(supabase: any, sp: URLSearchParams) {
   const leagueId = sp.get("league_id");
@@ -285,8 +277,9 @@ async function getLeagueEvents(supabase: any, sp: URLSearchParams) {
 
   let query = supabase
     .from("events")
-    .select("id, external_id, home_team, away_team, starts_at, status, source, source_markets_count, leagues(name), sports(slug)")
+    .select("id, external_id, home_team, away_team, starts_at, status, source_markets_count, leagues(name), sports(slug)")
     .eq("league_id", leagueId)
+    .eq("source", "leon")
     .in("status", ["prematch", "live"])
     .order("starts_at", { ascending: true })
     .limit(limit);
@@ -322,11 +315,11 @@ async function getLeagueEvents(supabase: any, sp: URLSearchParams) {
   }
 
   const enriched = (events || []).map((e: any) => {
-    const vincituCount = countMap.get(e.id) || 0;
-    const sourceCount = e.source_markets_count as number | null;
-    const gap = sourceCount != null ? sourceCount - vincituCount : null;
-    const coveragePct = sourceCount != null && sourceCount > 0
-      ? Math.round((vincituCount / sourceCount) * 1000) / 10
+    const dbCount = countMap.get(e.id) || 0;
+    const leonCount = e.source_markets_count as number | null;
+    const gap = leonCount != null ? leonCount - dbCount : null;
+    const coveragePct = leonCount != null && leonCount > 0
+      ? Math.round((dbCount / leonCount) * 1000) / 10
       : null;
 
     return {
@@ -336,16 +329,14 @@ async function getLeagueEvents(supabase: any, sp: URLSearchParams) {
       away_team: e.away_team,
       starts_at: e.starts_at,
       status: e.status,
-      source: e.source,
-      league_name: e.leagues?.name,
-      source_count: sourceCount,
-      vincitu_count: vincituCount,
+      leon_count: leonCount,
+      db_count: dbCount,
       gap,
       coverage_pct: coveragePct,
     };
   });
 
-  // Sort by gap DESC (worst first), events without source at end
+  // Sort by gap DESC (worst first)
   enriched.sort((a: any, b: any) => {
     if (a.gap == null && b.gap == null) return 0;
     if (a.gap == null) return 1;

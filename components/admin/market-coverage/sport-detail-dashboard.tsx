@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  fetchApi, formatNum, formatTime,
-  gapColor, gapBg, coverageColor, coverageBg,
+  fetchApi, formatNum, formatNumFull, formatTime,
+  coverageColor, coverageBg,
   KPICard, CollapsibleSection, EventDetailModal,
-  exportCsv, ExportButton,
+  exportCsv, ExportButton, DonutRing,
 } from "./shared";
 import type { EventDetail } from "./shared";
 
@@ -17,21 +17,18 @@ interface LeagueRow {
   league_name: string;
   country: string;
   events_count: number;
-  events_with_source: number;
-  avg_vincitu: number;
-  avg_source: number | null;
-  gap_pct: number | null;
-  gap_total: number;
+  avg_leon: number;
+  avg_db: number;
+  coverage_pct: number;
   zero_markets: number;
   gap_events: number;
 }
 
 interface SportKPIs {
   total_events: number;
-  events_with_source: number;
-  avg_vincitu: number;
-  avg_source: number;
-  gap_pct: number | null;
+  avg_leon: number;
+  avg_db: number;
+  coverage_pct: number;
   zero_markets: number;
   gap_events: number;
 }
@@ -43,10 +40,8 @@ interface LeagueEventRow {
   away_team: string;
   starts_at: string;
   status: string;
-  source: string;
-  league_name: string;
-  source_count: number | null;
-  vincitu_count: number;
+  leon_count: number | null;
+  db_count: number;
   gap: number | null;
   coverage_pct: number | null;
 }
@@ -146,26 +141,24 @@ export default function SportDetailDashboard() {
   };
 
   const handleExportLeagues = () => {
-    const headers = ["Lega", "Paese", "Eventi", "Con Source", "Avg Source", "Avg Vincitu", "Gap %", "Mancanti", "Con Gap", "Zero"];
+    const headers = ["Lega", "Paese", "Eventi", "Avg Leon", "Avg DB", "Coverage %", "Con Gap", "Zero"];
     const rows = leagues.map(l => [
       l.league_name,
       l.country || "N/D",
       l.events_count,
-      l.events_with_source,
-      l.avg_source,
-      l.avg_vincitu,
-      l.gap_pct,
-      l.gap_total,
+      l.avg_leon,
+      l.avg_db,
+      l.coverage_pct,
       l.gap_events,
       l.zero_markets,
     ]);
-    const filename = `market-coverage-${slug}.csv`;
+    const filename = `leon-coverage-${slug}.csv`;
     exportCsv(filename, headers, rows);
   };
 
   if (loading) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "var(--admin-text-muted, #94a3b8)" }}>
+      <div style={{ padding: 60, textAlign: "center", color: "var(--admin-text-muted, #94a3b8)", fontSize: 16 }}>
         Caricamento dettaglio sport...
       </div>
     );
@@ -173,20 +166,16 @@ export default function SportDetailDashboard() {
 
   if (error) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>
+      <div style={{ padding: 60, textAlign: "center", color: "#ef4444", fontSize: 16 }}>
         Errore: {error}
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header with back button */}
       <div style={{
-        background: "var(--admin-card, #0f1f35)",
-        border: "1px solid var(--admin-border, #1e3a5f)",
-        borderRadius: 8,
-        padding: "16px 20px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -197,32 +186,30 @@ export default function SportDetailDashboard() {
             style={{
               background: "rgba(255,255,255,0.05)",
               border: "1px solid var(--admin-border, #1e3a5f)",
-              borderRadius: 6,
+              borderRadius: 8,
               color: "var(--admin-text, #e2e8f0)",
               cursor: "pointer",
-              padding: "6px 10px",
+              padding: "8px 14px",
               fontSize: 14,
               display: "flex",
               alignItems: "center",
             }}
           >
-            ← Indietro
+            &larr; Indietro
           </button>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text, #e2e8f0)" }}>
-            {sportName} — Gap per Lega
-          </h2>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
+              {sportName} &mdash; Coverage per Lega
+            </h2>
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)" }}>
-          Auto-refresh 30s {lastRefresh && `· ${lastRefresh}`}
+        <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)" }}>
+          Auto-refresh 30s {lastRefresh && `\u00B7 ${lastRefresh}`}
         </div>
       </div>
 
       {/* Filters */}
       <div style={{
-        background: "var(--admin-card, #0f1f35)",
-        border: "1px solid var(--admin-border, #1e3a5f)",
-        borderRadius: 8,
-        padding: "12px 20px",
         display: "flex",
         gap: 16,
         alignItems: "center",
@@ -234,13 +221,13 @@ export default function SportDetailDashboard() {
               key={s}
               onClick={() => setStatusFilter(s)}
               style={{
-                padding: "6px 14px",
-                borderRadius: 4,
+                padding: "8px 16px",
+                borderRadius: 6,
                 border: "1px solid var(--admin-border, #1e3a5f)",
                 background: statusFilter === s ? "#2563eb" : "transparent",
                 color: statusFilter === s ? "#fff" : "var(--admin-text-muted, #94a3b8)",
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 600,
                 textTransform: "uppercase",
               }}
@@ -256,228 +243,224 @@ export default function SportDetailDashboard() {
 
       {/* KPI Cards */}
       {kpis && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           <KPICard
             label="Eventi Totali"
-            value={formatNum(kpis.total_events)}
+            value={formatNumFull(kpis.total_events)}
             color="var(--admin-text, #e2e8f0)"
-            subtitle={`${kpis.events_with_source} con source data`}
           />
           <KPICard
-            label="Avg Source → Vincitu"
-            value={`${kpis.avg_source || "—"} → ${kpis.avg_vincitu}`}
-            color={kpis.gap_pct != null && kpis.gap_pct > 5 ? "#f59e0b" : "#10b981"}
-          />
+            label="Coverage"
+            value={`${kpis.coverage_pct}%`}
+            color={coverageColor(kpis.coverage_pct)}
+          >
+            <DonutRing pct={kpis.coverage_pct} size={48} />
+          </KPICard>
           <KPICard
-            label="Gap Medio"
-            value={kpis.gap_pct != null ? `${kpis.gap_pct}%` : "N/D"}
-            color={kpis.gap_pct != null ? gapColor(kpis.gap_pct) : "var(--admin-text-muted)"}
+            label="Avg Leon / DB"
+            value={`${kpis.avg_leon} / ${kpis.avg_db}`}
+            color={kpis.coverage_pct >= 95 ? "#10b981" : "#f59e0b"}
           />
           <KPICard
             label="Zero Mercati"
-            value={formatNum(kpis.zero_markets)}
+            value={formatNumFull(kpis.zero_markets)}
             color={kpis.zero_markets > 0 ? "#ef4444" : "#10b981"}
           />
         </div>
       )}
 
       {/* Leagues Table */}
-      <CollapsibleSection
-        title={`Leghe (${leagues.length})`}
-        open={true}
-        onToggle={() => {}}
-      >
-        <div style={{ overflow: "hidden" }}>
-          {/* Table header */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 0.6fr 0.5fr 0.6fr 0.6fr 0.6fr 0.5fr 0.5fr 0.4fr",
-            padding: "10px 16px",
-            background: "rgba(255,255,255,0.03)",
-            borderBottom: "1px solid var(--admin-border, #1e3a5f)",
-            fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            color: "var(--admin-text-muted, #94a3b8)",
-            letterSpacing: 0.5,
-          }}>
-            <div>Lega</div>
-            <div style={{ textAlign: "center" }}>Eventi</div>
-            <div style={{ textAlign: "center" }}>Source</div>
-            <div style={{ textAlign: "center" }}>Avg Src</div>
-            <div style={{ textAlign: "center" }}>Avg Vin</div>
-            <div style={{ textAlign: "center" }}>Gap %</div>
-            <div style={{ textAlign: "center" }}>Mancanti</div>
-            <div style={{ textAlign: "center" }}>Con Gap</div>
-            <div style={{ textAlign: "center" }}>Zero</div>
-          </div>
-
-          {/* Table rows */}
-          <div style={{ maxHeight: 600, overflowY: "auto" }}>
-            {leagues.map((league, i) => {
-              const isExpanded = expandedLeague === league.league_id;
-              return (
-                <div key={league.league_id}>
-                  <div
-                    onClick={() => handleExpandLeague(league.league_id)}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.6fr 0.6fr 0.5fr 0.6fr 0.6fr 0.6fr 0.5fr 0.5fr 0.4fr",
-                      padding: "8px 16px",
-                      background: isExpanded ? "rgba(37, 99, 235, 0.08)" : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"),
-                      borderBottom: "1px solid rgba(255,255,255,0.03)",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      alignItems: "center",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget.style.background = "rgba(255,255,255,0.04)"); }}
-                    onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"); }}
-                  >
-                    <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 10, color: "var(--admin-text-muted)" }}>{isExpanded ? "▼" : "▶"}</span>
-                      {league.league_name}
-                    </div>
-                    <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
-                      {formatNum(league.events_count)}
-                    </div>
-                    <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
-                      {league.events_with_source}/{league.events_count}
-                    </div>
-                    <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
-                      {league.avg_source != null ? league.avg_source : "—"}
-                    </div>
-                    <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
-                      {league.avg_vincitu}
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      {league.gap_pct != null ? (
-                        <span style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          fontFamily: "monospace",
-                          padding: "2px 6px",
-                          borderRadius: 3,
-                          background: gapBg(league.gap_pct),
-                          color: gapColor(league.gap_pct),
-                        }}>
-                          {league.gap_pct}%
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--admin-text-muted)", fontSize: 12 }}>—</span>
-                      )}
-                    </div>
-                    <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: league.gap_total > 0 ? "#ef4444" : "var(--admin-text-muted)", fontSize: 12 }}>
-                      {formatNum(league.gap_total)}
-                    </div>
-                    <div style={{ textAlign: "center", fontWeight: 600, color: league.gap_events > 0 ? "#f59e0b" : "var(--admin-text-muted)" }}>
-                      {league.gap_events}
-                    </div>
-                    <div style={{ textAlign: "center", color: league.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
-                      {league.zero_markets}
-                    </div>
-                  </div>
-
-                  {/* Expanded: league events */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "8px 16px 12px 32px",
-                      background: "rgba(37, 99, 235, 0.04)",
-                      borderBottom: "1px solid var(--admin-border, #1e3a5f)",
-                      maxHeight: 500,
-                      overflowY: "auto",
-                    }}>
-                      {leagueEventsLoading ? (
-                        <div style={{ fontSize: 12, color: "var(--admin-text-muted)", padding: 8 }}>Caricamento eventi...</div>
-                      ) : leagueEvents.length === 0 ? (
-                        <div style={{ fontSize: 12, color: "var(--admin-text-muted)", padding: 8 }}>Nessun evento</div>
-                      ) : (
-                        <div>
-                          {/* Events header */}
-                          <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
-                            padding: "6px 8px",
-                            fontSize: 10,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            color: "var(--admin-text-muted, #94a3b8)",
-                            borderBottom: "1px solid rgba(255,255,255,0.05)",
-                          }}>
-                            <div>Evento</div>
-                            <div style={{ textAlign: "center" }}>Source</div>
-                            <div style={{ textAlign: "center" }}>Vincitu</div>
-                            <div style={{ textAlign: "center" }}>Gap</div>
-                            <div style={{ textAlign: "center" }}>Coverage</div>
-                            <div style={{ textAlign: "center" }}>Data</div>
-                          </div>
-
-                          {/* Events rows */}
-                          {leagueEvents.map((ev) => (
-                            <div
-                              key={ev.id}
-                              onClick={() => handleEventDetail(ev.id)}
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
-                                padding: "5px 8px",
-                                fontSize: 12,
-                                cursor: "pointer",
-                                borderBottom: "1px solid rgba(255,255,255,0.02)",
-                                alignItems: "center",
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <div style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
-                                {ev.home_team} vs {ev.away_team}
-                              </div>
-                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
-                                {ev.source_count != null ? ev.source_count : "—"}
-                              </div>
-                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
-                                {ev.vincitu_count}
-                              </div>
-                              <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: ev.gap != null && ev.gap > 0 ? "#ef4444" : "var(--admin-text-muted)" }}>
-                                {ev.gap != null ? (ev.gap > 0 ? `−${ev.gap}` : ev.gap === 0 ? "0" : `+${Math.abs(ev.gap)}`) : "—"}
-                              </div>
-                              <div style={{ textAlign: "center" }}>
-                                {ev.coverage_pct != null ? (
-                                  <span style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    padding: "2px 6px",
-                                    borderRadius: 3,
-                                    background: coverageBg(ev.coverage_pct),
-                                    color: coverageColor(ev.coverage_pct),
-                                  }}>
-                                    {ev.coverage_pct}%
-                                  </span>
-                                ) : (
-                                  <span style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>—</span>
-                                )}
-                              </div>
-                              <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
-                                {formatTime(ev.starts_at)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {leagues.length === 0 && (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
-                Nessuna lega trovata
-              </div>
-            )}
-          </div>
+      <div style={{
+        background: "var(--admin-card, #0f1f35)", border: "1px solid var(--admin-border, #1e3a5f)",
+        borderRadius: 12, overflow: "hidden",
+      }}>
+        {/* Table header */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1.8fr 0.6fr 0.7fr 0.7fr 1fr 0.5fr 0.5fr",
+          padding: "10px 20px",
+          background: "rgba(255,255,255,0.03)",
+          borderBottom: "1px solid var(--admin-border, #1e3a5f)",
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          color: "var(--admin-text-muted, #94a3b8)",
+          letterSpacing: 0.5,
+        }}>
+          <div>Lega</div>
+          <div style={{ textAlign: "center" }}>Eventi</div>
+          <div style={{ textAlign: "center" }}>Avg Leon</div>
+          <div style={{ textAlign: "center" }}>Avg DB</div>
+          <div style={{ textAlign: "center" }}>Coverage</div>
+          <div style={{ textAlign: "center" }}>Con Gap</div>
+          <div style={{ textAlign: "center" }}>Zero</div>
         </div>
-      </CollapsibleSection>
+
+        {/* Table rows */}
+        <div style={{ maxHeight: 600, overflowY: "auto" }}>
+          {leagues.map((league, i) => {
+            const isExpanded = expandedLeague === league.league_id;
+            const covColor = coverageColor(league.coverage_pct);
+            return (
+              <div key={league.league_id}>
+                <div
+                  onClick={() => handleExpandLeague(league.league_id)}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.8fr 0.6fr 0.7fr 0.7fr 1fr 0.5fr 0.5fr",
+                    padding: "12px 20px",
+                    background: isExpanded ? "rgba(37, 99, 235, 0.08)" : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"),
+                    borderBottom: "1px solid rgba(255,255,255,0.03)",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    alignItems: "center",
+                    transition: "background 0.15s",
+                    height: 48,
+                  }}
+                  onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget.style.background = "rgba(255,255,255,0.04)"); }}
+                  onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"); }}
+                >
+                  <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 10, color: "var(--admin-text-muted)" }}>{isExpanded ? "▼" : "▶"}</span>
+                    {league.league_name}
+                  </div>
+                  <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
+                    {formatNumFull(league.events_count)}
+                  </div>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 13 }}>
+                    {league.avg_leon}
+                  </div>
+                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 13 }}>
+                    {league.avg_db}
+                  </div>
+                  <div style={{ textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <div style={{
+                      width: 60, height: 6, borderRadius: 3,
+                      background: "rgba(255,255,255,0.06)", overflow: "hidden",
+                    }}>
+                      <div style={{
+                        width: `${Math.min(100, league.coverage_pct)}%`,
+                        height: "100%", borderRadius: 3,
+                        background: covColor,
+                        transition: "width 0.3s",
+                      }} />
+                    </div>
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, fontFamily: "monospace",
+                      padding: "2px 6px", borderRadius: 3,
+                      background: coverageBg(league.coverage_pct),
+                      color: covColor,
+                    }}>
+                      {league.coverage_pct}%
+                    </span>
+                  </div>
+                  <div style={{ textAlign: "center", fontWeight: 600, color: league.gap_events > 0 ? "#f59e0b" : "var(--admin-text-muted)" }}>
+                    {league.gap_events}
+                  </div>
+                  <div style={{ textAlign: "center", color: league.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
+                    {league.zero_markets}
+                  </div>
+                </div>
+
+                {/* Expanded: league events */}
+                {isExpanded && (
+                  <div style={{
+                    padding: "8px 20px 12px 36px",
+                    background: "rgba(37, 99, 235, 0.04)",
+                    borderBottom: "1px solid var(--admin-border, #1e3a5f)",
+                    maxHeight: 500,
+                    overflowY: "auto",
+                  }}>
+                    {leagueEventsLoading ? (
+                      <div style={{ fontSize: 13, color: "var(--admin-text-muted)", padding: 8 }}>Caricamento eventi...</div>
+                    ) : leagueEvents.length === 0 ? (
+                      <div style={{ fontSize: 13, color: "var(--admin-text-muted)", padding: 8 }}>Nessun evento</div>
+                    ) : (
+                      <div>
+                        {/* Events header */}
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
+                          padding: "6px 8px",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          color: "var(--admin-text-muted, #94a3b8)",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        }}>
+                          <div>Evento</div>
+                          <div style={{ textAlign: "center" }}>Leon</div>
+                          <div style={{ textAlign: "center" }}>DB</div>
+                          <div style={{ textAlign: "center" }}>Gap</div>
+                          <div style={{ textAlign: "center" }}>Coverage</div>
+                          <div style={{ textAlign: "center" }}>Data</div>
+                        </div>
+
+                        {/* Events rows */}
+                        {leagueEvents.map((ev) => (
+                          <div
+                            key={ev.id}
+                            onClick={() => handleEventDetail(ev.id)}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
+                              padding: "6px 8px",
+                              fontSize: 13,
+                              cursor: "pointer",
+                              borderBottom: "1px solid rgba(255,255,255,0.02)",
+                              alignItems: "center",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <div style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
+                              {ev.home_team} vs {ev.away_team}
+                            </div>
+                            <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
+                              {ev.leon_count != null ? ev.leon_count : "\u2014"}
+                            </div>
+                            <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
+                              {ev.db_count}
+                            </div>
+                            <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: ev.gap != null && ev.gap > 0 ? "#ef4444" : "var(--admin-text-muted)" }}>
+                              {ev.gap != null ? (ev.gap > 0 ? `\u2212${ev.gap}` : ev.gap === 0 ? "0" : `+${Math.abs(ev.gap)}`) : "\u2014"}
+                            </div>
+                            <div style={{ textAlign: "center" }}>
+                              {ev.coverage_pct != null ? (
+                                <span style={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  padding: "2px 6px",
+                                  borderRadius: 3,
+                                  background: coverageBg(ev.coverage_pct),
+                                  color: coverageColor(ev.coverage_pct),
+                                }}>
+                                  {ev.coverage_pct}%
+                                </span>
+                              ) : (
+                                <span style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>&mdash;</span>
+                              )}
+                            </div>
+                            <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
+                              {formatTime(ev.starts_at)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {leagues.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
+              Nessuna lega trovata
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Event Detail Modal */}
       {(selectedEvent || detailLoading) && (
