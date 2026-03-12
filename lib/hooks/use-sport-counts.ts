@@ -65,10 +65,11 @@ export function useSportCounts(timeFilter: TimeFilter = "all") {
     async function fetchSports() {
       setLoading(true);
 
-      // Build query for events
+      // Build query for events — only Leon source
       let query = supabase
         .from("events")
         .select("sport_id, sports(id, name, slug, icon, sort_order)", { count: "exact" })
+        .eq("source", "leon")
         .in("status", ["prematch", "live"]);
 
       const range = getTimeFilterRange(timeFilter);
@@ -141,6 +142,7 @@ export function useSportCounts(timeFilter: TimeFilter = "all") {
     query = supabase
       .from("events")
       .select("league_id, leagues(id, name, slug, country)")
+      .eq("source", "leon")
       .in("status", ["prematch", "live"])
       .eq("sport_id", sport.id);
 

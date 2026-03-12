@@ -1,26 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  parsePlayerPrefix,
-  groupEventsByMatch,
-  buildTeamNameMap,
-  type PlayerEventRow,
-  type MatchGroup,
-  type TeamNameMap,
-  type RegularEventRef,
+  buildPlayerMatches,
+  type PlayerMatch,
 } from "@/lib/utils/player-props";
 import {
-  sortSelections,
-  type Market,
-  type Selection,
+  mapDbToSportEvent,
 } from "@/lib/hooks/use-sportsbook";
 
-export type PlayerSportFilter = "tutti" | "calcio" | "basket";
+export type PlayerSportFilter = "tutti" | "calcio" | "basket" | "tennis";
 
 export interface UsePlayerPropsReturn {
-  groups: MatchGroup[];
+  matches: PlayerMatch[];
   loading: boolean;
   error: string | null;
   activeSport: PlayerSportFilter;
@@ -29,28 +22,19 @@ export interface UsePlayerPropsReturn {
   setSearchQuery: (q: string) => void;
   expandedMatch: string | null;
   setExpandedMatch: (key: string | null) => void;
-  expandedPlayer: string | null;
-  setExpandedPlayer: (id: string | null) => void;
-  getPlayerMarkets: (eventId: string) => Market[] | null;
-  loadPlayerMarkets: (eventId: string) => Promise<void>;
-  loadingMarkets: Set<string>;
   counts: { calcio: number; basket: number; total: number };
 }
 
 export function usePlayerProps(): UsePlayerPropsReturn {
   const supabase = createClient();
-  const [allEvents, setAllEvents] = useState<PlayerEventRow[]>([]);
+  const [allMatches, setAllMatches] = useState<PlayerMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSport, setActiveSport] = useState<PlayerSportFilter>("tutti");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
-  const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
-  const [loadingMarkets, setLoadingMarkets] = useState<Set<string>>(new Set());
-  const [teamNameMap, setTeamNameMap] = useState<TeamNameMap>(new Map());
-  const marketCache = useRef<Map<string, Market[]>>(new Map());
 
-  // Phase 1: fetch all Giocatori events (metadata only, no markets)
+  // Fetch Leon events with all markets, then filter player markets client-side
   useEffect(() => {
     let cancelled = false;
 
@@ -59,61 +43,41 @@ export function usePlayerProps(): UsePlayerPropsReturn {
       setError(null);
 
       try {
+        // Fetch events from Leon with markets included
+        const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
         const { data, error: err } = await supabase
           .from("events")
           .select(`
-            id,
-            home_team,
-            away_team,
-            starts_at,
-            status,
-            leagues!inner(name, slug),
-            sports!inner(name, slug, icon)
+            *,
+            sport:sports(name, slug, icon),
+            league:leagues(name, slug, country, logo_url),
+            markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
+              outcomes(id, name, odds, previous_odds, is_active, is_suspended))
           `)
-          .like("sports.slug", "giocatori-%")
+          .eq("source", "leon")
           .in("status", ["prematch", "live"])
-          .order("starts_at", { ascending: true });
+          .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
+          .order("starts_at", { ascending: true })
+          .limit(500);
 
         if (cancelled) return;
         if (err) throw err;
 
-        const rows: PlayerEventRow[] = [];
-        for (const row of (data || []) as any[]) {
-          const parsed = parsePlayerPrefix(row.home_team);
-          if (!parsed) continue;
+        const rows = (data || []) as any[];
 
-          rows.push({
-            id: row.id,
-            home_team: row.home_team,
-            away_team: row.away_team,
-            starts_at: row.starts_at,
-            status: row.status,
-            league_name: row.leagues?.name || "",
-            league_slug: row.leagues?.slug || "",
-            sport_name: row.sports?.name || "",
-            sport_slug: row.sports?.slug || "",
-            sport_icon: row.sports?.icon || "⚽",
-            parsed,
-          });
-        }
+        // Map to SportEvent format, then build player matches
+        const events = rows
+          .map((row) => {
+            const ev = mapDbToSportEvent(row, true);
+            return {
+              ...ev,
+              startsAt: row.starts_at,
+            };
+          })
+          .filter((e) => !(e.sportSlug || "").startsWith("giocatori-"));
 
-        setAllEvents(rows);
-
-        // Cross-reference: fetch regular events to resolve team abbreviations
-        if (rows.length > 0) {
-          const uniqueTimes = [...new Set(rows.map((r) => r.starts_at))];
-          const { data: regData } = await supabase
-            .from("events")
-            .select("home_team, away_team, starts_at")
-            .in("starts_at", uniqueTimes)
-            .not("external_id", "like", "giocatori:%")
-            .in("status", ["prematch", "live"]);
-
-          if (!cancelled && regData) {
-            const tnMap = buildTeamNameMap(rows, regData as RegularEventRef[]);
-            setTeamNameMap(tnMap);
-          }
-        }
+        const matches = buildPlayerMatches(events);
+        setAllMatches(matches);
       } catch (err: any) {
         if (!cancelled) {
           console.error("[usePlayerProps] fetch error:", err.message);
@@ -128,98 +92,39 @@ export function usePlayerProps(): UsePlayerPropsReturn {
     return () => { cancelled = true; };
   }, []);
 
-  // Counts
+  // Counts per sport
   const counts = {
-    calcio: allEvents.filter((e) => e.sport_slug === "giocatori-calcio").length,
-    basket: allEvents.filter((e) => e.sport_slug === "giocatori-basket").length,
-    total: allEvents.length,
+    calcio: allMatches.filter((m) => m.sportSlug === "calcio").length,
+    basket: allMatches.filter((m) => m.sportSlug === "basket").length,
+    total: allMatches.length,
   };
 
-  // Phase 2: filter + group
-  const filtered = allEvents.filter((e) => {
-    if (activeSport === "calcio" && e.sport_slug !== "giocatori-calcio") return false;
-    if (activeSport === "basket" && e.sport_slug !== "giocatori-basket") return false;
+  // Filter by sport and search
+  const filtered = allMatches.filter((m) => {
+    if (activeSport === "calcio" && m.sportSlug !== "calcio") return false;
+    if (activeSport === "basket" && m.sportSlug !== "basket") return false;
+    if (activeSport === "tennis" && m.sportSlug !== "tennis") return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const homeAbbr = e.parsed.matchKey.split("-")[0];
-      const awayAbbr = e.parsed.matchKey.split("-")[1];
-      const homeFull = teamNameMap.get(homeAbbr)?.toLowerCase() || "";
-      const awayFull = teamNameMap.get(awayAbbr)?.toLowerCase() || "";
-      if (!e.parsed.playerName.toLowerCase().includes(q) &&
-          !e.parsed.matchKey.toLowerCase().includes(q) &&
-          !homeFull.includes(q) &&
-          !awayFull.includes(q)) return false;
+      if (
+        !m.homeTeam.toLowerCase().includes(q) &&
+        !m.awayTeam.toLowerCase().includes(q) &&
+        !m.league.toLowerCase().includes(q) &&
+        // Search in player names (runners in categories)
+        !m.categories.some((c) =>
+          c.markets.some((mk) =>
+            mk.selections.some((s) => s.label.toLowerCase().includes(q))
+          )
+        )
+      ) {
+        return false;
+      }
     }
     return true;
   });
 
-  const groups = groupEventsByMatch(filtered, teamNameMap);
-
-  // Phase 3: lazy load markets for a single player event
-  const loadPlayerMarkets = useCallback(async (eventId: string) => {
-    if (marketCache.current.has(eventId)) return;
-
-    setLoadingMarkets((prev) => new Set(prev).add(eventId));
-
-    try {
-      const { data, error: err } = await supabase
-        .from("markets")
-        .select(`
-          id,
-          name,
-          market_type,
-          line,
-          sort_order,
-          is_active,
-          is_suspended,
-          outcomes(id, name, odds, previous_odds, is_active, is_suspended)
-        `)
-        .eq("event_id", eventId)
-        .eq("is_active", true)
-        .eq("is_suspended", false)
-        .order("sort_order", { ascending: true });
-
-      if (err) throw err;
-
-      const markets: Market[] = ((data || []) as any[])
-        .map((m: any) => ({
-          id: m.id,
-          name: m.name,
-          marketType: m.market_type,
-          line: m.line,
-          selections: sortSelections(
-            m.name,
-            (m.outcomes || [])
-              .filter((o: any) => o.is_active && !o.is_suspended)
-              .map((o: any) => ({
-                id: o.id,
-                label: o.name,
-                odds: parseFloat(o.odds),
-                previousOdds: o.previous_odds ? parseFloat(o.previous_odds) : undefined,
-              }))
-          ),
-        }))
-        .filter((m: Market) => m.selections.length > 0);
-
-      marketCache.current.set(eventId, markets);
-    } catch (err: any) {
-      console.error("[usePlayerProps] loadMarkets error:", err.message);
-      marketCache.current.set(eventId, []);
-    } finally {
-      setLoadingMarkets((prev) => {
-        const next = new Set(prev);
-        next.delete(eventId);
-        return next;
-      });
-    }
-  }, []);
-
-  const getPlayerMarkets = useCallback((eventId: string): Market[] | null => {
-    return marketCache.current.get(eventId) || null;
-  }, []);
-
   return {
-    groups,
+    matches: filtered,
     loading,
     error,
     activeSport,
@@ -228,11 +133,6 @@ export function usePlayerProps(): UsePlayerPropsReturn {
     setSearchQuery,
     expandedMatch,
     setExpandedMatch,
-    expandedPlayer,
-    setExpandedPlayer,
-    getPlayerMarkets,
-    loadPlayerMarkets,
-    loadingMarkets,
     counts,
   };
 }

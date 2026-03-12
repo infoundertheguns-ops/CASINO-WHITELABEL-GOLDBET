@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { PlayerNavbar, PlayerBottomNav, PlayerDesktopSidebar } from "@/components/layout/player-nav";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { SportFilterProvider } from "@/lib/contexts/sport-filter-context";
+import { SourceProvider } from "@/lib/contexts/source-context";
 
 export default function PlayerLayout({
   children,
@@ -17,6 +18,7 @@ export default function PlayerLayout({
   }, [initialize]);
 
   return (
+    <SourceProvider>
     <SportFilterProvider>
       <div className="min-h-screen bg-gray-50">
         {/* Desktop: sidebar + content */}
@@ -36,5 +38,6 @@ export default function PlayerLayout({
         </div>
       </div>
     </SportFilterProvider>
+    </SourceProvider>
   );
 }

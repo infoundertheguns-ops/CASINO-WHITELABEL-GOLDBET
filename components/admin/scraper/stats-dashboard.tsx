@@ -2,6 +2,79 @@
 
 import { useEffect, useState, useCallback } from "react";
 
+// ═══ LIVE SOURCE TOGGLE ═══
+
+function LiveSourceToggle() {
+  const [source, setSource] = useState<"leon" | "goldbet">("leon");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/config/live-source")
+      .then((r) => r.json())
+      .then((d) => { if (d.source) setSource(d.source); })
+      .catch(() => {});
+  }, []);
+
+  const toggle = async (newSource: "leon" | "goldbet") => {
+    if (newSource === source || saving) return;
+    setSaving(true);
+    try {
+      const resp = await fetch("/api/config/live-source", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: newSource }),
+      });
+      if (resp.ok) setSource(newSource);
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div style={{
+      background: "var(--admin-card)",
+      border: "1px solid var(--admin-border)",
+      borderRadius: 10,
+      padding: "16px 24px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+    }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--admin-text1)", textTransform: "uppercase", letterSpacing: 1.2 }}>
+          Sorgente Live
+        </div>
+        <div style={{ fontSize: 12, color: "var(--admin-text3)", marginTop: 2 }}>
+          Prematch sempre da Leon. Switch live in emergenza.
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {(["leon", "goldbet"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => toggle(s)}
+            disabled={saving}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 6,
+              border: source === s ? "2px solid #3b82f6" : "1px solid var(--admin-border)",
+              background: source === s ? "rgba(59, 130, 246, 0.15)" : "transparent",
+              color: source === s ? "#3b82f6" : "var(--admin-text3)",
+              fontWeight: source === s ? 700 : 500,
+              fontSize: 14,
+              cursor: saving ? "not-allowed" : "pointer",
+              textTransform: "capitalize",
+              opacity: saving ? 0.5 : 1,
+            }}
+          >
+            {s === "leon" ? "Leon" : "Goldbet"}
+            {source === s && " \u2713"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ═══ TYPES ═══
 
 interface SportBreakdown {
@@ -507,6 +580,70 @@ function ServerHealthCard({
   );
 }
 
+// ═══ EXTERNAL SCRAPER CARD (Leon, Kambi, Flashscore) ═══
+
+function ExternalScraperCard({
+  title,
+  server,
+  color,
+}: {
+  title: string;
+  server: ServerData | null;
+  color: string;
+}) {
+  const isOffline = !server || !server.latest;
+  const gb = server?.latest?.goldbet;
+  const dotColor = isOffline ? "#6b7280" : "#10b981";
+
+  return (
+    <div
+      style={{
+        background: "var(--admin-card)",
+        border: `1px solid ${isOffline ? "var(--admin-border)" : color + "30"}`,
+        borderRadius: 10,
+        padding: "16px 20px",
+        opacity: isOffline ? 0.4 : 1,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isOffline ? 0 : 12 }}>
+        <div
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: "50%",
+            background: dotColor,
+            boxShadow: isOffline ? "none" : `0 0 8px ${dotColor}`,
+          }}
+        />
+        <span style={{ fontWeight: 700, color, fontSize: 16 }}>{title}</span>
+        {isOffline && (
+          <span style={{ fontSize: 14, color: "var(--admin-text4)", marginLeft: "auto" }}>Offline</span>
+        )}
+      </div>
+
+      {!isOffline && gb && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 14 }}>
+          <div style={{ color: "var(--admin-text3)" }}>
+            Live: <span style={{ color: "var(--admin-text)", fontWeight: 600 }}>{formatNum(gb.live_events)}</span>
+          </div>
+          <div style={{ color: "var(--admin-text3)" }}>
+            Pre: <span style={{ color: "var(--admin-text)", fontWeight: 600 }}>{formatNum(gb.prematch_events)}</span>
+          </div>
+          <div style={{ color: "var(--admin-text3)" }}>
+            Mkt: <span style={{ color: "var(--admin-text)", fontWeight: 600 }}>{formatNum(gb.live_markets + gb.prematch_markets)}</span>
+          </div>
+          <div style={{ color: "var(--admin-text3)" }}>
+            RAM: <span style={{ color: "var(--admin-text)", fontWeight: 600 }}>{gb.memory_mb ? `${gb.memory_mb}MB` : "—"}</span>
+          </div>
+          <div style={{ color: "var(--admin-text3)", gridColumn: "1 / -1" }}>
+            Ciclo: <span style={{ color: "var(--admin-text)", fontWeight: 600 }}>{timeAgo(gb.last_live_cycle || gb.last_prematch_cycle)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══ COVERAGE KPI CARD ═══
 
 function CoverageKPI({
@@ -787,9 +924,11 @@ function FreshnessContent({ health }: { health: HealthData }) {
 
   const liveGB = of.live?.goldbet || null;
   const liveKambi = of.live?.kambi || null;
+  const liveLeon = of.live?.leon || null;
   const preGB = of.prematch?.goldbet || null;
   const preKambi = of.prematch?.kambi || null;
-  const hasAny = liveGB || liveKambi || preGB || preKambi;
+  const preLeon = of.prematch?.leon || null;
+  const hasAny = liveGB || liveKambi || liveLeon || preGB || preKambi || preLeon;
   if (!hasAny) return null;
 
   return (
@@ -805,8 +944,10 @@ function FreshnessContent({ health }: { health: HealthData }) {
       </div>
       <FreshnessBar label="Goldbet Live" buckets={liveGB} />
       <FreshnessBar label="Kambi Live" buckets={liveKambi} />
+      <FreshnessBar label="Leon Live" buckets={liveLeon} />
       <FreshnessBar label="Goldbet Prematch" buckets={preGB} />
       <FreshnessBar label="Kambi Prematch" buckets={preKambi} />
+      <FreshnessBar label="Leon Prematch" buckets={preLeon} />
     </>
   );
 }
@@ -1043,11 +1184,19 @@ export default function ScraperStatsDashboard() {
       {/* Section 0 — Health Banner */}
       {healthData && <HealthBanner health={healthData} />}
 
+      {/* Live Source Toggle */}
+      <LiveSourceToggle />
+
       {/* Section 1 — Server Health */}
       <CollapsibleSection title="Server Health">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <ServerHealthCard title="Main VPS" server={mainServer} isMain />
-          <ServerHealthCard title="Prematch VPS" server={prematchServer} isMain={false} />
+          <ServerHealthCard title="Main VPS (Goldbet Live)" server={mainServer} isMain />
+          <ServerHealthCard title="Prematch VPS (Goldbet)" server={prematchServer} isMain={false} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginTop: 20 }}>
+          <ExternalScraperCard title="Leon Bets" server={data.servers?.leon || null} color="#f59e0b" />
+          <ExternalScraperCard title="Kambi" server={data.servers?.kambi || null} color="#8b5cf6" />
+          <ExternalScraperCard title="Flashscore" server={data.servers?.flashscore || null} color="#06b6d4" />
         </div>
       </CollapsibleSection>
 
