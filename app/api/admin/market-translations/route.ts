@@ -25,7 +25,29 @@ const ITALIAN_PATTERNS = [
   /^U\/O Giochi/, /^Pari\/Dispari Casa/, /^Pari\/Dispari Ospite/,
   /^Pari\/Dispari Games/, /^Pari\/Dispari Set/, /^Pari\/Dispari Incl/,
   /^1X2 \+ /, /^DC \+ /, /^GG\/NG \+ /, /^Combo/,
-  /^1X2 10 Minuti/,
+  /^1X2 \d+ Minuti/,
+  // ── Period/Quarter/Tempo ──
+  /\d°\s*Periodo/, /\d°\s*Quarto/,
+  /^Handicap \d°\s*Tempo/,
+  /^Handicap Punti/,
+  // ── Props varie tradotte ──
+  /^Metodo Primo Gol/, /^Tempo Primo Gol/, /^Rigore/,
+  /^Numero Esatto Gol/, /^Squadra Segna Gol/,
+  /^Quarto Con Più Punti/, /^Falli Totali/, /^Rinvii Dal Fondo/,
+  // ── Tennis ──
+  /^Entrambi Vincono Un Set/, /^G\d Vince Almeno/,
+  /^Handicap Set/, /^U\/O Set/, /^U\/O Games G\d/,
+  /^Vincente Set \d+/, /^Gara A \d+ Games/,
+  /^Deuce\s/, /^In Vantaggio Dopo/,
+  /^Risultato Esatto \(Best Of/,
+  // ── Esports ──
+  /^Vincente Mappa/, /^U\/O Mappe/, /^Vincente Incontro \+ Vincente Mappa/,
+  // ── Hockey ──
+  /^Power Play/, /Gol PP/, /^Risultato Gol PP/,
+  // ── Player props tradotte ──
+  /Tiri In Porta/, /Tiri Totali/, /Tiri Di Testa/,
+  /Tiri (Sinistro|Destro)/, /Passaggi Completati/,
+  /Contrasti Difensivi/, /\bAssist$/, /\bFalli$/,
 ];
 
 function isItalian(marketType: string): boolean {
