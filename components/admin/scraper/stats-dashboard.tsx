@@ -75,7 +75,7 @@ export default function ScraperStatsDashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   // Live source toggle state
-  const [liveSource, setLiveSource] = useState<"leon" | "goldbet">("leon");
+  const [liveSource, setLiveSource] = useState<"leon" | "kambi">("leon");
   const [savingSource, setSavingSource] = useState(false);
 
   const fetchStats = useCallback(async () => {
@@ -107,7 +107,7 @@ export default function ScraperStatsDashboard() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  const handleToggleSource = async (newSource: "leon" | "goldbet") => {
+  const handleToggleSource = async (newSource: "leon" | "kambi") => {
     if (newSource === liveSource || savingSource) return;
     setSavingSource(true);
     try {

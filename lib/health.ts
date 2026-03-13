@@ -110,7 +110,7 @@ function scoreLeonLive(scraper: ScraperInfo): SubsystemScore {
 
   if (!scraper.connected) {
     details = "Disconnesso";
-    return { score: 0, weight: 25, label: "Leon Live", details };
+    return { score: 0, weight: 20, label: "Leon Live", details };
   }
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
@@ -126,7 +126,7 @@ function scoreLeonLive(scraper: ScraperInfo): SubsystemScore {
   score = clamp(score - errorPenalty);
 
   details = `Ciclo: ${Math.round(cycle)}s, Errori: ${errors}/h`;
-  return { score, weight: 25, label: "Leon Live", details };
+  return { score, weight: 20, label: "Leon Live", details };
 }
 
 function scoreLeonPrematch(scraper: ScraperInfo): SubsystemScore {
@@ -135,7 +135,7 @@ function scoreLeonPrematch(scraper: ScraperInfo): SubsystemScore {
 
   if (!scraper.connected) {
     details = "Disconnesso";
-    return { score: 0, weight: 15, label: "Leon Prematch", details };
+    return { score: 0, weight: 12, label: "Leon Prematch", details };
   }
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
@@ -147,7 +147,7 @@ function scoreLeonPrematch(scraper: ScraperInfo): SubsystemScore {
 
   score = clamp(score);
   details = `Ciclo: ${Math.round(cycle / 60)}min`;
-  return { score, weight: 15, label: "Leon Prematch", details };
+  return { score, weight: 12, label: "Leon Prematch", details };
 }
 
 function scoreFreshnessLive(
@@ -156,7 +156,7 @@ function scoreFreshnessLive(
   if (!outcomeFreshness || Object.keys(outcomeFreshness).length === 0) {
     return {
       score: 100,
-      weight: 20,
+      weight: 18,
       label: "Freshness Live",
       details: "Nessun evento live",
     };
@@ -181,7 +181,7 @@ function scoreFreshnessLive(
   score = clamp(score);
   return {
     score,
-    weight: 20,
+    weight: 18,
     label: "Freshness Live",
     details: `${Math.round(pctFresh)}% entro 5 min`,
   };
@@ -317,14 +317,63 @@ function scoreSettlement(quality: SystemHealthRPC["quality"]): SubsystemScore {
   };
 }
 
+// ═══ KAMBI SCORING ═══
+
+function scoreKambiLive(scraper: ScraperInfo): SubsystemScore {
+  let score = 0;
+  let details = "";
+
+  if (!scraper.connected) {
+    details = "Disconnesso";
+    return { score: 0, weight: 5, label: "Kambi Live", details };
+  }
+
+  const cycle = scraper.lastCycleSeconds ?? Infinity;
+  const errors = scraper.errorsLastHour ?? 0;
+
+  // OK if cycle < 120s, degraded up to 600s
+  if (cycle <= 120) score = 100;
+  else if (cycle >= 600) score = 0;
+  else score = 100 - ((cycle - 120) / 480) * 100;
+
+  const errorPenalty = Math.min(30, errors * 2);
+  score = clamp(score - errorPenalty);
+
+  details = `Ciclo: ${Math.round(cycle)}s, Errori: ${errors}/h`;
+  return { score, weight: 5, label: "Kambi Live", details };
+}
+
+function scoreKambiPrematch(scraper: ScraperInfo): SubsystemScore {
+  let score = 0;
+  let details = "";
+
+  if (!scraper.connected) {
+    details = "Disconnesso";
+    return { score: 0, weight: 5, label: "Kambi Prematch", details };
+  }
+
+  const cycle = scraper.lastCycleSeconds ?? Infinity;
+
+  // OK if cycle < 600s (10min), degraded up to 7200s (2h)
+  if (cycle <= 600) score = 100;
+  else if (cycle >= 7200) score = 0;
+  else score = 100 - ((cycle - 600) / 6600) * 100;
+
+  score = clamp(score);
+  details = `Ciclo: ${Math.round(cycle / 60)}min`;
+  return { score, weight: 5, label: "Kambi Prematch", details };
+}
+
 // ═══ MAIN SCORING ═══
-// Weights: Leon Live 25, Leon Prematch 15, Freshness Live 20,
-//          Freshness Prematch 10, Data Quality 10, Redis 10, Settlement 10 = 100
+// Weights: Leon Live 20, Leon Prematch 12, Freshness Live 18,
+//          Freshness Prematch 10, Data Quality 10, Redis 10, Settlement 10,
+//          Kambi Live 5, Kambi Prematch 5 = 100
 
 export function computeHealthScores(
   rpc: SystemHealthRPC,
   leonScraper: { live: ScraperInfo; prematch: ScraperInfo },
-  redis: RedisInfo
+  redis: RedisInfo,
+  kambiScraper?: { live: ScraperInfo; prematch: ScraperInfo }
 ): HealthScores {
   const subsystems: Record<string, SubsystemScore> = {
     leon_live: scoreLeonLive(leonScraper.live),
@@ -334,6 +383,8 @@ export function computeHealthScores(
     data_quality: scoreDataQuality(rpc.quality),
     redis_pipeline: scoreRedisPipeline(redis),
     settlement: scoreSettlement(rpc.quality),
+    kambi_live: scoreKambiLive(kambiScraper?.live ?? { connected: false }),
+    kambi_prematch: scoreKambiPrematch(kambiScraper?.prematch ?? { connected: false }),
   };
 
   // Weighted average

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   fetchApi, formatNum, formatNumFull, formatTime,
   coverageColor, coverageBg,
@@ -9,6 +9,8 @@ import {
   exportCsv, ExportButton, DonutRing,
 } from "./shared";
 import type { EventDetail } from "./shared";
+
+type CoverageSource = "leon" | "kambi";
 
 // ═══ TYPES ═══
 
@@ -58,6 +60,10 @@ interface StatsData {
 
 export default function LeonCoverageDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [source, setSource] = useState<CoverageSource>(
+    (searchParams.get("source") as CoverageSource) || "leon"
+  );
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -73,10 +79,12 @@ export default function LeonCoverageDashboard() {
   const refreshRef = useRef<NodeJS.Timeout | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string>("");
 
+  const sourceLabel = source === "leon" ? "Leon" : "Kambi";
+
   // ─── Load stats ───
   const loadStats = useCallback(async () => {
     try {
-      const data = await fetchApi("stats");
+      const data = await fetchApi("stats", {}, source);
       setStats(data);
       setLastRefresh(new Date().toLocaleTimeString("it-IT"));
       setError("");
@@ -85,7 +93,7 @@ export default function LeonCoverageDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     loadStats();
@@ -112,7 +120,7 @@ export default function LeonCoverageDashboard() {
   };
 
   const handleExportSummary = () => {
-    const headers = ["Sport", "Eventi", "Avg Leon", "Avg DB", "Coverage %", "Con Gap", "Zero"];
+    const headers = ["Sport", "Eventi", `Avg ${sourceLabel}`, "Avg DB", "Coverage %", "Con Gap", "Zero"];
     const rows = (stats?.summary || []).map(r => [
       r.sport_name,
       r.events,
@@ -122,23 +130,23 @@ export default function LeonCoverageDashboard() {
       r.gap_events,
       r.zero_markets,
     ]);
-    exportCsv("leon-coverage.csv", headers, rows);
+    exportCsv(`${source}-coverage.csv`, headers, rows);
   };
 
   const handleExportGap = () => {
-    const headers = ["Evento", "Sport", "Lega", "Leon", "DB", "Gap", "Coverage %", "Data"];
+    const headers = ["Evento", "Sport", "Lega", sourceLabel, "DB", "Gap", "Coverage %", "Data"];
     const rows = (stats?.gap_events || []).map(ev => [
       `${ev.home_team} vs ${ev.away_team}`, ev.sport_name, ev.league_name,
       ev.source_count, ev.vincitu_count, ev.gap, ev.coverage_pct,
       new Date(ev.starts_at).toLocaleString("it-IT"),
     ]);
-    exportCsv("leon-coverage-gap-events.csv", headers, rows);
+    exportCsv(`${source}-coverage-gap-events.csv`, headers, rows);
   };
 
   if (loading) {
     return (
       <div style={{ padding: 60, textAlign: "center", color: "var(--admin-text-muted, #94a3b8)", fontSize: 16 }}>
-        Caricamento Leon Coverage...
+        Caricamento Coverage...
       </div>
     );
   }
@@ -162,18 +170,41 @@ export default function LeonCoverageDashboard() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* A. Header */}
+      {/* A. Header + Source Tabs */}
       <div style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
-            Leon Market Coverage
-          </h2>
-          <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)", marginTop: 4 }}>
-            Confronto mercati Leon attesi vs DB Vincitu
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
+              {sourceLabel} Market Coverage
+            </h2>
+            <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)", marginTop: 4 }}>
+              Confronto mercati {sourceLabel} attesi vs DB Vincitu
+            </div>
+          </div>
+          {/* Source Tab Switcher */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["leon", "kambi"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => { setSource(s); setLoading(true); }}
+                style={{
+                  padding: "6px 16px", borderRadius: 6,
+                  border: source === s ? "2px solid #3b82f6" : "1px solid var(--admin-border, #1e3a5f)",
+                  background: source === s ? "rgba(59, 130, 246, 0.15)" : "transparent",
+                  color: source === s ? "#3b82f6" : "var(--admin-text3, #94a3b8)",
+                  fontWeight: source === s ? 700 : 500,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                }}
+              >
+                {s === "leon" ? "Leon" : "Kambi"}
+              </button>
+            ))}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -259,7 +290,7 @@ export default function LeonCoverageDashboard() {
         }}>
           <div>Sport</div>
           <div style={{ textAlign: "center" }}>Eventi</div>
-          <div style={{ textAlign: "center" }}>Leon Attesi</div>
+          <div style={{ textAlign: "center" }}>{sourceLabel} Attesi</div>
           <div style={{ textAlign: "center" }}>DB Attuali</div>
           <div style={{ textAlign: "center" }}>Coverage</div>
           <div style={{ textAlign: "center" }}>Zero</div>
@@ -272,7 +303,7 @@ export default function LeonCoverageDashboard() {
           return (
             <div
               key={row.sport_slug}
-              onClick={() => router.push(`/admin/market-coverage/${row.sport_slug}`)}
+              onClick={() => router.push(`/admin/market-coverage/${row.sport_slug}?source=${source}`)}
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 1fr 0.5fr 0.5fr",
@@ -382,7 +413,7 @@ export default function LeonCoverageDashboard() {
       >
         {gapEvents.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
-            Nessun evento con gap Leon &rarr; DB
+            Nessun evento con gap {sourceLabel} &rarr; DB
           </div>
         ) : (
           <div>
@@ -404,7 +435,7 @@ export default function LeonCoverageDashboard() {
               <div>Evento</div>
               <div>Sport</div>
               <div>Lega</div>
-              <div style={{ textAlign: "center" }}>Leon</div>
+              <div style={{ textAlign: "center" }}>{sourceLabel}</div>
               <div style={{ textAlign: "center" }}>DB</div>
               <div style={{ textAlign: "center" }}>Gap</div>
               <div style={{ textAlign: "center" }}>Coverage</div>

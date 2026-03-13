@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 
-type LiveSource = "leon" | "goldbet";
+type LiveSource = "leon" | "kambi";
 
 interface SourceContextValue {
   liveSource: LiveSource;
@@ -25,7 +25,7 @@ export function SourceProvider({ children }: { children: ReactNode }) {
     fetch("/api/config/live-source")
       .then((r) => r.json())
       .then((data) => {
-        if (data.source === "leon" || data.source === "goldbet") {
+        if (data.source === "leon" || data.source === "kambi") {
           setLiveSourceState(data.source);
         }
       })

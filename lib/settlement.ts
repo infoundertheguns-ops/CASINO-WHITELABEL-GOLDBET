@@ -118,7 +118,14 @@ const VOID_PATTERNS: RegExp[] = [
   /^Marc\s*\+/i,
   /^(1X2|U\/O)\s+Interv\./i,
   /^U\/O\s+Angoli/i,
+  /^U\/O\s+Corner/i,
   /^1X2\s+Angoli/i,
+  /^1X2\s+Corner/i,
+  /^DC\s+Corner/i,
+  /^Handicap\s+Corner/i,
+  /^Fascia\s+Corner/i,
+  /^Gara\s+A\s+\d+\s+Corner/i,
+  /^Corners\s/i,
   /^1X2\s+Cartellini/i,
   /^Espulsione/i,
   /^Primo\s+Angolo/i,
@@ -145,6 +152,14 @@ const VOID_PATTERNS: RegExp[] = [
   /^Pari\/Dispari\s+\d+°\s+Quarto/i,
   /^Pari\/Dispari\s+Punti\s+Set\s+\d+\s+Gioco/i,
   /^Gara\s+A\s+\d+\s+Gol/i,
+  /^Vince\s+(Almeno|Entrambi)\s/i,
+  /^Ribaltone\s/i,
+  /^Autorete\s/i,
+  /^Gol\s+Nei\s+Primi/i,
+  /^1X2\s+10\s+Minuti/i,
+  /^Squadra\s+(Casa|Ospite)\s+Segna\s+\d/i,
+  /^Marcatore\s+(Entrambi|1°|2°)/i,
+  /^Primo\s+Marcatore\s+Squadra/i,
   /^Shootout$/i,
   /^Squadra\s+(Casa|Ospite)\s+Vince\s+A\s+0\s+Periodo/i,
   /^1X2\s+\d+°\s+Periodo/i,
@@ -175,10 +190,11 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Ris(?:ultato)?\.?\s*Esatto(?:\s+\d+\s+Esiti)?$/, key: "EXACT_SCORE" },
   { pattern: /^1X2\s+H\s+(-?[\d.]+)$/, key: "HANDICAP", lineGroup: 1 },
   { pattern: /^1X2\s+H$/, key: "HANDICAP" },
-  { pattern: /^1X2\s+Handicap$/, key: "HANDICAP" },
+  { pattern: /^1X2\s+Handicap\b/, key: "HANDICAP" },
   { pattern: /^1X2\s+Hand$/, key: "HANDICAP" },
+  { pattern: /^Handicap Asiatico\b/, key: "HANDICAP" },
   { pattern: /^Handicap\b/, key: "HANDICAP" },
-  { pattern: /^Somma Gol$/, key: "GOALS_BAND" },
+  { pattern: /^(?:Somma Gol|Multigol)$/, key: "GOALS_BAND" },
   { pattern: /^P\/D$/, key: "ODD_EVEN" },
   { pattern: /^Pari\/Dispari$/, key: "ODD_EVEN" },
 
@@ -186,12 +202,13 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^1X2\s+1T$/, key: "1X2_HT" },
   { pattern: /^1X2\s+(?:Primo Tempo|1°?\s*Tempo)$/, key: "1X2_HT" },
   { pattern: /^U\/O\s+1T\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
+  { pattern: /^U\/O\s+1°?\s*Tempo\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^Under\/Over\s+1°?\s*Tempo\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^Under\/Over\s+1°?\s*Tempo$/, key: "O/U_HT" },
   { pattern: /^DC\s+1°?\s*Tempo$/, key: "DC_HT" },
   { pattern: /^(?:GG\/NG|Gol\/NoGol)\s+1°?\s*Tempo$/, key: "GG/NG_HT" },
   { pattern: /^Risultato Esatto\s+1°?\s*Tempo$/, key: "EXACT_SCORE_HT" },
-  { pattern: /^Somma Gol\s+1°?\s*Tempo$/, key: "GOALS_BAND_HT" },
+  { pattern: /^(?:Somma Gol|Multigol)\s+1°?\s*Tempo$/, key: "GOALS_BAND_HT" },
   { pattern: /^Pari\/Dispari\s+1°?\s*Tempo$/, key: "ODD_EVEN_HT" },
   { pattern: /^U\/O\s+Casa\s+1°T\s+([\d.]+)$/, key: "O/U_HOME_HT", lineGroup: 1 },
   { pattern: /^U\/O\s+Ospite\s+1°T\s+([\d.]+)$/, key: "O/U_AWAY_HT", lineGroup: 1 },
@@ -199,8 +216,10 @@ const MARKET_PATTERNS: MarketPattern[] = [
   // ─── Football 2nd Half markets ───
   { pattern: /^1X2\s+Secondo\s+Tempo$/, key: "1X2_SH" },
   { pattern: /^1X2\s+2T$/, key: "1X2_SH" },
+  { pattern: /^1X2\s+2°?\s*Tempo$/, key: "1X2_SH" },
   { pattern: /^Under\/Over\s+2°?\s*Tempo\s*([\d.]+)?$/, key: "O/U_SH", lineGroup: 1 },
   { pattern: /^U\/O\s+2T\s+([\d.]+)$/, key: "O/U_SH", lineGroup: 1 },
+  { pattern: /^U\/O\s+2°?\s*Tempo\s+([\d.]+)$/, key: "O/U_SH", lineGroup: 1 },
   { pattern: /^U\/O\s+Casa\s+2°T\s*([\d.]+)?$/, key: "O/U_HOME_SH", lineGroup: 1 },
   { pattern: /^U\/O\s+Ospite\s+2°T\s*([\d.]+)?$/, key: "O/U_AWAY_SH", lineGroup: 1 },
   { pattern: /^Vincente a 0\s+2T\s+Casa$/, key: "WIN_NIL_SH_HOME" },
@@ -213,8 +232,8 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^U\/O\s+Ospite\s+([\d.]+)$/, key: "O/U_AWAY", lineGroup: 1 },
   { pattern: /^U\/O\s+Punti\s+Casa\s*([\d.]+)?$/, key: "O/U_HOME", lineGroup: 1 },
   { pattern: /^U\/O\s+Punti\s+Ospite\s*([\d.]+)?$/, key: "O/U_AWAY", lineGroup: 1 },
-  { pattern: /^Somma Gol\s+Casa$/, key: "GOALS_BAND_HOME" },
-  { pattern: /^Somma Gol\s+Ospite$/, key: "GOALS_BAND_AWAY" },
+  { pattern: /^(?:Somma Gol|Multigol)\s+Casa$/, key: "GOALS_BAND_HOME" },
+  { pattern: /^(?:Somma Gol|Multigol)\s+Ospite$/, key: "GOALS_BAND_AWAY" },
   { pattern: /^Rete Inviolata\s+Casa$/, key: "CLEAN_SHEET_HOME" },
   { pattern: /^Rete Inviolata\s+Ospite$/, key: "CLEAN_SHEET_AWAY" },
   { pattern: /^Vincente\s+A\s+0\s+Squadra\s+Casa$/i, key: "WIN_NIL_HOME" },
@@ -233,23 +252,27 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^GG o Over\s+([\d.]+)$/, key: "GG_OR_OVER", lineGroup: 1 },
   { pattern: /^1X2\s*\+\s*(?:GG\/NG)\s+1°?\s*Tempo$/, key: "COMBO_1X2_GG_HT" },
   { pattern: /^1X2\s*\+\s*U\/O\s+1°?\s*Tempo\s*([\d.]+)?$/, key: "COMBO_1X2_OU_HT", lineGroup: 1 },
-  { pattern: /^(?:GG\/NG|Gol\/NoGol)\s*\+\s*Under\/Over\s*([\d.]+)?$/, key: "COMBO_GG_OU", lineGroup: 1 },
+  { pattern: /^(?:GG\/NG|Gol\/NoGol)\s*\+\s*(?:Under\/Over|U\/O)\s*([\d.]+)?$/, key: "COMBO_GG_OU", lineGroup: 1 },
 
-  // ─── Football HT/FT ───
+  // ─── Football HT/FT (Parziale/Finale) ───
+  { pattern: /^Parziale\/Finale$/, key: "HT_FT" },
   { pattern: /^Esito\s+1T\/Finale$/, key: "HT_FT" },
   { pattern: /^Esito\s+1°\s*Tempo\/Finale$/, key: "HT_FT" },
   { pattern: /Primo Tempo.*Finale|1T.*2T|HT.*FT/i, key: "HT_FT" },
   { pattern: /^Tempo Con Maggior Gol 1X2$/, key: "HALF_MOST_GOALS" },
 
   // ─── Football Props ───
+  { pattern: /^Prima Squadra A Segnare$/, key: "NEXT_GOAL" },
   { pattern: /^Segna Goal$/, key: "NEXT_GOAL" },
   { pattern: /^Passaggio Turno$/, key: "QUALIFY" },
   { pattern: /^Tempi Supplementari Si\/No$/, key: "OVERTIME_YN" },
+  { pattern: /^Gol In Entrambi I Tempi/i, key: "GOAL_BOTH_HALVES" },
 
   // ─── Tennis / Table Tennis ───
   { pattern: /^Vincente Incontro(?:\s+\(escl\.\s*ritiro\))?$/, key: "MATCH_WINNER" },
   { pattern: /^T\/T\s+(?:Risultato|Match)$/, key: "MATCH_WINNER" },
   { pattern: /^Vincente\s+\(escl\.\s*ritiro\)\s+Set\s+(\d+)$/, key: "SET_WINNER", setGroup: 1 },
+  { pattern: /^Vincente\s+Set\s+(\d+)$/, key: "SET_WINNER", setGroup: 1 },
   { pattern: /^Vincente Set$/, key: "SET_WINNER" },
   { pattern: /^Set Betting\b/, key: "SET_BETTING" },
   { pattern: /^U\/O\s+Games\s+([\d.]+)$/, key: "O/U_GAMES", lineGroup: 1 },
@@ -705,6 +728,12 @@ const SETTLERS: Record<string, SettlerFn> = {
       (r.period || "").toUpperCase().includes("OVERTIME") ||
       (r.period || "").toUpperCase().includes("EXTRA");
     return settleYesNo(hasOT, sel);
+  },
+
+  GOAL_BOTH_HALVES: (r, sel) => {
+    if (r.ht_total == null || r.sh_total == null) return "void";
+    const goalsBothHalves = r.ht_total > 0 && r.sh_total > 0;
+    return settleYesNo(goalsBothHalves, sel);
   },
 
   // ─── Tennis / Table Tennis ───

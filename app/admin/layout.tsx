@@ -30,6 +30,7 @@ const NAVIGATION: AdminNavGroup[] = [
     items: [
       { id: "scraper", icon: "🔄", label: "Scraper Monitor" },
       { id: "market-coverage", icon: "📈", label: "Market Coverage" },
+      { id: "market-translations", icon: "🌐", label: "Traduzioni Mercati" },
       { id: "fixtures", icon: "📅", label: "Fixtures" },
     ],
   },
@@ -53,6 +54,7 @@ const TITLES: Record<string, string> = {
   "event-matching": "Event Matching",
   scraper: "Scraper Monitor",
   "market-coverage": "Market Coverage",
+  "market-translations": "Traduzioni Mercati",
   fixtures: "Fixtures",
   users: "Gestione Utenti",
   config: "Configurazione",
@@ -73,6 +75,7 @@ export default function AdminLayout({
     const parts = pathname.split("/").filter(Boolean);
     // parts[0] = "admin", parts[1] = section, parts[2+] = sub-route
     if (parts[1] === "market-coverage") return "market-coverage";
+    if (parts[1] === "market-translations") return "market-translations";
     if (parts[1] === "risk") return "risk";
     return parts[parts.length - 1] || "dashboard";
   }, [pathname]);
@@ -92,6 +95,7 @@ export default function AdminLayout({
       "event-matching": "/admin/event-matching",
       scraper: "/admin/scraper",
       "market-coverage": "/admin/market-coverage",
+      "market-translations": "/admin/market-translations",
       fixtures: "/admin/fixtures",
       users: "/admin/management",
       config: "/admin/config",

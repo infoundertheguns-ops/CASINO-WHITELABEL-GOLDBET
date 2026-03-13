@@ -5,8 +5,8 @@ import { formatNum, formatNumFull, timeAgo, formatUptime } from "./helpers";
 
 interface LeonHeroProps {
   leonServer: ServerData | null;
-  liveSource: "leon" | "goldbet";
-  onToggleSource: (source: "leon" | "goldbet") => void;
+  liveSource: "leon" | "kambi";
+  onToggleSource: (source: "leon" | "kambi") => void;
   saving: boolean;
 }
 
@@ -84,7 +84,7 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
             Leon Bets Scraper
           </span>
           <div style={{ display: "flex", gap: 6 }}>
-            {(["leon", "goldbet"] as const).map((s) => (
+            {(["leon", "kambi"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => onToggleSource(s)}
@@ -101,7 +101,7 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
                   opacity: saving ? 0.5 : 1,
                 }}
               >
-                {s === "leon" ? "Leon" : "Goldbet"}
+                {s === "leon" ? "Leon" : "Kambi"}
                 {liveSource === s && " \u2713"}
               </button>
             ))}

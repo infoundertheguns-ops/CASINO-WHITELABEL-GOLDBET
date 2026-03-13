@@ -27,16 +27,16 @@ export async function POST(req: NextRequest) {
   let stalePrematchEnded = 0;
   const errors: string[] = [];
 
-  // ── 1. Process finished events backlog (oldest first, max 50) ──
-  // Delay 30 min to let verify-results cron settle with verified BetExplorer data first
-  const finishedDelay = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  // ── 1. Process finished events backlog (oldest first, max 150) ──
+  // Delay 10 min to let verify-results cron settle with verified data first
+  const finishedDelay = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data: finishedEvents } = await supabase
     .from("events")
     .select("id, external_id, score_home")
     .eq("status", "finished")
     .lt("updated_at", finishedDelay)
     .order("updated_at", { ascending: true })
-    .limit(50);
+    .limit(150);
 
   if (finishedEvents && finishedEvents.length > 0) {
     for (const ev of finishedEvents) {
@@ -81,10 +81,10 @@ export async function POST(req: NextRequest) {
     staleLiveFinished = ids.length;
   }
 
-  // ── 2b. End abandoned prematch events (no scraper update for 4+ hours) ──
-  // If scraper stopped processing an event (removed from Goldbet), it becomes stale.
-  // 4h threshold = ~24 prematch cycles. Mark as ended (no score/settlement needed).
-  const prematchStaleThreshold = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+  // ── 2b. End abandoned prematch events (no scraper update for 2+ hours) ──
+  // If scraper stopped processing an event, it becomes stale.
+  // 2h threshold = ~12 Leon prematch cycles or ~24 Kambi cycles.
+  const prematchStaleThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
   const { data: stalePrematch } = await supabase
     .from("events")
     .select("id")

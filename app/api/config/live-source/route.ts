@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 const CONFIG_KEY = "active_live_source";
-const VALID_SOURCES = ["leon", "goldbet"];
+const VALID_SOURCES = ["leon", "kambi"];
 
 function getServiceClient() {
   return createClient(
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     .upsert({
       key: CONFIG_KEY,
       value: body.source,
-      description: "Active live data source (leon or goldbet)",
+      description: "Active live data source (leon or kambi)",
       updated_at: new Date().toISOString(),
     });
 

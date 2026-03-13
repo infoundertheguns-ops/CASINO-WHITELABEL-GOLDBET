@@ -1,25 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
-// ═══ GET — Leon Market Coverage Report ═══
-// Query params: action=stats|event-detail|sport-leagues|league-events
+// ═══ GET — Market Coverage Report (Leon / Kambi) ═══
+// Query params: action=stats|event-detail|sport-leagues|league-events, source=leon|kambi
+
+const VALID_SOURCES = ["leon", "kambi"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const action = sp.get("action") || "stats";
+  const source = sp.get("source") || "leon";
+
+  if (!VALID_SOURCES.includes(source)) {
+    return NextResponse.json({ error: "Invalid source" }, { status: 400 });
+  }
 
   const supabase = createAdminClient();
 
   try {
     switch (action) {
       case "stats":
-        return await getStats(supabase);
+        return await getStats(supabase, source);
       case "event-detail":
         return await getEventDetail(supabase, sp);
       case "sport-leagues":
-        return await getSportLeagues(supabase, sp);
+        return await getSportLeagues(supabase, sp, source);
       case "league-events":
-        return await getLeagueEvents(supabase, sp);
+        return await getLeagueEvents(supabase, sp, source);
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
@@ -29,10 +36,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── Stats: Leon-only RPC ───
+// ─── Stats: source-based RPC ───
 
-async function getStats(supabase: any) {
-  const { data, error } = await supabase.rpc("get_leon_coverage").single();
+async function getStats(supabase: any, source: string) {
+  const { data, error } = await supabase.rpc("get_source_coverage", { p_source: source }).single();
   if (error) throw error;
 
   return NextResponse.json({
@@ -111,9 +118,9 @@ async function getEventDetail(supabase: any, sp: URLSearchParams) {
   });
 }
 
-// ─── Sport Leagues: aggregate coverage by league for a sport (Leon only) ───
+// ─── Sport Leagues: aggregate coverage by league for a sport ───
 
-async function getSportLeagues(supabase: any, sp: URLSearchParams) {
+async function getSportLeagues(supabase: any, sp: URLSearchParams, source: string) {
   const sportSlug = sp.get("sport");
   if (!sportSlug) return NextResponse.json({ error: "sport required" }, { status: 400 });
 
@@ -128,12 +135,12 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
     .single();
   if (sErr || !sportRow) return NextResponse.json({ error: "Sport not found" }, { status: 404 });
 
-  // Fetch all Leon events for this sport
+  // Fetch events for this sport
   let query = supabase
     .from("events")
     .select("id, league_id, status, source_markets_count, leagues(id, name, country)")
     .eq("sport_id", sportRow.id)
-    .eq("source", "leon")
+    .eq("source", source)
     .in("status", ["prematch", "live"]);
 
   if (status === "live") query = query.eq("status", "live");
@@ -266,9 +273,9 @@ async function getSportLeagues(supabase: any, sp: URLSearchParams) {
   });
 }
 
-// ─── League Events: events for a specific league with coverage data (Leon only) ───
+// ─── League Events: events for a specific league with coverage data ───
 
-async function getLeagueEvents(supabase: any, sp: URLSearchParams) {
+async function getLeagueEvents(supabase: any, sp: URLSearchParams, source: string) {
   const leagueId = sp.get("league_id");
   if (!leagueId) return NextResponse.json({ error: "league_id required" }, { status: 400 });
 
@@ -279,7 +286,7 @@ async function getLeagueEvents(supabase: any, sp: URLSearchParams) {
     .from("events")
     .select("id, external_id, home_team, away_team, starts_at, status, source_markets_count, leagues(name), sports(slug)")
     .eq("league_id", leagueId)
-    .eq("source", "leon")
+    .eq("source", source)
     .in("status", ["prematch", "live"])
     .order("starts_at", { ascending: true })
     .limit(limit);

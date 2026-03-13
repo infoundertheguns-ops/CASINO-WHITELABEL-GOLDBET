@@ -129,7 +129,7 @@ export async function GET() {
     try {
       const { getRedisClient } = await import("@/lib/redis");
       const redis = await getRedisClient();
-      for (const source of ["leon"]) {
+      for (const source of ["leon", "kambi"]) {
         const raw = await redis.get(`scraper:snapshot:${source}`);
         if (raw) {
           if (!g.__scraperSnapshotsBySource) g.__scraperSnapshotsBySource = {};
@@ -139,9 +139,11 @@ export async function GET() {
     } catch { /* Redis fallback is best-effort */ }
   }
 
-  // 2. Leon scraper info from in-memory snapshots
+  // 2. Leon + Kambi scraper info from in-memory snapshots
   const leonLive = getScraperInfo("leon", "live");
   const leonPrematch = getScraperInfo("leon", "prematch");
+  const kambiLive = getScraperInfo("kambi", "live");
+  const kambiPrematch = getScraperInfo("kambi", "prematch");
 
   // 3. Redis info
   let redisInfo: RedisInfo = { connected: false };
@@ -158,11 +160,12 @@ export async function GET() {
     redisInfo = { connected: false };
   }
 
-  // 4. Compute scores — Leon-centric
+  // 4. Compute scores — Leon primary + Kambi backup
   const scores = computeHealthScores(
     rpc,
     { live: leonLive, prematch: leonPrematch },
-    redisInfo
+    redisInfo,
+    { live: kambiLive, prematch: kambiPrematch }
   );
 
   const result = {
@@ -171,6 +174,8 @@ export async function GET() {
     scraper: {
       live: leonLive,
       prematch: leonPrematch,
+      kambi_live: kambiLive,
+      kambi_prematch: kambiPrematch,
     },
     redis: redisInfo,
     cached_at: new Date().toISOString(),

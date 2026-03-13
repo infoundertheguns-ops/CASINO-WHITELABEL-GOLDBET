@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   fetchApi, formatNum, formatNumFull, formatTime,
   coverageColor, coverageBg,
@@ -48,10 +48,15 @@ interface LeagueEventRow {
 
 // ═══ MAIN COMPONENT ═══
 
+type CoverageSource = "leon" | "kambi";
+
 export default function SportDetailDashboard() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const source = (searchParams.get("source") as CoverageSource) || "leon";
+  const sourceLabel = source === "leon" ? "Leon" : "Kambi";
 
   const [sportName, setSportName] = useState<string>("");
   const [leagues, setLeagues] = useState<LeagueRow[]>([]);
@@ -81,7 +86,7 @@ export default function SportDetailDashboard() {
       const p: Record<string, string> = { sport: slug };
       if (statusFilter !== "all") p.status = statusFilter;
 
-      const data = await fetchApi("sport-leagues", p);
+      const data = await fetchApi("sport-leagues", p, source);
       setSportName(data.sport?.name || slug);
       setLeagues(data.leagues || []);
       setKpis(data.kpis || null);
@@ -92,7 +97,7 @@ export default function SportDetailDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [slug, statusFilter]);
+  }, [slug, statusFilter, source]);
 
   useEffect(() => {
     setLoading(true);
@@ -118,7 +123,7 @@ export default function SportDetailDashboard() {
       const p: Record<string, string> = { league_id: leagueId };
       if (statusFilter !== "all") p.status = statusFilter;
 
-      const data = await fetchApi("league-events", p);
+      const data = await fetchApi("league-events", p, source);
       setLeagueEvents(data.events || []);
     } catch {
       setLeagueEvents([]);
@@ -141,7 +146,7 @@ export default function SportDetailDashboard() {
   };
 
   const handleExportLeagues = () => {
-    const headers = ["Lega", "Paese", "Eventi", "Avg Leon", "Avg DB", "Coverage %", "Con Gap", "Zero"];
+    const headers = ["Lega", "Paese", "Eventi", `Avg ${sourceLabel}`, "Avg DB", "Coverage %", "Con Gap", "Zero"];
     const rows = leagues.map(l => [
       l.league_name,
       l.country || "N/D",
@@ -152,7 +157,7 @@ export default function SportDetailDashboard() {
       l.gap_events,
       l.zero_markets,
     ]);
-    const filename = `leon-coverage-${slug}.csv`;
+    const filename = `${source}-coverage-${slug}.csv`;
     exportCsv(filename, headers, rows);
   };
 
@@ -182,7 +187,7 @@ export default function SportDetailDashboard() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
-            onClick={() => router.push("/admin/market-coverage")}
+            onClick={() => router.push(`/admin/market-coverage?source=${source}`)}
             style={{
               background: "rgba(255,255,255,0.05)",
               border: "1px solid var(--admin-border, #1e3a5f)",
@@ -257,7 +262,7 @@ export default function SportDetailDashboard() {
             <DonutRing pct={kpis.coverage_pct} size={48} />
           </KPICard>
           <KPICard
-            label="Avg Leon / DB"
+            label={`Avg ${sourceLabel} / DB`}
             value={`${kpis.avg_leon} / ${kpis.avg_db}`}
             color={kpis.coverage_pct >= 95 ? "#10b981" : "#f59e0b"}
           />
@@ -289,7 +294,7 @@ export default function SportDetailDashboard() {
         }}>
           <div>Lega</div>
           <div style={{ textAlign: "center" }}>Eventi</div>
-          <div style={{ textAlign: "center" }}>Avg Leon</div>
+          <div style={{ textAlign: "center" }}>Avg {sourceLabel}</div>
           <div style={{ textAlign: "center" }}>Avg DB</div>
           <div style={{ textAlign: "center" }}>Coverage</div>
           <div style={{ textAlign: "center" }}>Con Gap</div>
@@ -389,7 +394,7 @@ export default function SportDetailDashboard() {
                           borderBottom: "1px solid rgba(255,255,255,0.05)",
                         }}>
                           <div>Evento</div>
-                          <div style={{ textAlign: "center" }}>Leon</div>
+                          <div style={{ textAlign: "center" }}>{sourceLabel}</div>
                           <div style={{ textAlign: "center" }}>DB</div>
                           <div style={{ textAlign: "center" }}>Gap</div>
                           <div style={{ textAlign: "center" }}>Coverage</div>
