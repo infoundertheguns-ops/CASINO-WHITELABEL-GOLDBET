@@ -40,7 +40,6 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
   const isOffline = !leonServer || !leonServer.latest;
   const gb = leonServer?.latest?.goldbet;
 
-  // Leon snapshot uses different field names than legacy Goldbet
   // Check online by: snapshot exists + has events
   const hasLiveData = !!(gb && gb.live_events > 0);
   const hasPrematchData = !!(gb && gb.prematch_events > 0);
@@ -136,7 +135,7 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text-muted)", marginBottom: 12 }}>
                 Prematch
               </div>
-              <StatusDot online={isLeonOnline && hasPrematchData} />
+              <StatusDot online={isLeonOnline} />
 
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                 <MetricRow label="Ultimo ciclo" value={lastCycleAgo} />
