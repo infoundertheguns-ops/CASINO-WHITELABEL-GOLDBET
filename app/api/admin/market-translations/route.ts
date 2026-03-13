@@ -54,7 +54,13 @@ const ITALIAN_PATTERNS = [
   // ── Corner/Gol props ──
   /^Primo Corner/, /^Espulsione/, /^Marcatore 2\+/,
   /^Primo Marcatore (Casa|Ospite)/, /^Marcatore (Piede|Di Testa|Fuori)/,
-  /^Gara A \d+ Gol/, /^Mappa \d+:/,
+  /^Gara A \d+ Gol/, /^Mappa \d+:/, /^1X2 Mappa/,
+  // ── Baseball/Basket ──
+  /^Handicap Runs/, /^U\/O Runs/, /^Handicap Punti/,
+  // ── Varie ──
+  /^Vince Entrambi/, /^Entrambi Tempi/,
+  /^Vincente (Casa|Ospite)/, /^Squadra Segna Gol/,
+  /^U\/O G\d/, /^Handicap Set/,
 ];
 
 function isItalian(marketType: string): boolean {
