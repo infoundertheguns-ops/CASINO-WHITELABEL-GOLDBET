@@ -214,6 +214,23 @@ const VOID_PATTERNS: RegExp[] = [
   /\bContrasti Difensivi\b/i,
   /\bAssist$/i,
   /\bFalli$/i,
+  /\bParate$/i,
+  /\bRespinte$/i,
+  /\bFuorigioco$/i,
+  /\bCross$/i,
+  // ── Cartellini ──
+  /Cartellini/i,
+  // ── Gol race/primo corner/espulsione ──
+  /^Gara A \d+ Gol/i,
+  /^Primo Corner/i,
+  /^Espulsione/i,
+  /^Marcatore 2\+/i,
+  /^Primo Marcatore (Casa|Ospite)/i,
+  /^Marcatore Piede/i,
+  /^Marcatore Di Testa/i,
+  /^Marcatore Fuori Area/i,
+  // ── Esports player props ──
+  /^Mappa \d+:/i,
   /^Shootout$/i,
   /^Squadra\s+(Casa|Ospite)\s+Vince\s+A\s+0\s+Periodo/i,
   /^1X2\s+\d+°\s+Periodo/i,

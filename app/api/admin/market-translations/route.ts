@@ -48,6 +48,13 @@ const ITALIAN_PATTERNS = [
   /Tiri In Porta/, /Tiri Totali/, /Tiri Di Testa/,
   /Tiri (Sinistro|Destro)/, /Passaggi Completati/,
   /Contrasti Difensivi/, /\bAssist$/, /\bFalli$/,
+  /\bParate$/, /\bRespinte$/, /\bFuorigioco$/, /\bCross$/,
+  // ── Cartellini ──
+  /Cartellini/,
+  // ── Corner/Gol props ──
+  /^Primo Corner/, /^Espulsione/, /^Marcatore 2\+/,
+  /^Primo Marcatore (Casa|Ospite)/, /^Marcatore (Piede|Di Testa|Fuori)/,
+  /^Gara A \d+ Gol/, /^Mappa \d+:/,
 ];
 
 function isItalian(marketType: string): boolean {
