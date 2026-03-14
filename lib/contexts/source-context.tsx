@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 
-type LiveSource = "leon" | "kambi";
+type LiveSource = "kambi";
 
 interface SourceContextValue {
   liveSource: LiveSource;
@@ -11,13 +11,13 @@ interface SourceContextValue {
 }
 
 const SourceContext = createContext<SourceContextValue>({
-  liveSource: "leon",
+  liveSource: "kambi",
   setLiveSource: async () => {},
   loading: true,
 });
 
 export function SourceProvider({ children }: { children: ReactNode }) {
-  const [liveSource, setLiveSourceState] = useState<LiveSource>("leon");
+  const [liveSource, setLiveSourceState] = useState<LiveSource>("kambi");
   const [loading, setLoading] = useState(true);
 
   // Fetch current live source on mount
@@ -25,7 +25,7 @@ export function SourceProvider({ children }: { children: ReactNode }) {
     fetch("/api/config/live-source")
       .then((r) => r.json())
       .then((data) => {
-        if (data.source === "leon" || data.source === "kambi") {
+        if (data.source === "kambi") {
           setLiveSourceState(data.source);
         }
       })

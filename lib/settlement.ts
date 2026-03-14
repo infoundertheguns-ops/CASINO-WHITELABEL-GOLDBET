@@ -257,6 +257,23 @@ const VOID_PATTERNS: RegExp[] = [
   /^T\/T\s+Handicap\s+\d+°\s+(Quarto|Tempo)/i,
   /^Over\/Under\s+\d+°\s+(Quarto|Tempo|Set)/i,
   /^Pari\/Dispari\s+\d+°\s+Tempo/i,
+  // ── Kambi-specific void patterns ──
+  /^Totale calci d'angolo\b/i,
+  /^Più calci d'angolo/i,
+  /^Corner successivo/i,
+  /^Calci d'angolo\s+-\s+/i,
+  /^Primo marcatore$/i,
+  /^Segna almeno \d+ gol/i,
+  /^Segna \d+$/i,
+  /^Cartellino rosso/i,
+  /^Entrambe le squadre realizzano almeno \d+ gol/i,
+  /^Entrambe le squadre segnano almeno \d+ gol/i,
+  /^2nd Half\b/i,
+  /^Draw No Bet\s+-\s+2nd Half/i,
+  /^Draw No Bet\s+-\s+\d+°\s*Quarto$/i,
+  /^\d+°\s*Quarto$/i,
+  /^\d+°\s*Periodo$/i,
+  /^1x2 con Handicap\s+-\s+\d+°/i,
 ];
 
 // Priority-ordered pattern array: first match wins
@@ -265,17 +282,28 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^1X2$/, key: "1X2" },
   { pattern: /^1X2 Tempi Reg\.$/, key: "1X2" },
   { pattern: /^Esito [Ff]inale 1X2$/, key: "1X2" },
+  { pattern: /^Esito Finale 1x2\s+-\s+Tempo regolamentare$/i, key: "1X2" },
+  { pattern: /^Supplementari e rigori inclusi$/, key: "1X2" },
+  { pattern: /^Tempo Regolamentare$/, key: "1X2" },
   { pattern: /^U\/O\s+([\d.]+)$/, key: "O/U", lineGroup: 1 },
   { pattern: /^Under\/Over\s+([\d.]+)$/, key: "O/U", lineGroup: 1 },
   { pattern: /^Under\/Over$/, key: "O/U" },
+  { pattern: /^Gol totali\s+-\s+Tempo Regolamentare\s+([\d.]+)$/i, key: "O/U", lineGroup: 1 },
+  { pattern: /^Gol totali\s+-\s+Supplementari e rigori inclusi\s+([\d.]+)$/i, key: "O/U", lineGroup: 1 },
   { pattern: /^GG\/NG$/, key: "GG/NG" },
   { pattern: /^Gol\/NoGol$/, key: "GG/NG" },
   { pattern: /^Goal\/No Goal$/, key: "GG/NG" },
   { pattern: /^Gol\/No\s+Gol$/i, key: "GG/NG" },
+  { pattern: /^Entrambe le squadre segnano\s+-\s+Tempo regolamentare\s+\(Gol\/No Gol\)$/i, key: "GG/NG" },
+  { pattern: /^Entrambe le squadre segnano\s+-\s+Supplementari e rigori inclusi$/i, key: "GG/NG" },
   { pattern: /^DC$/, key: "DC" },
   { pattern: /^Doppia Chance$/, key: "DC" },
+  { pattern: /^Doppia Chance\s+-\s+Tempo regolamentare$/i, key: "DC" },
   { pattern: /^Draw No Bet$/, key: "DNB" },
-  { pattern: /^Ris(?:ultato)?\.?\s*Esatto(?:\s+\d+\s+Esiti)?$/, key: "EXACT_SCORE" },
+  { pattern: /^Draw No Bet\s+-\s+Tempo regolamentare$/i, key: "DNB" },
+  { pattern: /^Ris(?:ultato)?\.?\s*[Ee]satto(?:\s+\d+\s+Esiti)?$/, key: "EXACT_SCORE" },
+  { pattern: /^Risultato esatto\s+-\s+(?:Tempo regolamentare|Supplementari e rigori inclusi)$/i, key: "EXACT_SCORE" },
+  { pattern: /^1X2\s+H\s+\(([+-]?[\d.]+)\)$/, key: "HANDICAP", lineGroup: 1 },
   { pattern: /^1X2\s+H\s+(-?[\d.]+)$/, key: "HANDICAP", lineGroup: 1 },
   { pattern: /^1X2\s+H$/, key: "HANDICAP" },
   { pattern: /^1X2\s+Handicap\b/, key: "HANDICAP" },
@@ -285,16 +313,22 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^(?:Somma Gol|Multigol)$/, key: "GOALS_BAND" },
   { pattern: /^P\/D$/, key: "ODD_EVEN" },
   { pattern: /^Pari\/Dispari$/, key: "ODD_EVEN" },
+  { pattern: /^Gol totali\s+-\s+Pari\/Dispari\s+-\s+Primo tempo$/i, key: "ODD_EVEN_HT" },
 
   // ─── Football HT markets ───
+  { pattern: /^Draw No Bet\s+1T$/i, key: "DNB_HT" },
+  { pattern: /^Draw No Bet\s+-\s+2°?\s*tempo$/i, key: "DNB_SH" },
   { pattern: /^1X2\s+1T$/, key: "1X2_HT" },
   { pattern: /^1X2\s+(?:Primo Tempo|1°?\s*Tempo)$/, key: "1X2_HT" },
   { pattern: /^U\/O\s+1T\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^U\/O\s+1°?\s*Tempo\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^Under\/Over\s+1°?\s*Tempo\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^Under\/Over\s+1°?\s*Tempo$/, key: "O/U_HT" },
+  { pattern: /^Totale Asiatico\s+-\s+1°?\s*tempo\s+([\d.]+)$/i, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^DC\s+1°?\s*Tempo$/, key: "DC_HT" },
+  { pattern: /^DC\s+2°?\s*Tempo$/, key: "DC_SH" },
   { pattern: /^(?:GG\/NG|Gol\/NoGol)\s+1°?\s*Tempo$/, key: "GG/NG_HT" },
+  { pattern: /^Entrambe le squadre segnano\s+-\s+2°?\s*tempo\s+\(Gol\/No Gol\)$/i, key: "GG/NG_SH" },
   { pattern: /^Risultato Esatto\s+1°?\s*Tempo$/, key: "EXACT_SCORE_HT" },
   { pattern: /^(?:Somma Gol|Multigol)\s+1°?\s*Tempo$/, key: "GOALS_BAND_HT" },
   { pattern: /^Pari\/Dispari\s+1°?\s*Tempo$/, key: "ODD_EVEN_HT" },
@@ -355,6 +389,7 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Passaggio Turno$/, key: "QUALIFY" },
   { pattern: /^Tempi Supplementari Si\/No$/, key: "OVERTIME_YN" },
   { pattern: /^Gol In Entrambi I Tempi/i, key: "GOAL_BOTH_HALVES" },
+  { pattern: /^Gol segnato in entrambi i tempi$/i, key: "GOAL_BOTH_HALVES" },
 
   // ─── Tennis / Table Tennis ───
   { pattern: /^Vincente Incontro(?:\s+\(escl\.\s*ritiro\))?$/, key: "MATCH_WINNER" },
@@ -400,6 +435,7 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^T\/T\s+Risultato\s*\+\s*U\/O\s+Incl\.?\s*Supp\.?$/i, key: "COMBO_1X2_OU" },
 
   // ─── Generic / sport-agnostic (catch-all) ───
+  { pattern: /^T\/T\s+Handicap\s+\(([+-]?[\d.]+)\)$/, key: "HANDICAP_POINTS", lineGroup: 1 },
   { pattern: /^T\/T\s+Handicap\s+(-?[\d.]+)$/, key: "HANDICAP_POINTS", lineGroup: 1 },
   { pattern: /^T\/T\s+Handicap\s+(?:1°|2°|3°|4°)\s*Set\s+(-?[\d.]+)$/, key: "HANDICAP_SET", lineGroup: 1 },
   { pattern: /^Testa\s+[Aa]\s+Testa\s+Handicap/i, key: "HANDICAP_POINTS" },
@@ -639,6 +675,32 @@ const SETTLERS: Record<string, SettlerFn> = {
   "O/U_AWAY_HT": (r, sel, line) => {
     if (r.ht_away == null) return "void";
     return settleOU(r.ht_away, sel, line);
+  },
+
+  DNB_HT: (r, sel) => {
+    if (r.ht_home == null || r.ht_away == null) return "void";
+    if (r.ht_home === r.ht_away) return "void";
+    if (sel.trim() === "1" && r.ht_home > r.ht_away) return "won";
+    if (sel.trim() === "2" && r.ht_home < r.ht_away) return "won";
+    return "lost";
+  },
+
+  DNB_SH: (r, sel) => {
+    if (r.sh_home == null || r.sh_away == null) return "void";
+    if (r.sh_home === r.sh_away) return "void";
+    if (sel.trim() === "1" && r.sh_home > r.sh_away) return "won";
+    if (sel.trim() === "2" && r.sh_home < r.sh_away) return "won";
+    return "lost";
+  },
+
+  DC_SH: (r, sel) => {
+    if (r.sh_home == null || r.sh_away == null) return "void";
+    return settleDC(r.sh_home, r.sh_away, sel);
+  },
+
+  "GG/NG_SH": (r, sel) => {
+    if (r.sh_home == null || r.sh_away == null) return "void";
+    return settleGGNG(r.sh_home, r.sh_away, sel);
   },
 
   // ─── Football 2nd Half ───

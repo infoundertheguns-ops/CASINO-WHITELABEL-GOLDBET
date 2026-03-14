@@ -61,15 +61,27 @@ const ITALIAN_PATTERNS = [
   /^Vince Entrambi/, /^Entrambi Tempi/,
   /^Vincente (Casa|Ospite)/, /^Squadra Segna Gol/,
   /^U\/O G\d/, /^Handicap Set/,
+  // ── Roots mancanti (alto volume) ──
+  /^Segna/, /^Esito/, /^Totale/, /^Entrambe/,
+  /^Gol\s/, /^Corner\s/, /^Più\s/, /^Piú\s/,
+  /^Doppia\s/, /^Autogol/, /^Fornisce/, /^Supplementari/,
+  /^Almeno/, /^Cartellino\s/, /^Riceve\s/, /^Prende\s/,
+  // ── Roots mancanti (medio volume) ──
+  /^Corsa\s/, /^Prossimo\s/, /^Mappa\s\d/, /^\d°\s*Set/,
+  /^Va\s+in/, /^Mappe\s/, /^Punti\s/, /^Margine\s/,
+  /^Ogni\s/, /^1x2\s/,
 ];
 
+// Pre-compile case-insensitive versions once
+const ITALIAN_PATTERNS_CI = ITALIAN_PATTERNS.map(p => new RegExp(p.source, "i"));
+
 function isItalian(marketType: string): boolean {
-  return ITALIAN_PATTERNS.some(p => p.test(marketType));
+  return ITALIAN_PATTERNS_CI.some(p => p.test(marketType));
 }
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  const source = sp.get("source") || "leon";
+  const source = sp.get("source") || "kambi";
 
   const supabase = createAdminClient();
 
@@ -85,7 +97,7 @@ export async function GET(req: NextRequest) {
       .select("market_type, event_id, events!inner(source)")
       .eq("is_active", true)
       .eq("events.source", source)
-      .limit(10000);
+      .limit(50000);
 
     if (rawErr) {
       return NextResponse.json({ error: rawErr.message }, { status: 500 });

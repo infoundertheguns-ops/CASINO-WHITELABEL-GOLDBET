@@ -21,7 +21,7 @@ interface TranslationData {
 
 export default function MarketTranslationsPage() {
   const [data, setData] = useState<TranslationData | null>(null);
-  const [source, setSource] = useState<"leon" | "kambi">("leon");
+  const [source, setSource] = useState<"kambi">("kambi");
   const [filter, setFilter] = useState<"all" | "italian" | "english">("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -80,25 +80,20 @@ export default function MarketTranslationsPage() {
           Traduzioni Mercati
         </h1>
         <div style={{ display: "flex", gap: 8 }}>
-          {(["leon", "kambi"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setSource(s)}
+            <span
               style={{
                 padding: "6px 16px",
                 borderRadius: 6,
                 border: "1px solid #1e3a5f",
-                background: source === s ? "#1e40af" : "#0f1a2e",
-                color: source === s ? "#fff" : "#94a3b8",
-                cursor: "pointer",
+                background: "#1e40af",
+                color: "#fff",
                 fontSize: 13,
                 fontWeight: 600,
                 textTransform: "uppercase",
               }}
             >
-              {s}
-            </button>
-          ))}
+              KAMBI
+            </span>
           <button
             onClick={fetchData}
             style={{

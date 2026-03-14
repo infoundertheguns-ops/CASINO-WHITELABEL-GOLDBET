@@ -10,8 +10,6 @@ import {
 } from "./shared";
 import type { EventDetail } from "./shared";
 
-type CoverageSource = "leon" | "kambi";
-
 // ═══ TYPES ═══
 
 interface SportRow {
@@ -58,12 +56,10 @@ interface StatsData {
 
 // ═══ MAIN COMPONENT ═══
 
-export default function LeonCoverageDashboard() {
+export default function CoverageDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [source, setSource] = useState<CoverageSource>(
-    (searchParams.get("source") as CoverageSource) || "leon"
-  );
+  const source = "kambi";
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -79,7 +75,7 @@ export default function LeonCoverageDashboard() {
   const refreshRef = useRef<NodeJS.Timeout | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string>("");
 
-  const sourceLabel = source === "leon" ? "Leon" : "Kambi";
+  const sourceLabel = "Kambi";
 
   // ─── Load stats ───
   const loadStats = useCallback(async () => {
@@ -184,27 +180,6 @@ export default function LeonCoverageDashboard() {
             <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)", marginTop: 4 }}>
               Confronto mercati {sourceLabel} attesi vs DB Vincitu
             </div>
-          </div>
-          {/* Source Tab Switcher */}
-          <div style={{ display: "flex", gap: 4 }}>
-            {(["leon", "kambi"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => { setSource(s); setLoading(true); }}
-                style={{
-                  padding: "6px 16px", borderRadius: 6,
-                  border: source === s ? "2px solid #3b82f6" : "1px solid var(--admin-border, #1e3a5f)",
-                  background: source === s ? "rgba(59, 130, 246, 0.15)" : "transparent",
-                  color: source === s ? "#3b82f6" : "var(--admin-text3, #94a3b8)",
-                  fontWeight: source === s ? 700 : 500,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  textTransform: "uppercase",
-                }}
-              >
-                {s === "leon" ? "Leon" : "Kambi"}
-              </button>
-            ))}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

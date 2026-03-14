@@ -34,7 +34,7 @@ export function usePlayerProps(): UsePlayerPropsReturn {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
 
-  // Fetch Leon events with all markets, then filter player markets client-side
+  // Fetch events with all markets, then filter player markets client-side
   useEffect(() => {
     let cancelled = false;
 
@@ -43,7 +43,7 @@ export function usePlayerProps(): UsePlayerPropsReturn {
       setError(null);
 
       try {
-        // Fetch events from Leon with markets included
+        // Fetch events from Kambi with markets included
         const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
         const { data, error: err } = await supabase
           .from("events")
@@ -54,7 +54,7 @@ export function usePlayerProps(): UsePlayerPropsReturn {
             markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
               outcomes(id, name, odds, previous_odds, is_active, is_suspended))
           `)
-          .eq("source", "leon")
+          .eq("source", "kambi")
           .in("status", ["prematch", "live"])
           .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
           .order("starts_at", { ascending: true })

@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "./use-auth";
 import { useSportFilter } from "@/lib/contexts/sport-filter-context";
 import { useLiveOdds, type LiveOddsMessage } from "./use-live-odds";
-import { useLiveSource } from "@/lib/contexts/source-context";
 
 // ═══ API-FOOTBALL STATS TYPES ═══
 
@@ -420,8 +419,6 @@ export function useSportsbook() {
   const supabase = createClient();
 
   const { activeSport, setActiveSport, activeLeague, setActiveLeague } = useSportFilter();
-  const { liveSource } = useLiveSource();
-
   const [events, setEvents] = useState<SportEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -439,11 +436,6 @@ export function useSportsbook() {
 
     try {
       const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      // Prematch always from Leon; live from configured source
-      const sourceFilter = liveSource === "leon"
-        ? `source.eq.leon`
-        : `and(status.eq.prematch,source.eq.leon),and(is_live.eq.true,source.eq.${liveSource})`;
-
       let query = supabase
         .from("events")
         .select(`
@@ -453,13 +445,8 @@ export function useSportsbook() {
           markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
             outcomes(id, name, odds, previous_odds, is_active, is_suspended))
         `)
+        .eq("source", "kambi")
         .in("status", ["prematch", "live"]);
-
-      if (liveSource === "leon") {
-        query = query.eq("source", "leon");
-      } else {
-        query = query.or(sourceFilter);
-      }
 
       const { data, error: fetchErr } = await query
         .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
@@ -491,7 +478,7 @@ export function useSportsbook() {
     } finally {
       setLoading(false);
     }
-  }, [liveSource]);
+  }, []);
 
   // ── Realtime: subscribe to odds + event updates ──
   useEffect(() => {

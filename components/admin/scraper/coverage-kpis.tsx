@@ -5,10 +5,10 @@ import { formatNum, formatNumFull } from "./helpers";
 import { Sparkline } from "./sparkline";
 
 interface CoverageKPIsProps {
-  leonServer: ServerData | null;
+  server: ServerData | null;
 }
 
-function LeonKPICard({ label, value, sparkData, color }: {
+function KPICard({ label, value, sparkData, color }: {
   label: string; value: string; sparkData: number[]; color: string;
 }) {
   return (
@@ -39,20 +39,20 @@ function LeonKPICard({ label, value, sparkData, color }: {
   );
 }
 
-export function CoverageKPIs({ leonServer }: CoverageKPIsProps) {
-  const latest = leonServer?.latest;
-  const history = leonServer?.history || [];
+export function CoverageKPIs({ server }: CoverageKPIsProps) {
+  const latest = server?.latest;
+  const history = server?.history || [];
 
   if (!latest) return null;
 
   const gb = latest.goldbet;
 
-  // Leon scraper absolute numbers
+  // Kambi scraper absolute numbers
   const totalEvents = gb.live_events + gb.prematch_events;
   const totalMarkets = gb.live_markets + gb.prematch_markets;
   const totalOutcomes = gb.live_outcomes + gb.prematch_outcomes;
 
-  // Sparklines: absolute Leon numbers over time
+  // Sparklines over time
   const sparkEvents = history.map((s: Snapshot) =>
     s.goldbet.live_events + s.goldbet.prematch_events
   );
@@ -65,20 +65,20 @@ export function CoverageKPIs({ leonServer }: CoverageKPIsProps) {
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-      <LeonKPICard
-        label="Leon Eventi"
+      <KPICard
+        label="Kambi Eventi"
         value={formatNumFull(totalEvents)}
         sparkData={sparkEvents}
         color="#f59e0b"
       />
-      <LeonKPICard
-        label="Leon Mercati"
+      <KPICard
+        label="Kambi Mercati"
         value={formatNum(totalMarkets)}
         sparkData={sparkMarkets}
         color="#8b5cf6"
       />
-      <LeonKPICard
-        label="Leon Outcomes"
+      <KPICard
+        label="Kambi Outcomes"
         value={formatNum(totalOutcomes)}
         sparkData={sparkOutcomes}
         color="#3b82f6"

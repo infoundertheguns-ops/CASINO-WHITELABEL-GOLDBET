@@ -57,13 +57,9 @@ export function FreshnessSection({ health }: { health: HealthData }) {
   const of = health.metrics.outcome_freshness;
   if (!of) return null;
 
-  // Leon + Kambi only (no Goldbet)
-  const liveLeon = of.live?.leon || null;
   const liveKambi = of.live?.kambi || null;
-  const preLeon = of.prematch?.leon || null;
   const preKambi = of.prematch?.kambi || null;
-  const hasAny = liveLeon || liveKambi || preLeon || preKambi;
-  if (!hasAny) return null;
+  if (!liveKambi && !preKambi) return null;
 
   return (
     <>
@@ -76,8 +72,6 @@ export function FreshnessSection({ health }: { health: HealthData }) {
           </div>
         ))}
       </div>
-      <FreshnessBar label="Leon Live" buckets={liveLeon} />
-      <FreshnessBar label="Leon Prematch" buckets={preLeon} />
       <FreshnessBar label="Kambi Live" buckets={liveKambi} />
       <FreshnessBar label="Kambi Prematch" buckets={preKambi} />
     </>

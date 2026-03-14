@@ -87,7 +87,7 @@ export function ExportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export async function fetchApi(action: string, params: Record<string, string> = {}, source: string = "leon") {
+export async function fetchApi(action: string, params: Record<string, string> = {}, source: string = "kambi") {
   const sp = new URLSearchParams({ action, source, ...params });
   const res = await fetch(`/api/admin/market-coverage?${sp}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -242,7 +242,7 @@ export function EventDetailModal({ detail, loading, onClose }: {
               marginBottom: 16, display: "flex", gap: 24,
             }}>
               <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#f59e0b" }}>Leon</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#f59e0b" }}>Fonte</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: "#f59e0b", fontFamily: "monospace" }}>
                   {sourceCount != null ? sourceCount : "\u2014"}
                 </div>

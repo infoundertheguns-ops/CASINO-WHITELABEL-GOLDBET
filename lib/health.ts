@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// System Health Scoring Engine — Leon-centric
+// System Health Scoring Engine — Kambi-centric
 // 7 subsystems with weighted scores → overall 0-100 + traffic light
 // ═══════════════════════════════════════════════════════════════
 
@@ -103,52 +103,6 @@ function freshPercent(
 }
 
 // ═══ SCORING FUNCTIONS ═══
-
-function scoreLeonLive(scraper: ScraperInfo): SubsystemScore {
-  let score = 0;
-  let details = "";
-
-  if (!scraper.connected) {
-    details = "Disconnesso";
-    return { score: 0, weight: 20, label: "Leon Live", details };
-  }
-
-  const cycle = scraper.lastCycleSeconds ?? Infinity;
-  const errors = scraper.errorsLastHour ?? 0;
-
-  // Cycle time: 100 at <60s, 0 at >600s, linear between
-  if (cycle <= 60) score = 100;
-  else if (cycle >= 600) score = 0;
-  else score = 100 - ((cycle - 60) / 540) * 100;
-
-  // Penalty for errors: -2 per error, max -30
-  const errorPenalty = Math.min(30, errors * 2);
-  score = clamp(score - errorPenalty);
-
-  details = `Ciclo: ${Math.round(cycle)}s, Errori: ${errors}/h`;
-  return { score, weight: 20, label: "Leon Live", details };
-}
-
-function scoreLeonPrematch(scraper: ScraperInfo): SubsystemScore {
-  let score = 0;
-  let details = "";
-
-  if (!scraper.connected) {
-    details = "Disconnesso";
-    return { score: 0, weight: 12, label: "Leon Prematch", details };
-  }
-
-  const cycle = scraper.lastCycleSeconds ?? Infinity;
-
-  // Cycle time: 100 at <1200s (20m), 0 at >7200s (2h), linear
-  if (cycle <= 1200) score = 100;
-  else if (cycle >= 7200) score = 0;
-  else score = 100 - ((cycle - 1200) / 6000) * 100;
-
-  score = clamp(score);
-  details = `Ciclo: ${Math.round(cycle / 60)}min`;
-  return { score, weight: 12, label: "Leon Prematch", details };
-}
 
 function scoreFreshnessLive(
   outcomeFreshness: Record<string, FreshnessBuckets> | null
@@ -325,7 +279,7 @@ function scoreKambiLive(scraper: ScraperInfo): SubsystemScore {
 
   if (!scraper.connected) {
     details = "Disconnesso";
-    return { score: 0, weight: 5, label: "Kambi Live", details };
+    return { score: 0, weight: 20, label: "Kambi Live", details };
   }
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
@@ -340,7 +294,7 @@ function scoreKambiLive(scraper: ScraperInfo): SubsystemScore {
   score = clamp(score - errorPenalty);
 
   details = `Ciclo: ${Math.round(cycle)}s, Errori: ${errors}/h`;
-  return { score, weight: 5, label: "Kambi Live", details };
+  return { score, weight: 20, label: "Kambi Live", details };
 }
 
 function scoreKambiPrematch(scraper: ScraperInfo): SubsystemScore {
@@ -349,7 +303,7 @@ function scoreKambiPrematch(scraper: ScraperInfo): SubsystemScore {
 
   if (!scraper.connected) {
     details = "Disconnesso";
-    return { score: 0, weight: 5, label: "Kambi Prematch", details };
+    return { score: 0, weight: 12, label: "Kambi Prematch", details };
   }
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
@@ -361,30 +315,28 @@ function scoreKambiPrematch(scraper: ScraperInfo): SubsystemScore {
 
   score = clamp(score);
   details = `Ciclo: ${Math.round(cycle / 60)}min`;
-  return { score, weight: 5, label: "Kambi Prematch", details };
+  return { score, weight: 12, label: "Kambi Prematch", details };
 }
 
 // ═══ MAIN SCORING ═══
-// Weights: Leon Live 20, Leon Prematch 12, Freshness Live 18,
-//          Freshness Prematch 10, Data Quality 10, Redis 10, Settlement 10,
-//          Kambi Live 5, Kambi Prematch 5 = 100
+// Weights: Kambi Live 20, Kambi Prematch 12, Freshness Live 18,
+//          Freshness Prematch 10, Data Quality 10, Redis 10, Settlement 10
+//          Unused 10 = redistributed to total 90 (normalized)
 
 export function computeHealthScores(
   rpc: SystemHealthRPC,
-  leonScraper: { live: ScraperInfo; prematch: ScraperInfo },
+  _leonScraper: { live: ScraperInfo; prematch: ScraperInfo },
   redis: RedisInfo,
   kambiScraper?: { live: ScraperInfo; prematch: ScraperInfo }
 ): HealthScores {
   const subsystems: Record<string, SubsystemScore> = {
-    leon_live: scoreLeonLive(leonScraper.live),
-    leon_prematch: scoreLeonPrematch(leonScraper.prematch),
+    kambi_live: scoreKambiLive(kambiScraper?.live ?? { connected: false }),
+    kambi_prematch: scoreKambiPrematch(kambiScraper?.prematch ?? { connected: false }),
     freshness_live: scoreFreshnessLive(rpc.outcome_freshness?.live ?? null),
     freshness_prematch: scoreFreshnessPrematch(rpc.outcome_freshness?.prematch ?? null),
     data_quality: scoreDataQuality(rpc.quality),
     redis_pipeline: scoreRedisPipeline(redis),
     settlement: scoreSettlement(rpc.quality),
-    kambi_live: scoreKambiLive(kambiScraper?.live ?? { connected: false }),
-    kambi_prematch: scoreKambiPrematch(kambiScraper?.prematch ?? { connected: false }),
   };
 
   // Weighted average

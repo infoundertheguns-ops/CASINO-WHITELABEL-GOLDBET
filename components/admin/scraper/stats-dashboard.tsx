@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { StatsResponse, RedisMetrics, HealthData } from "./types";
 import { HealthBanner } from "./health-banner";
-import { LeonHeroSection } from "./leon-hero-section";
+import { KambiHeroSection } from "./kambi-hero-section";
 import { SecondaryScrapers } from "./secondary-scrapers";
 import { CoverageKPIs } from "./coverage-kpis";
 import { FreshnessSection } from "./freshness-section";
@@ -74,25 +74,17 @@ export default function ScraperStatsDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Live source toggle state
-  const [liveSource, setLiveSource] = useState<"leon" | "kambi">("leon");
-  const [savingSource, setSavingSource] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
-      const [statsResp, redisResp, healthResp, sourceResp] = await Promise.all([
+      const [statsResp, redisResp, healthResp] = await Promise.all([
         fetch("/api/scraper/stats"),
         fetch("/api/odds/metrics").catch(() => null),
         fetch("/api/system/health").catch(() => null),
-        fetch("/api/config/live-source").catch(() => null),
       ]);
       if (statsResp.ok) setData(await statsResp.json());
       if (redisResp?.ok) setRedisMetrics(await redisResp.json());
       if (healthResp?.ok) setHealthData(await healthResp.json());
-      if (sourceResp?.ok) {
-        const d = await sourceResp.json();
-        if (d.source) setLiveSource(d.source);
-      }
     } catch {
       // silently fail
     } finally {
@@ -106,20 +98,6 @@ export default function ScraperStatsDashboard() {
     const interval = setInterval(fetchStats, 30_000);
     return () => clearInterval(interval);
   }, [fetchStats]);
-
-  const handleToggleSource = async (newSource: "leon" | "kambi") => {
-    if (newSource === liveSource || savingSource) return;
-    setSavingSource(true);
-    try {
-      const resp = await fetch("/api/config/live-source", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: newSource }),
-      });
-      if (resp.ok) setLiveSource(newSource);
-    } catch {}
-    setSavingSource(false);
-  };
 
   if (loading) {
     return (
@@ -193,7 +171,6 @@ export default function ScraperStatsDashboard() {
   }
 
   // ─── Connected: full dashboard ───
-  const leonServer = data.servers?.leon || null;
   const kambiServer = data.servers?.kambi || null;
   const flashscoreServer = data.servers?.flashscore || null;
 
@@ -202,22 +179,16 @@ export default function ScraperStatsDashboard() {
       {/* A. Health Banner */}
       {healthData && <HealthBanner health={healthData} />}
 
-      {/* B. Leon Hero Section */}
-      <LeonHeroSection
-        leonServer={leonServer}
-        liveSource={liveSource}
-        onToggleSource={handleToggleSource}
-        saving={savingSource}
-      />
+      {/* B. Kambi Hero Section */}
+      <KambiHeroSection server={kambiServer} />
 
-      {/* C. Secondary Scrapers */}
+      {/* C. Secondary Scrapers (Flashscore only) */}
       <SecondaryScrapers
-        kambiServer={kambiServer}
         flashscoreServer={flashscoreServer}
       />
 
       {/* D. Coverage KPIs */}
-      <CoverageKPIs leonServer={leonServer} />
+      <CoverageKPIs server={kambiServer} />
 
       {/* E. Freshness */}
       {healthData && (

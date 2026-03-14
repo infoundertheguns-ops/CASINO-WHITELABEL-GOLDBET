@@ -3,11 +3,8 @@
 import type { ServerData } from "./types";
 import { formatNum, formatNumFull, timeAgo, formatUptime } from "./helpers";
 
-interface LeonHeroProps {
-  leonServer: ServerData | null;
-  liveSource: "leon" | "kambi";
-  onToggleSource: (source: "leon" | "kambi") => void;
-  saving: boolean;
+interface KambiHeroProps {
+  server: ServerData | null;
 }
 
 function StatusDot({ online }: { online: boolean }) {
@@ -36,18 +33,14 @@ function StatusDot({ online }: { online: boolean }) {
   );
 }
 
-export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving }: LeonHeroProps) {
-  const isOffline = !leonServer || !leonServer.latest;
-  const gb = leonServer?.latest?.goldbet;
+export function KambiHeroSection({ server }: KambiHeroProps) {
+  const isOffline = !server || !server.latest;
+  const gb = server?.latest?.goldbet;
 
-  // Check online by: snapshot exists + has events
   const hasLiveData = !!(gb && gb.live_events > 0);
-  const hasPrematchData = !!(gb && gb.prematch_events > 0);
-  const isLeonOnline = !!gb;
+  const isOnline = !!gb;
 
-  // Leon uses cycle_ms (ms for last cycle), not last_live_cycle/last_prematch_cycle timestamps
-  // Snapshot timestamp tells us when the last update was
-  const snapshotTs = leonServer?.latest?.timestamp;
+  const snapshotTs = server?.latest?.timestamp;
   const lastCycleAgo = snapshotTs ? timeAgo(snapshotTs) : "\u2014";
   const cycleDurationMs = gb?.cycle_ms as number | undefined;
   const errorsPerHour = gb?.errors_last_hour ?? 0;
@@ -64,7 +57,7 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
         style={{
           background: "var(--admin-card)",
           border: "1px solid var(--admin-border)",
-          borderLeft: `4px solid ${isOffline ? "#6b7280" : "#f59e0b"}`,
+          borderLeft: `4px solid ${isOffline ? "#6b7280" : "#8b5cf6"}`,
           borderRadius: 12,
           opacity: isOffline ? 0.6 : 1,
           overflow: "hidden",
@@ -80,31 +73,8 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
           background: "rgba(255,255,255,0.02)",
         }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: "var(--admin-text)", textTransform: "uppercase", letterSpacing: 1 }}>
-            Leon Bets Scraper
+            Kambi Scraper
           </span>
-          <div style={{ display: "flex", gap: 6 }}>
-            {(["leon", "kambi"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => onToggleSource(s)}
-                disabled={saving}
-                style={{
-                  padding: "6px 16px",
-                  borderRadius: 6,
-                  border: liveSource === s ? "2px solid #3b82f6" : "1px solid var(--admin-border)",
-                  background: liveSource === s ? "rgba(59, 130, 246, 0.15)" : "transparent",
-                  color: liveSource === s ? "#3b82f6" : "var(--admin-text3)",
-                  fontWeight: liveSource === s ? 700 : 500,
-                  fontSize: 13,
-                  cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.5 : 1,
-                }}
-              >
-                {s === "leon" ? "Leon" : "Kambi"}
-                {liveSource === s && " \u2713"}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Body: 2 columns */}
@@ -115,7 +85,7 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text-muted)", marginBottom: 12 }}>
                 Live
               </div>
-              <StatusDot online={isLeonOnline && hasLiveData} />
+              <StatusDot online={isOnline && hasLiveData} />
 
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                 <MetricRow label="Ultimo ciclo" value={lastCycleAgo} />
@@ -135,7 +105,7 @@ export function LeonHeroSection({ leonServer, liveSource, onToggleSource, saving
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--admin-text-muted)", marginBottom: 12 }}>
                 Prematch
               </div>
-              <StatusDot online={isLeonOnline} />
+              <StatusDot online={isOnline} />
 
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                 <MetricRow label="Ultimo ciclo" value={lastCycleAgo} />

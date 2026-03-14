@@ -17,7 +17,7 @@ interface LeagueRow {
   league_name: string;
   country: string;
   events_count: number;
-  avg_leon: number;
+  avg_source: number;
   avg_db: number;
   coverage_pct: number;
   zero_markets: number;
@@ -26,7 +26,7 @@ interface LeagueRow {
 
 interface SportKPIs {
   total_events: number;
-  avg_leon: number;
+  avg_source: number;
   avg_db: number;
   coverage_pct: number;
   zero_markets: number;
@@ -40,7 +40,7 @@ interface LeagueEventRow {
   away_team: string;
   starts_at: string;
   status: string;
-  leon_count: number | null;
+  source_count: number | null;
   db_count: number;
   gap: number | null;
   coverage_pct: number | null;
@@ -48,15 +48,13 @@ interface LeagueEventRow {
 
 // ═══ MAIN COMPONENT ═══
 
-type CoverageSource = "leon" | "kambi";
-
 export default function SportDetailDashboard() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const source = (searchParams.get("source") as CoverageSource) || "leon";
-  const sourceLabel = source === "leon" ? "Leon" : "Kambi";
+  const source = "kambi";
+  const sourceLabel = "Kambi";
 
   const [sportName, setSportName] = useState<string>("");
   const [leagues, setLeagues] = useState<LeagueRow[]>([]);
@@ -151,7 +149,7 @@ export default function SportDetailDashboard() {
       l.league_name,
       l.country || "N/D",
       l.events_count,
-      l.avg_leon,
+      l.avg_source,
       l.avg_db,
       l.coverage_pct,
       l.gap_events,
@@ -263,7 +261,7 @@ export default function SportDetailDashboard() {
           </KPICard>
           <KPICard
             label={`Avg ${sourceLabel} / DB`}
-            value={`${kpis.avg_leon} / ${kpis.avg_db}`}
+            value={`${kpis.avg_source} / ${kpis.avg_db}`}
             color={kpis.coverage_pct >= 95 ? "#10b981" : "#f59e0b"}
           />
           <KPICard
@@ -333,7 +331,7 @@ export default function SportDetailDashboard() {
                     {formatNumFull(league.events_count)}
                   </div>
                   <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 13 }}>
-                    {league.avg_leon}
+                    {league.avg_source}
                   </div>
                   <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 13 }}>
                     {league.avg_db}
@@ -422,7 +420,7 @@ export default function SportDetailDashboard() {
                               {ev.home_team} vs {ev.away_team}
                             </div>
                             <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
-                              {ev.leon_count != null ? ev.leon_count : "\u2014"}
+                              {ev.source_count != null ? ev.source_count : "\u2014"}
                             </div>
                             <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
                               {ev.db_count}

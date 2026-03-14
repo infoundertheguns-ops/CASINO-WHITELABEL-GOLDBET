@@ -1,5 +1,5 @@
-// ═══ PLAYER PROPS UTILITIES — Leon Edition ═══
-// Leon has player markets as regular markets inside normal events.
+// ═══ PLAYER PROPS UTILITIES ═══
+// Player markets are regular markets inside normal events.
 // Each market (e.g. "Primo Marcatore") has runners = player names with odds.
 
 import type { Market } from "@/lib/hooks/use-sportsbook";
