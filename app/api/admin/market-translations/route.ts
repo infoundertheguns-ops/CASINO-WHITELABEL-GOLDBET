@@ -78,6 +78,14 @@ const ITALIAN_PATTERNS = [
   /vince almeno/, /vince e entrambe/, /vince senza subire/,
   /segna un gol/, /prende un cartellino/, /Scommessa nulla/,
   /subire gol/, /segna un gol su calcio/,
+  // ── Round 3 ──
+  /^Tempo\s/, /\d°\s*Gioco/, /^Numero totale/, /^Stoppate/,
+  /^Passaggio del/, /^Palle perse/, /^Palle recuperate/,
+  // ── Round 4 — ultimi italiani mancanti ──
+  /^Miglior/, /^Maggior/, /^Pareggio/, /^Scommessa/,
+  /^Effettua/, /^Prossima/, /^Mete\s/, /^Resto\s/,
+  /^Registra/, /^Run\s/, /^Prima a/, /^Primo\/a/,
+  /Tie-break al/, /^\d°\s*tempo/,
 ];
 
 // Pre-compile case-insensitive versions once
@@ -93,58 +101,19 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Get all distinct active market types with counts
+  // Get all distinct active market types with counts (RPC returns JSON, no row limit)
   const { data, error } = await supabase.rpc("get_market_type_stats", {
     p_source: source,
   });
 
   if (error) {
-    // Fallback: raw query if RPC doesn't exist
-    const { data: rawData, error: rawErr } = await supabase
-      .from("markets")
-      .select("market_type, event_id, events!inner(source)")
-      .eq("is_active", true)
-      .eq("events.source", source)
-      .limit(50000);
-
-    if (rawErr) {
-      return NextResponse.json({ error: rawErr.message }, { status: 500 });
-    }
-
-    // Aggregate manually
-    const counts: Record<string, number> = {};
-    for (const row of rawData || []) {
-      counts[row.market_type] = (counts[row.market_type] || 0) + 1;
-    }
-
-    const markets = Object.entries(counts)
-      .map(([type, count]) => ({
-        market_type: type,
-        count,
-        is_italian: isItalian(type),
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    const totalTypes = markets.length;
-    const italianTypes = markets.filter(m => m.is_italian).length;
-    const englishTypes = totalTypes - italianTypes;
-    const totalMarkets = markets.reduce((s, m) => s + m.count, 0);
-    const italianMarkets = markets.filter(m => m.is_italian).reduce((s, m) => s + m.count, 0);
-
-    return NextResponse.json({
-      source,
-      total_types: totalTypes,
-      italian_types: italianTypes,
-      english_types: englishTypes,
-      total_markets: totalMarkets,
-      italian_markets: italianMarkets,
-      coverage_pct: totalMarkets > 0 ? Math.round((italianMarkets / totalMarkets) * 100) : 0,
-      markets,
-    });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // RPC path
-  const markets = (data || []).map((row: any) => ({
+  // RPC returns JSON array directly (no PostgREST row limit)
+  const rawData: { market_type: string; count: number }[] = Array.isArray(data) ? data : [];
+
+  const markets = rawData.map((row) => ({
     ...row,
     is_italian: isItalian(row.market_type),
   }));
