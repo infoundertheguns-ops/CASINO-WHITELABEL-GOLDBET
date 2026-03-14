@@ -68,8 +68,16 @@ const ITALIAN_PATTERNS = [
   /^Almeno/, /^Cartellino\s/, /^Riceve\s/, /^Prende\s/,
   // ── Roots mancanti (medio volume) ──
   /^Corsa\s/, /^Prossimo\s/, /^Mappa\s\d/, /^\d°\s*Set/,
-  /^Va\s+in/, /^Mappe\s/, /^Punti\s/, /^Margine\s/,
+  /^Va\s+in/, /^Mappe\s/, /^Punti/, /^Margine\s/,
   /^Ogni\s/, /^1x2\s/,
+  // ── Roots mancanti (round 2) ──
+  /^Calci/, /^Angoli/, /^Angolo/, /^Fuorigioco/,
+  /^Rimbalzi/, /^Fa\s/, /^Tiri\s/, /^Assist\s/,
+  /^Set\s\d/, /^Risultato\s/, /^Primo\s/,
+  // ── Substring per mercati con prefisso squadra ──
+  /vince almeno/, /vince e entrambe/, /vince senza subire/,
+  /segna un gol/, /prende un cartellino/, /Scommessa nulla/,
+  /subire gol/, /segna un gol su calcio/,
 ];
 
 // Pre-compile case-insensitive versions once
