@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ alerts, error: "health_data_missing" });
     }
 
-    // ── Check 1: Scraper Live ──
-    const scraperLiveScore = scores.subsystems?.scraper_live?.score ?? 100;
+    // ── Check 1: Kambi Live ──
+    const scraperLiveScore = scores.subsystems?.kambi_live?.score ?? 100;
     const sent1 = await checkAndTransition(
       "scraper_live",
       scraperLiveScore,
@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
     );
     if (sent1) alerts.push(`scraper_live: ${scraperLiveScore}`);
 
-    // ── Check 2: Scraper Prematch ──
-    const scraperPrematchScore = scores.subsystems?.scraper_prematch?.score ?? 100;
+    // ── Check 2: Kambi Prematch ──
+    const scraperPrematchScore = scores.subsystems?.kambi_prematch?.score ?? 100;
     const sent2 = await checkAndTransition(
       "scraper_prematch",
       scraperPrematchScore,

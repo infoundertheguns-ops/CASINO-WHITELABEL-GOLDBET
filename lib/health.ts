@@ -16,7 +16,7 @@ export interface FreshnessBuckets {
 }
 
 export interface SystemHealthRPC {
-  events: Record<string, number>; // "leon_live": N, "kambi_prematch": N, etc.
+  events: Record<string, number>; // "kambi_live": N, "kambi_prematch": N, etc.
   active_by_source: {
     markets: Record<string, number> | null;
     outcomes_total: number;
@@ -325,13 +325,12 @@ function scoreKambiPrematch(scraper: ScraperInfo): SubsystemScore {
 
 export function computeHealthScores(
   rpc: SystemHealthRPC,
-  _leonScraper: { live: ScraperInfo; prematch: ScraperInfo },
+  kambiScraper: { live: ScraperInfo; prematch: ScraperInfo },
   redis: RedisInfo,
-  kambiScraper?: { live: ScraperInfo; prematch: ScraperInfo }
 ): HealthScores {
   const subsystems: Record<string, SubsystemScore> = {
-    kambi_live: scoreKambiLive(kambiScraper?.live ?? { connected: false }),
-    kambi_prematch: scoreKambiPrematch(kambiScraper?.prematch ?? { connected: false }),
+    kambi_live: scoreKambiLive(kambiScraper.live),
+    kambi_prematch: scoreKambiPrematch(kambiScraper.prematch),
     freshness_live: scoreFreshnessLive(rpc.outcome_freshness?.live ?? null),
     freshness_prematch: scoreFreshnessPrematch(rpc.outcome_freshness?.prematch ?? null),
     data_quality: scoreDataQuality(rpc.quality),

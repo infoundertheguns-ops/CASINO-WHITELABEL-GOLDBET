@@ -220,7 +220,12 @@ export async function POST(req: NextRequest) {
             const cycleAge = cycleField
               ? (Date.now() - new Date(cycleField).getTime()) / 1000
               : Infinity;
-            return { connected: true, lastCycleSeconds: cycleAge, errorsLastHour: gb.errors_last_hour ?? 0 };
+            // Fallback: if cycle timestamp missing but snapshot is fresh, use snapshot age
+            const snapshotAge = latest?.timestamp
+              ? (Date.now() - new Date(latest.timestamp).getTime()) / 1000
+              : Infinity;
+            const effectiveAge = cycleAge > 3600 && snapshotAge < 300 ? snapshotAge : cycleAge;
+            return { connected: true, lastCycleSeconds: effectiveAge, errorsLastHour: gb.errors_last_hour ?? 0 };
           }
         }
         // Fallback: use audit pipeline data
@@ -234,12 +239,8 @@ export async function POST(req: NextRequest) {
         return { connected: scraperAlive };
       };
 
-      const scraperLive = buildScraperInfo("main", "live");
-      const scraperPrematch = (() => {
-        const pre = buildScraperInfo("prematch", "prematch");
-        if (pre.connected) return pre;
-        return buildScraperInfo("main", "prematch");
-      })();
+      const scraperLive = buildScraperInfo("kambi", "live");
+      const scraperPrematch = buildScraperInfo("kambi", "prematch");
 
       // Redis info
       let redisInfo: RedisInfo = { connected: false };
@@ -254,7 +255,7 @@ export async function POST(req: NextRequest) {
       const scores = computeHealthScores(
         healthMetrics,
         { live: scraperLive, prematch: scraperPrematch },
-        redisInfo
+        redisInfo,
       );
       healthScores = scores;
 

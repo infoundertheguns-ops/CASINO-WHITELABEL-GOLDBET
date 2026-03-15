@@ -161,9 +161,8 @@ export async function GET() {
   // 4. Compute scores — Kambi primary
   const scores = computeHealthScores(
     rpc,
-    { live: { connected: false }, prematch: { connected: false } },
+    { live: kambiLive, prematch: kambiPrematch },
     redisInfo,
-    { live: kambiLive, prematch: kambiPrematch }
   );
 
   const result = {
