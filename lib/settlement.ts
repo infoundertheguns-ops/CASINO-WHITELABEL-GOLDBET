@@ -22,6 +22,17 @@ interface SettlementResult {
   sport?: string;
   // Period string from event
   period?: string;
+  // Match statistics (from Flashscore)
+  corners_home?: number;
+  corners_away?: number;
+  corners_total?: number;
+  ht_corners_home?: number;
+  ht_corners_away?: number;
+  cards_home?: number;
+  cards_away?: number;
+  cards_total?: number;
+  shots_on_target_home?: number;
+  shots_on_target_away?: number;
 }
 
 type Verdict = "won" | "lost" | "void" | "push";
@@ -31,7 +42,7 @@ type SettlerFn = (
   outcomeName: string,
   line?: number,
   setIdx?: number
-) => Verdict;
+) => Verdict | null; // null = stats not available yet, try later
 
 export interface SettleOutcome {
   success?: boolean;
@@ -96,6 +107,46 @@ function buildResult(
     }
   }
 
+  // Match statistics from Flashscore (persisted in live_data.stats)
+  const statsArr = ld.stats as Array<{ name: string; home: string | number; away: string | number }> | undefined;
+  if (statsArr?.length) {
+    const extractStat = (section: string, stat: string): { home: number; away: number } | null => {
+      const found = statsArr.find(s => s.name === `${section}: ${stat}`);
+      if (!found) return null;
+      const h = parseInt(String(found.home), 10);
+      const a = parseInt(String(found.away), 10);
+      if (isNaN(h) || isNaN(a)) return null;
+      return { home: h, away: a };
+    };
+
+    const corners = extractStat("Match", "Corner Kicks");
+    if (corners) {
+      sr.corners_home = corners.home;
+      sr.corners_away = corners.away;
+      sr.corners_total = corners.home + corners.away;
+    }
+
+    const htCorners = extractStat("1st Half", "Corner Kicks");
+    if (htCorners) {
+      sr.ht_corners_home = htCorners.home;
+      sr.ht_corners_away = htCorners.away;
+    }
+
+    const yellowCards = extractStat("Match", "Yellow Cards");
+    const redCards = extractStat("Match", "Red Cards");
+    if (yellowCards) {
+      sr.cards_home = yellowCards.home + (redCards?.home ?? 0);
+      sr.cards_away = yellowCards.away + (redCards?.away ?? 0);
+      sr.cards_total = sr.cards_home + sr.cards_away;
+    }
+
+    const shots = extractStat("Match", "Shots on Target");
+    if (shots) {
+      sr.shots_on_target_home = shots.home;
+      sr.shots_on_target_away = shots.away;
+    }
+  }
+
   return sr;
 }
 
@@ -108,49 +159,54 @@ interface MarketPattern {
   setGroup?: number; // capture group index for the set number
 }
 
-// Auto-VOID patterns — markets we cannot settle (need player data, per-game, corners, etc.)
+// Auto-VOID patterns — markets we cannot settle (need player data, in-play, etc.)
+// NOTE: Quarti basket, periodi hockey, corner, cartellini, tiri are NOW settlable
+// and have been REMOVED from this list. They are handled by MARKET_PATTERNS + SETTLERS.
 const VOID_PATTERNS: RegExp[] = [
-  /^.+\s\|\s/,  // All player markets (contain " | " separator, e.g. "Marc Plus | Nikola Stulic")
+  /^.+\s\|\s/,  // All player markets (contain " | " separator)
   /^Marcatore\s+al\s+90/i,
   /^Doppietta\s+al\s+90/i,
   /^Tripletta\s+al\s+90/i,
   /^Pros\s+Marc/i,
   /^Marc\s*\+/i,
   /^(1X2|U\/O)\s+Interv\./i,
-  /^U\/O\s+Angoli/i,
-  /^U\/O\s+Corner/i,
-  /^1X2\s+Angoli/i,
-  /^1X2\s+Corner/i,
-  /^DC\s+Corner/i,
-  /^Handicap\s+Corner/i,
-  /^Fascia\s+Corner/i,
+  // ── Corner/angoli: keep only race/primo types ──
   /^Gara\s+A\s+\d+\s+Corner/i,
-  /^Corners\s/i,
-  /^1X2\s+Cartellini/i,
-  /^Espulsione/i,
+  /^Corner successivo/i,
+  /^Calci d'angolo\s+-\s+/i,
   /^Primo\s+Angolo/i,
+  /^Primo Corner/i,
+  /^Espulsione/i,
   /^Piazzato\s+Sul\s+Podio/i,
+  // ── Tennis per-game ──
   /^T\/T\s+(Set|Punto)\s+\d+\s+Gioco/i,
   /^Set\s+\d+\s+Gioco\s+\d+/i,
   /^T\/T\s+Punto\s+\d+/i,
   /^Vincente\s+Entrambi\s+Giochi/i,
   /^Set\s+\d+\s+Chi\s+(Arriva|Vince)/i,
   /^Risultato\s+Esatto\s+Tiebreak/i,
+  // ── Esports ──
   /^Prima\s+(Torre|Eliminazione|Barone|Inhibitor)/i,
   /^Primo\s+(Barone|Inhibitor)/i,
   /^U\/O\s+Mappe/i,
   /^T\/T\s+Mappa\s+\d+/i,
   /^Vincente\s+Titolo/i,
+  /^Vincente Mappa\s+\d/i,
+  /^Vincente Incontro \+ Vincente Mappa/i,
+  /^Mappa \d+:/i,
+  /^1X2 Mappa/i,
+  /Vince Almeno 1 Mappa/i,
+  // ── Props ──
   /^Modalit[àa]\b.*Vittoria/i,
   /^Margine\s+Vittoria/i,
   /^Segna\s+Goal\s+Interv/i,
   /^Prossimo\s+Gol/i,
   /^(Giocat|Giocatore)\.\s+\d+\s+(U\/O|Vince\s+1)/i,
   /^Vincente a 0\s+1T/i,
-  /^1X2\s+-\s+\d+°\s+Quarto/i,
-  /^Under\/Over\s+\d+°\s+(Quarto|Set)/i,
-  /^Pari\/Dispari\s+\d+°\s+Quarto/i,
+  // Tennis per-set (non-games based)
+  /^Under\/Over\s+\d+°\s+Set/i,
   /^Pari\/Dispari\s+Punti\s+Set\s+\d+\s+Gioco/i,
+  // ── Gol props ──
   /^Gara\s+A\s+\d+\s+Gol/i,
   /^Vince\s+(Almeno|Entrambi)\s/i,
   /^Ribaltone\s/i,
@@ -160,19 +216,22 @@ const VOID_PATTERNS: RegExp[] = [
   /^Squadra\s+(Casa|Ospite)\s+Segna\s+\d/i,
   /^Marcatore\s+(Entrambi|1°|2°)/i,
   /^Primo\s+Marcatore\s+Squadra/i,
-  // ── Nuovi void: Handicap periodo/tempo (no period handicap settler) ──
+  // ── Handicap per tempo (calcio only — no per-half handicap settler) ──
   /^Handicap\s+\d°\s*Tempo/i,
   /^Handicap Asiatico\s+\d°\s*Tempo/i,
-  /^Handicap\s+\d°\s*Periodo/i,
-  /^Handicap\s+\d°\s*Quarto/i,
   /^Handicap Punti\b/i,
-  // ── Nuovi void: Hockey periodi ──
-  /^\w.+\d°\s*Periodo/i,
-  // ── Nuovi void: Basket quarti ──
-  /^\w.+\d°\s*Quarto/i,
-  // ── Nuovi void: Minuti (20/30/60) ──
+  // ── Exact score per period (too complex to settle) ──
+  /^Risultato esatto\s+-\s+\d+°\s*Periodo$/i,
+  // ── Cumulative quarter markets (complex, low volume) ──
+  /^Risultato al termine del\s+\d+°\s*Quarto$/i,
+  /^Totale punti\s+-\s+Risultato alla fine del\s+\d+°\s*Quarto/i,
+  /^Handicap\s+-\s+Risultato al termine del\s+\d+°\s*Quarto/i,
+  /^Draw No Bet\s+-\s+Risultato al termine del\s+\d+°\s*Quarto$/i,
+  /^Primo tempo\/Fine partita\s+-\s+Fine del\s+\d+°\s*Quarto$/i,
+  /^Prima a\s+\d+\s+corner/i,
+  // ── Minuti ──
   /^1X2\s+\d+\s+Minuti/i,
-  // ── Nuovi void: Props varie ──
+  // ── Props varie ──
   /^Metodo Primo Gol/i,
   /^Tempo Primo Gol/i,
   /^Tempo Con Più Gol/i,
@@ -183,7 +242,7 @@ const VOID_PATTERNS: RegExp[] = [
   /^Quarto Con Più Punti/i,
   /^Falli\s/i,
   /^Rinvii\s/i,
-  // ── Nuovi void: Tennis match-level ──
+  // ── Tennis match-level ──
   /^Entrambi Vincono Un Set/i,
   /^G\d Vince Almeno/i,
   /^Deuce\s/i,
@@ -197,18 +256,13 @@ const VOID_PATTERNS: RegExp[] = [
   /^Pari\/Dispari Punti Set/i,
   /^In Vantaggio Dopo/i,
   /^Risultato Esatto \(Best Of/i,
-  // ── Nuovi void: Esports ──
-  /^Vincente Mappa\s+\d/i,
-  /^U\/O Mappe/i,
-  /^Vincente Incontro \+ Vincente Mappa/i,
-  // ── Nuovi void: Power Play (hockey) ──
+  // ── Power Play (hockey) ──
   /^Power Play/i,
   /^U\/O Gol PP/i,
   /^Handicap Gol PP/i,
   /^DC Gol PP/i,
   /^Risultato Gol PP/i,
-  // ── Nuovi void: Player props (stat suffix) ──
-  /\bTiri In Porta\b/i,
+  // ── Player props (stat suffix) ──
   /\bTiri Totali\b/i,
   /\bPassaggi Completati\b/i,
   /\bContrasti Difensivi\b/i,
@@ -218,25 +272,16 @@ const VOID_PATTERNS: RegExp[] = [
   /\bRespinte$/i,
   /\bFuorigioco$/i,
   /\bCross$/i,
-  // ── Cartellini ──
-  /Cartellini/i,
-  // ── Gol race/primo corner/espulsione ──
+  // ── Gol race/marcatore ──
   /^Gara A \d+ Gol/i,
-  /^Primo Corner/i,
-  /^Espulsione/i,
   /^Marcatore 2\+/i,
   /^Primo Marcatore (Casa|Ospite)/i,
   /^Marcatore Piede/i,
   /^Marcatore Di Testa/i,
   /^Marcatore Fuori Area/i,
-  // ── Esports ──
-  /^Mappa \d+:/i,
-  /^1X2 Mappa/i,
-  /Vince Almeno 1 Mappa/i,
   // ── Stats/Props aggiuntivi ──
-  /^Margine Vittoria/i,
   /^Primo Cartellino/i,
-  /^1X2 Tiri/i,
+  /^Cartellino rosso/i,
   /^1X2 Falli/i,
   /^Contrasti Totali/i,
   /^Rimesse Laterali/i,
@@ -245,35 +290,22 @@ const VOID_PATTERNS: RegExp[] = [
   /^Tempo Più Gol/i,
   /^Entrambi Tempi (Over|Under)/i,
   /^U\/O 3-Way/i,
-  /^U\/O Tiri In Porta/i,
   /^Punti Extra Set/i,
   /^Squadra .+ Segna Entrambi/i,
   /^Shootout$/i,
-  /^Squadra\s+(Casa|Ospite)\s+Vince\s+A\s+0\s+Periodo/i,
-  /^1X2\s+\d+°\s+Periodo/i,
-  /^U\/O\s+\d+°\s+Periodo/i,
   /^U\/O\s+(Tempi\s+Reg\.|Team\s+\d+\s+Tempi\s+Reg\.)/i,
   /^1°?\s*Quarto\s+Gara/i,
-  /^T\/T\s+Handicap\s+\d+°\s+(Quarto|Tempo)/i,
-  /^Over\/Under\s+\d+°\s+(Quarto|Tempo|Set)/i,
+  /^T\/T\s+Handicap\s+\d+°\s+Tempo/i,
+  /^Over\/Under\s+\d+°\s+(Tempo|Set)/i,
   /^Pari\/Dispari\s+\d+°\s+Tempo/i,
-  // ── Kambi-specific void patterns ──
-  /^Totale calci d'angolo\b/i,
-  /^Più calci d'angolo/i,
-  /^Corner successivo/i,
-  /^Calci d'angolo\s+-\s+/i,
+  // ── Kambi-specific ──
   /^Primo marcatore$/i,
   /^Segna almeno \d+ gol/i,
   /^Segna \d+$/i,
-  /^Cartellino rosso/i,
   /^Entrambe le squadre realizzano almeno \d+ gol/i,
   /^Entrambe le squadre segnano almeno \d+ gol/i,
   /^2nd Half\b/i,
   /^Draw No Bet\s+-\s+2nd Half/i,
-  /^Draw No Bet\s+-\s+\d+°\s*Quarto$/i,
-  /^\d+°\s*Quarto$/i,
-  /^\d+°\s*Periodo$/i,
-  /^1x2 con Handicap\s+-\s+\d+°/i,
 ];
 
 // Priority-ordered pattern array: first match wins
@@ -309,6 +341,13 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^1X2\s+Handicap\b/, key: "HANDICAP" },
   { pattern: /^1X2\s+Hand$/, key: "HANDICAP" },
   { pattern: /^Handicap Asiatico\b/, key: "HANDICAP" },
+  { pattern: /^Handicap\s+Corner\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS", lineGroup: 1 },
+  // Kambi verbose: "Handicap - 1° Quarto (-1.5)" — must be before catch-all
+  { pattern: /^Handicap\s+-\s+(\d+)°\s*Quarto\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_QUARTER", setGroup: 1, lineGroup: 2 },
+  // Kambi verbose: "Handicap - 3° Periodo (-1)" / "Handicap -1° Periodo (-1)"
+  { pattern: /^Handicap\s*-\s*(\d+)°\s*Periodo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_PERIOD", setGroup: 1, lineGroup: 2 },
+  // Kambi verbose: "1X2 con Handicap - Cartellini (-1)"
+  { pattern: /^1X2 con Handicap\s+-\s+Cartellini\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CARDS", lineGroup: 1 },
   { pattern: /^Handicap\b/, key: "HANDICAP" },
   { pattern: /^(?:Somma Gol|Multigol)$/, key: "GOALS_BAND" },
   { pattern: /^P\/D$/, key: "ODD_EVEN" },
@@ -422,6 +461,59 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Almeno\s+Un\s+Set\s+6-0\s+o\s+0-6$/i, key: "BAGEL_SET" },
   { pattern: /^U\/O\s+Set\s+Totali\s*([\d.]+)?$/i, key: "O/U_SETS", lineGroup: 1 },
   { pattern: /^Set\s+(\d+)\s+T\/T\s+Handicap\s+Giochi$/i, key: "HANDICAP_SET", setGroup: 1 },
+
+  // ─── Basketball Quarters ───
+  { pattern: /^1X2\s+-\s+(\d+)°\s+Quarto$/i, key: "1X2_QUARTER", setGroup: 1 },
+  { pattern: /^(\d+)°\s*Quarto$/i, key: "1X2_QUARTER", setGroup: 1 },
+  { pattern: /^Under\/Over\s+(\d+)°\s+Quarto\s+([\d.]+)$/i, key: "O/U_QUARTER", setGroup: 1, lineGroup: 2 },
+  { pattern: /^Over\/Under\s+(\d+)°\s+Quarto\s+([\d.]+)$/i, key: "O/U_QUARTER", setGroup: 1, lineGroup: 2 },
+  { pattern: /^U\/O\s+(\d+)°\s+Quarto\s+([\d.]+)$/i, key: "O/U_QUARTER", setGroup: 1, lineGroup: 2 },
+  // Kambi verbose: "Punti totali - 1° Quarto 57.5"
+  { pattern: /^Punti totali\s+-\s+(\d+)°\s+Quarto\s+([\d.]+)$/i, key: "O/U_QUARTER", setGroup: 1, lineGroup: 2 },
+  { pattern: /^Pari\/Dispari\s+(\d+)°\s+Quarto$/i, key: "ODD_EVEN_QUARTER", setGroup: 1 },
+  { pattern: /^Draw No Bet\s+-\s+(\d+)°\s*Quarto$/i, key: "DNB_QUARTER", setGroup: 1 },
+  { pattern: /^T\/T\s+Handicap\s+(\d+)°\s+Quarto\s+([+-]?[\d.]+)$/i, key: "HANDICAP_QUARTER", setGroup: 1, lineGroup: 2 },
+  { pattern: /^1x2 con Handicap\s+-\s+(\d+)°\s+Quarto\s*\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_QUARTER", setGroup: 1, lineGroup: 2 },
+
+  // ─── Hockey Periods ───
+  { pattern: /^1X2\s+(\d+)°\s+Periodo$/i, key: "1X2_PERIOD", setGroup: 1 },
+  { pattern: /^(\d+)°\s*Periodo$/i, key: "1X2_PERIOD", setGroup: 1 },
+  { pattern: /^U\/O\s+(\d+)°\s+Periodo\s+([\d.]+)$/i, key: "O/U_PERIOD", setGroup: 1, lineGroup: 2 },
+  { pattern: /^Under\/Over\s+(\d+)°\s+Periodo\s+([\d.]+)$/i, key: "O/U_PERIOD", setGroup: 1, lineGroup: 2 },
+  // Kambi verbose: "Totale gol - 1° Periodo 1.5"
+  { pattern: /^Totale gol\s+-\s+(\d+)°\s+Periodo\s+([\d.]+)$/i, key: "O/U_PERIOD", setGroup: 1, lineGroup: 2 },
+  // Kambi verbose: "Doppia chance - Periodo 1" / "Doppia chance - 3° Periodo"
+  { pattern: /^Doppia chance\s+-\s+Periodo\s+(\d+)$/i, key: "DC_PERIOD", setGroup: 1 },
+  { pattern: /^Doppia chance\s+-\s+(\d+)°\s+Periodo$/i, key: "DC_PERIOD", setGroup: 1 },
+  // Kambi verbose: "Entrambe le squadre segnano - 1° Periodo (Gol/No Gol)"
+  { pattern: /^Entrambe le squadre segnano\s+-\s+(\d+)°\s+Periodo\s+\(Gol\/No Gol\)$/i, key: "GG_NG_PERIOD", setGroup: 1 },
+  // Kambi verbose: "Draw No Bet - 1° Periodo"
+  { pattern: /^Draw No Bet\s+-\s+(\d+)°\s+Periodo$/i, key: "DNB_PERIOD", setGroup: 1 },
+
+  // ─── Corner/Angoli markets ───
+  { pattern: /^U\/O\s+(?:Angoli|Corner)\s+([\d.]+)$/i, key: "O/U_CORNERS", lineGroup: 1 },
+  { pattern: /^Totale calci d'angolo\s+([\d.]+)$/i, key: "O/U_CORNERS", lineGroup: 1 },
+  { pattern: /^Corners\s+U\/O\s+([\d.]+)$/i, key: "O/U_CORNERS", lineGroup: 1 },
+  { pattern: /^1X2\s+(?:Angoli|Corner)$/i, key: "1X2_CORNERS" },
+  { pattern: /^Più calci d'angolo$/i, key: "1X2_CORNERS" },
+  { pattern: /^DC\s+Corner$/i, key: "DC_CORNERS" },
+  { pattern: /^Fascia\s+Corner$/i, key: "CORNERS_BAND" },
+
+  // ─── Card/Cartellini markets ───
+  { pattern: /^1X2\s+Cartellini$/i, key: "1X2_CARDS" },
+  { pattern: /^U\/O\s+Cartellini\s+([\d.]+)$/i, key: "O/U_CARDS", lineGroup: 1 },
+  // Kambi verbose: "Totale cartellini 5.5"
+  { pattern: /^Totale cartellini\s+([\d.]+)$/i, key: "O/U_CARDS", lineGroup: 1 },
+  // Kambi verbose: "Piú cartellini" / "Più cartellini"
+  { pattern: /^Pi[uúù] cartellini$/i, key: "1X2_CARDS" },
+
+  // ─── Shot/Tiri markets ───
+  { pattern: /^U\/O\s+Tiri\s+In\s+Porta\s+([\d.]+)$/i, key: "O/U_SHOTS", lineGroup: 1 },
+  { pattern: /^1X2\s+Tiri$/i, key: "1X2_SHOTS" },
+  // Kambi verbose: "Totale tiri in porta (Scommesse refertate usando Opta) 8.5"
+  { pattern: /^Totale tiri in porta\s+\(.*?\)\s+([\d.]+)$/i, key: "O/U_SHOTS", lineGroup: 1 },
+  // Kambi verbose: "Più tiri in porta (Scommesse refertate usando Opta)"
+  { pattern: /^Pi[uúù] tiri in porta\b/i, key: "1X2_SHOTS" },
 
   // ─── Basketball ───
   { pattern: /^U\/O\s+Incl\.?\s*Supp\.?\s*([\d.]+)?$/, key: "O/U", lineGroup: 1 },
@@ -1094,6 +1186,171 @@ const SETTLERS: Record<string, SettlerFn> = {
     const condition = r.home >= n && r.away >= n;
     return settleYesNo(condition, sel);
   },
+
+  // ─── Basketball Quarters ───
+
+  "1X2_QUARTER": (r, sel, _line, setIdx) => {
+    const qi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[qi] == null) return "void";
+    return settle1X2(r.halfScores.home[qi], r.halfScores.away[qi], sel);
+  },
+
+  "O/U_QUARTER": (r, sel, line, setIdx) => {
+    const qi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[qi] == null) return "void";
+    const total = r.halfScores.home[qi] + r.halfScores.away[qi];
+    return settleOU(total, sel, line);
+  },
+
+  ODD_EVEN_QUARTER: (r, sel, _line, setIdx) => {
+    const qi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[qi] == null) return "void";
+    const total = r.halfScores.home[qi] + r.halfScores.away[qi];
+    return settleOddEven(total, sel);
+  },
+
+  DNB_QUARTER: (r, sel, _line, setIdx) => {
+    const qi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[qi] == null) return "void";
+    const h = r.halfScores.home[qi], a = r.halfScores.away[qi];
+    if (h === a) return "void";
+    if (sel.trim() === "1" && h > a) return "won";
+    if (sel.trim() === "2" && h < a) return "won";
+    return "lost";
+  },
+
+  HANDICAP_QUARTER: (r, sel, line, setIdx) => {
+    const qi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[qi] == null || line == null) return "void";
+    const adjHome = r.halfScores.home[qi] + line;
+    const away = r.halfScores.away[qi];
+    if (adjHome === away) return "push";
+    const s = sel.trim();
+    if (s === "1" && adjHome > away) return "won";
+    if (s === "2" && adjHome < away) return "won";
+    return "lost";
+  },
+
+  // ─── Hockey Periods ───
+
+  "1X2_PERIOD": (r, sel, _line, setIdx) => {
+    const pi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[pi] == null) return "void";
+    return settle1X2(r.halfScores.home[pi], r.halfScores.away[pi], sel);
+  },
+
+  "O/U_PERIOD": (r, sel, line, setIdx) => {
+    const pi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[pi] == null) return "void";
+    const total = r.halfScores.home[pi] + r.halfScores.away[pi];
+    return settleOU(total, sel, line);
+  },
+
+  DC_PERIOD: (r, sel, _line, setIdx) => {
+    const pi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[pi] == null) return "void";
+    return settleDC(r.halfScores.home[pi], r.halfScores.away[pi], sel);
+  },
+
+  GG_NG_PERIOD: (r, sel, _line, setIdx) => {
+    const pi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[pi] == null) return "void";
+    const h = r.halfScores.home[pi], a = r.halfScores.away[pi];
+    const bothScore = h > 0 && a > 0;
+    const s = sel.trim().toUpperCase();
+    if (s === "GG" || s === "GOL" || isYes(sel)) return bothScore ? "won" : "lost";
+    if (s === "NG" || s === "NOGOL" || s === "NO GOL" || isNo(sel)) return bothScore ? "lost" : "won";
+    return "void";
+  },
+
+  DNB_PERIOD: (r, sel, _line, setIdx) => {
+    const pi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[pi] == null) return "void";
+    const h = r.halfScores.home[pi], a = r.halfScores.away[pi];
+    if (h === a) return "void";
+    if (sel.trim() === "1" && h > a) return "won";
+    if (sel.trim() === "2" && h < a) return "won";
+    return "lost";
+  },
+
+  HANDICAP_PERIOD: (r, sel, line, setIdx) => {
+    const pi = (setIdx ?? 1) - 1;
+    if (!r.halfScores || r.halfScores.home[pi] == null || line == null) return "void";
+    const adjHome = r.halfScores.home[pi] + line;
+    const away = r.halfScores.away[pi];
+    if (adjHome === away) return "push";
+    const s = sel.trim();
+    if (s === "1" && adjHome > away) return "won";
+    if (s === "2" && adjHome < away) return "won";
+    return "lost";
+  },
+
+  // ─── Corner markets (null = stats not yet available) ───
+
+  "O/U_CORNERS": (r, sel, line) => {
+    if (r.corners_total == null) return null;
+    return settleOU(r.corners_total, sel, line);
+  },
+
+  "1X2_CORNERS": (r, sel) => {
+    if (r.corners_home == null || r.corners_away == null) return null;
+    return settle1X2(r.corners_home, r.corners_away, sel);
+  },
+
+  DC_CORNERS: (r, sel) => {
+    if (r.corners_home == null || r.corners_away == null) return null;
+    return settleDC(r.corners_home, r.corners_away, sel);
+  },
+
+  HANDICAP_CORNERS: (r, sel, line) => {
+    if (r.corners_home == null || r.corners_away == null || line == null) return null;
+    const adjHome = r.corners_home + line;
+    if (adjHome === r.corners_away) return "push";
+    const s = sel.trim();
+    if (s === "1" && adjHome > r.corners_away) return "won";
+    if (s === "2" && adjHome < r.corners_away) return "won";
+    return "lost";
+  },
+
+  CORNERS_BAND: (r, sel) => {
+    if (r.corners_total == null) return null;
+    return settleGoalsBand(r.corners_total, sel);
+  },
+
+  // ─── Card markets (null = stats not yet available) ───
+
+  "1X2_CARDS": (r, sel) => {
+    if (r.cards_home == null || r.cards_away == null) return null;
+    return settle1X2(r.cards_home, r.cards_away, sel);
+  },
+
+  "O/U_CARDS": (r, sel, line) => {
+    if (r.cards_total == null) return null;
+    return settleOU(r.cards_total, sel, line);
+  },
+
+  HANDICAP_CARDS: (r, sel, line) => {
+    if (r.cards_home == null || r.cards_away == null || line == null) return null;
+    const adjHome = r.cards_home + line;
+    if (adjHome === r.cards_away) return "push";
+    const s = sel.trim();
+    if (s === "1" && adjHome > r.cards_away) return "won";
+    if (s === "2" && adjHome < r.cards_away) return "won";
+    return "lost";
+  },
+
+  // ─── Shot markets (null = stats not yet available) ───
+
+  "O/U_SHOTS": (r, sel, line) => {
+    if (r.shots_on_target_home == null || r.shots_on_target_away == null) return null;
+    const total = r.shots_on_target_home + r.shots_on_target_away;
+    return settleOU(total, sel, line);
+  },
+
+  "1X2_SHOTS": (r, sel) => {
+    if (r.shots_on_target_home == null || r.shots_on_target_away == null) return null;
+    return settle1X2(r.shots_on_target_home, r.shots_on_target_away, sel);
+  },
 };
 
 // ═══ settleEvent — main orchestrator ═══
@@ -1165,6 +1422,7 @@ export async function settleEvent(
 
   // 7. Settle each leg
   let legsProcessed = 0;
+  let legsSkipped = 0;
   const affectedBetIds = new Set<string>();
 
   for (const leg of legs) {
@@ -1175,7 +1433,7 @@ export async function settleEvent(
     const outcome = leg.outcomes as unknown as { name: string };
 
     const resolved = resolveSettlerKey(market.market_type, market.line);
-    let verdict: Verdict;
+    let verdict: Verdict | null;
 
     if (!resolved) {
       // Unknown or auto-void market
@@ -1190,6 +1448,12 @@ export async function settleEvent(
       }
     }
 
+    // null = stats not available yet — skip this leg for later settlement
+    if (verdict === null) {
+      legsSkipped++;
+      continue;
+    }
+
     // push = void for settlement purposes
     if (verdict === "push") verdict = "void";
 
@@ -1202,7 +1466,16 @@ export async function settleEvent(
     legsProcessed++;
   }
 
-  // 8. Resolve affected bets
+  // 8. If legs were skipped (stats not yet available), release the lock
+  // so a future settlement attempt (after stats arrive) can process them
+  if (legsSkipped > 0) {
+    await supabase
+      .from("events")
+      .update({ settled_at: null })
+      .eq("id", eventId);
+  }
+
+  // 9. Resolve affected bets
   let betsSettled = 0;
   let totalPayout = 0;
 
@@ -1214,18 +1487,19 @@ export async function settleEvent(
     }
   }
 
-  // 9. Settlement log
-  await supabase.from("settlement_log").insert({
-    event_id: eventId,
-    action: "auto_settle",
-    result: { ...result },
-    bets_affected: betsSettled,
-    total_payout: totalPayout,
-    settled_by: "auto",
-  });
+  // 10. Settlement log + deactivate only when ALL legs are done
+  if (legsSkipped === 0) {
+    await supabase.from("settlement_log").insert({
+      event_id: eventId,
+      action: "auto_settle",
+      result: { ...result },
+      bets_affected: betsSettled,
+      total_payout: totalPayout,
+      settled_by: "auto",
+    });
 
-  // 10. Mark event as ended and deactivate markets/outcomes
-  await deactivateEvent(supabase, eventId);
+    await deactivateEvent(supabase, eventId);
+  }
 
   return {
     success: true,

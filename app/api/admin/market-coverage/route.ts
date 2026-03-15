@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // ═══ GET — Market Coverage Report ═══
-// Query params: action=stats|event-detail|sport-leagues|league-events, source=kambi
+// Query params: action=stats|event-detail|sport-leagues|league-events|live-summary, source=kambi
 
 const VALID_SOURCES = ["kambi"];
 
@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
         return await getSportLeagues(supabase, sp, source);
       case "league-events":
         return await getLeagueEvents(supabase, sp, source);
+      case "live-summary":
+        return await getLiveSummary(supabase, source);
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
@@ -352,4 +354,80 @@ async function getLeagueEvents(supabase: any, sp: URLSearchParams, source: strin
   });
 
   return NextResponse.json({ events: enriched });
+}
+
+// ─── Live Summary: per-sport live coverage for scraper dashboard ───
+
+async function getLiveSummary(supabase: any, source: string) {
+  // Lightweight query: only live events, grouped by sport
+  const { data: rows, error } = await supabase.rpc("get_live_coverage", { p_source: source });
+  if (error) {
+    // Fallback: inline query if RPC not yet deployed
+    const { data: events } = await supabase
+      .from("events")
+      .select("id, source_markets_count, sport_id, sports!inner(name, slug)")
+      .eq("source", source)
+      .eq("status", "live")
+      .limit(500);
+
+    if (!events || events.length === 0) {
+      return NextResponse.json({ sports: [], totals: { events: 0, expected: 0, actual: 0, coverage_pct: 100 } });
+    }
+
+    // Count active markets per event
+    const eventIds = events.map((e: any) => e.id);
+    const countMap = new Map<string, number>();
+    for (let i = 0; i < eventIds.length; i += 50) {
+      const batch = eventIds.slice(i, i + 50);
+      let mOffset = 0;
+      while (true) {
+        const { data: mkts } = await supabase
+          .from("markets")
+          .select("event_id")
+          .in("event_id", batch)
+          .eq("is_active", true)
+          .range(mOffset, mOffset + 999);
+        if (!mkts || mkts.length === 0) break;
+        for (const m of mkts) countMap.set(m.event_id, (countMap.get(m.event_id) || 0) + 1);
+        if (mkts.length < 1000) break;
+        mOffset += 1000;
+      }
+    }
+
+    // Aggregate by sport
+    const sportMap = new Map<string, { name: string; slug: string; events: number; expected: number; actual: number }>();
+    for (const ev of events) {
+      const sName = (ev as any).sports?.name || "?";
+      const sSlug = (ev as any).sports?.slug || "?";
+      let entry = sportMap.get(sName);
+      if (!entry) entry = { name: sName, slug: sSlug, events: 0, expected: 0, actual: 0 };
+      entry.events++;
+      entry.expected += ev.source_markets_count || 0;
+      entry.actual += countMap.get(ev.id) || 0;
+      sportMap.set(sName, entry);
+    }
+
+    const sports = Array.from(sportMap.values())
+      .map(s => ({
+        ...s,
+        coverage_pct: s.expected > 0 ? Math.round((s.actual / s.expected) * 1000) / 10 : 100,
+      }))
+      .sort((a, b) => b.events - a.events);
+
+    const totalExpected = sports.reduce((s, r) => s + r.expected, 0);
+    const totalActual = sports.reduce((s, r) => s + r.actual, 0);
+
+    return NextResponse.json({
+      sports,
+      totals: {
+        events: events.length,
+        expected: totalExpected,
+        actual: totalActual,
+        coverage_pct: totalExpected > 0 ? Math.round((totalActual / totalExpected) * 1000) / 10 : 100,
+      },
+    });
+  }
+
+  // RPC path (if deployed)
+  return NextResponse.json(typeof rows === "string" ? JSON.parse(rows) : rows);
 }

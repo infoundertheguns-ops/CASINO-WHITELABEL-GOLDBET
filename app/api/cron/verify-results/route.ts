@@ -9,7 +9,7 @@ import {
   buildHalfScores,
   delay,
 } from "@/lib/flashscore";
-import type { MatchedEvent as FsMatchedEvent } from "@/lib/flashscore";
+import type { MatchedEvent as FsMatchedEvent, FlashscoreStat } from "@/lib/flashscore";
 import {
   SPORT_MAP as BE_SPORT_MAP,
   fetchResults as beFetchResults,
@@ -234,18 +234,22 @@ async function processFlashscoreMatch(
 ) {
   const fs = m.fsResult;
 
-  // If no period scores, try detail endpoint
+  // Always fetch detail to get stats (and period scores if missing)
   let periods = fs.periods;
-  if (periods.length === 0) {
-    try {
-      const detail = await fsFetchMatchDetail(m.flashscoreId);
-      if (detail && detail.periods.length > 0) {
+  let matchStats: FlashscoreStat[] = [];
+  try {
+    const detail = await fsFetchMatchDetail(m.flashscoreId);
+    if (detail) {
+      if (periods.length === 0 && detail.periods.length > 0) {
         periods = detail.periods;
       }
-      await delay(500);
-    } catch {
-      // Period scores are optional
+      if (detail.stats.length > 0) {
+        matchStats = detail.stats;
+      }
     }
+    await delay(500);
+  } catch {
+    // Detail fetch is best-effort
   }
 
   // Build half scores from periods
@@ -272,6 +276,11 @@ async function processFlashscoreMatch(
   if (halfScores) {
     updatedLiveData.halfScoreHome = halfScores.home;
     updatedLiveData.halfScoreAway = halfScores.away;
+  }
+
+  // Persist match stats for settlement (corners, cards, shots)
+  if (matchStats.length > 0) {
+    updatedLiveData.stats = matchStats;
   }
 
   // Update event with verified scores

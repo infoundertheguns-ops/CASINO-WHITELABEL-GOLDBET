@@ -6,6 +6,7 @@ import { HealthBanner } from "./health-banner";
 import { KambiHeroSection } from "./kambi-hero-section";
 import { SecondaryScrapers } from "./secondary-scrapers";
 import { CoverageKPIs } from "./coverage-kpis";
+import { LiveCoverageSection } from "./live-coverage-section";
 import { FreshnessSection } from "./freshness-section";
 import { RedisPipeline } from "./redis-pipeline";
 import { formatNumFull } from "./helpers";
@@ -189,6 +190,20 @@ export default function ScraperStatsDashboard() {
 
       {/* D. Coverage KPIs */}
       <CoverageKPIs server={kambiServer} />
+
+      {/* D2. Live Coverage per Sport */}
+      <CollapsibleSection
+        title="Coverage Live"
+        defaultOpen={true}
+        badge={
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />
+            <span style={{ fontSize: 13, color: "var(--admin-text3)" }}>In tempo reale</span>
+          </div>
+        }
+      >
+        <LiveCoverageSection />
+      </CollapsibleSection>
 
       {/* E. Freshness */}
       {healthData && (

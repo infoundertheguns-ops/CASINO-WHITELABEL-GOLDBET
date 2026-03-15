@@ -54,6 +54,25 @@ interface StatsData {
   generated_at: string;
 }
 
+interface LiveSportRow {
+  name: string;
+  slug: string;
+  events: number;
+  expected: number;
+  actual: number;
+  coverage_pct: number;
+}
+
+interface LiveCoverageData {
+  sports: LiveSportRow[];
+  totals: {
+    events: number;
+    expected: number;
+    actual: number;
+    coverage_pct: number;
+  };
+}
+
 // ═══ MAIN COMPONENT ═══
 
 export default function CoverageDashboard() {
@@ -61,6 +80,7 @@ export default function CoverageDashboard() {
   const searchParams = useSearchParams();
   const source = "kambi";
   const [stats, setStats] = useState<StatsData | null>(null);
+  const [liveData, setLiveData] = useState<LiveCoverageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
@@ -80,8 +100,12 @@ export default function CoverageDashboard() {
   // ─── Load stats ───
   const loadStats = useCallback(async () => {
     try {
-      const data = await fetchApi("stats", {}, source);
+      const [data, live] = await Promise.all([
+        fetchApi("stats", {}, source),
+        fetchApi("live-summary", {}, source),
+      ]);
       setStats(data);
+      setLiveData(live);
       setLastRefresh(new Date().toLocaleTimeString("it-IT"));
       setError("");
     } catch (err: any) {
@@ -378,7 +402,114 @@ export default function CoverageDashboard() {
         )}
       </div>
 
-      {/* D. Gap Events (collapsible) */}
+      {/* D. Live Coverage */}
+      {liveData && liveData.sports.length > 0 && (
+        <div style={{
+          background: "var(--admin-card, #0f1f35)", border: "1px solid var(--admin-border, #1e3a5f)",
+          borderRadius: 12, overflow: "hidden",
+        }}>
+          <div style={{
+            padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: "rgba(255,255,255,0.02)",
+            borderBottom: "1px solid var(--admin-border, #1e3a5f)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />
+              <span style={{ fontSize: 14, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--admin-text, #e2e8f0)" }}>
+                Coverage Live
+              </span>
+              <span style={{
+                fontSize: 12, fontWeight: 600, padding: "2px 10px", borderRadius: 10,
+                background: coverageBg(liveData.totals.coverage_pct),
+                color: coverageColor(liveData.totals.coverage_pct),
+              }}>
+                {liveData.totals.coverage_pct}%
+              </span>
+            </div>
+            <span style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)" }}>
+              {liveData.totals.events} eventi &middot; {formatNum(liveData.totals.actual)}/{formatNum(liveData.totals.expected)} mercati
+            </span>
+          </div>
+
+          {/* Live table header */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 1fr",
+            padding: "10px 20px",
+            background: "rgba(255,255,255,0.03)",
+            borderBottom: "1px solid var(--admin-border, #1e3a5f)",
+            fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+            color: "var(--admin-text-muted, #94a3b8)", letterSpacing: 0.5,
+          }}>
+            <div>Sport</div>
+            <div style={{ textAlign: "center" }}>Eventi</div>
+            <div style={{ textAlign: "center" }}>Attesi</div>
+            <div style={{ textAlign: "center" }}>In DB</div>
+            <div style={{ textAlign: "center" }}>Coverage</div>
+          </div>
+
+          {/* Live table rows */}
+          {liveData.sports.map((s, i) => {
+            const covColor = coverageColor(s.coverage_pct);
+            return (
+              <div
+                key={s.slug}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 1fr",
+                  padding: "10px 20px",
+                  background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+                  borderBottom: "1px solid rgba(255,255,255,0.03)",
+                  fontSize: 14, alignItems: "center", height: 44,
+                }}
+              >
+                <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>{s.name}</div>
+                <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>{s.events}</div>
+                <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 13 }}>{formatNumFull(s.expected)}</div>
+                <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 13 }}>{formatNumFull(s.actual)}</div>
+                <div style={{ textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <div style={{ width: 80, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(100, s.coverage_pct)}%`, height: "100%", borderRadius: 3, background: covColor, transition: "width 0.3s" }} />
+                  </div>
+                  <span style={{
+                    fontSize: 12, fontWeight: 600, fontFamily: "monospace",
+                    padding: "2px 8px", borderRadius: 4,
+                    background: coverageBg(s.coverage_pct), color: covColor,
+                  }}>
+                    {s.coverage_pct}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Live totals row */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 1fr",
+            padding: "10px 20px",
+            background: "rgba(16, 185, 129, 0.06)",
+            fontWeight: 700, fontSize: 14, alignItems: "center", height: 44,
+          }}>
+            <div style={{ color: "var(--admin-text, #e2e8f0)" }}>TOTALE</div>
+            <div style={{ textAlign: "center", color: "var(--admin-text, #e2e8f0)" }}>{liveData.totals.events}</div>
+            <div style={{ textAlign: "center", fontFamily: "monospace", color: "#f59e0b" }}>{formatNum(liveData.totals.expected)}</div>
+            <div style={{ textAlign: "center", fontFamily: "monospace", color: "#60a5fa" }}>{formatNum(liveData.totals.actual)}</div>
+            <div style={{ textAlign: "center" }}>
+              <span style={{
+                fontSize: 13, fontWeight: 700, fontFamily: "monospace",
+                padding: "3px 10px", borderRadius: 4,
+                background: coverageBg(liveData.totals.coverage_pct),
+                color: coverageColor(liveData.totals.coverage_pct),
+              }}>
+                {liveData.totals.coverage_pct}%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* E. Gap Events (collapsible) */}
       <CollapsibleSection
         title={`Eventi con Gap (${gapEvents.length})`}
         open={gapEventsOpen}

@@ -142,7 +142,61 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* non-critical */ }
 
-  // ── 6. Purge old ended events (>48h) with all markets + outcomes ──
+  // ── 6. Void stale pending legs (>6h after event finished) ──
+  // Safety net: if Flashscore stats never arrive, void the unsettled legs
+  // so bets don't stay "open" indefinitely.
+  let stalePendingVoided = 0;
+  try {
+    const staleLegsThreshold = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+
+    // Find finished/ended events updated >6h ago that might still have unsettled legs
+    const { data: staleFinishedEvents } = await supabase
+      .from("events")
+      .select("id")
+      .in("status", ["finished", "ended"])
+      .is("settled_at", null)
+      .lt("updated_at", staleLegsThreshold)
+      .limit(100);
+
+    if (staleFinishedEvents && staleFinishedEvents.length > 0) {
+      for (const ev of staleFinishedEvents) {
+        const { data: pendingLegs } = await supabase
+          .from("bet_selections")
+          .select("id, bet_id")
+          .eq("event_id", ev.id)
+          .is("result", null)
+          .limit(200);
+
+        if (pendingLegs && pendingLegs.length > 0) {
+          const betIds = new Set<string>();
+          for (const leg of pendingLegs) {
+            await supabase
+              .from("bet_selections")
+              .update({ result: "void", settled_at: new Date().toISOString() })
+              .eq("id", leg.id);
+            betIds.add(leg.bet_id);
+          }
+
+          // Resolve affected bets
+          for (const betId of betIds) {
+            try { await resolveBet(supabase, betId); } catch { /* ignore */ }
+          }
+
+          stalePendingVoided += pendingLegs.length;
+
+          // Set settled_at so the event can be properly ended
+          await supabase
+            .from("events")
+            .update({ settled_at: new Date().toISOString() })
+            .eq("id", ev.id);
+
+          await deactivateEvent(supabase, ev.id);
+        }
+      }
+    }
+  } catch { /* non-critical */ }
+
+  // ── 7. Purge old ended events (>48h) with all markets + outcomes ──
   // Prevents DB bloat from accumulating ~170K outcomes/day.
   let purgeResult: { events_deleted: number; markets_deleted: number; outcomes_deleted: number } | null = null;
   try {
@@ -206,6 +260,7 @@ export async function POST(req: NextRequest) {
     multis_resolved: multisResolved || undefined,
     orphan_markets: orphanMarkets || undefined,
     orphan_outcomes: orphanOutcomes || undefined,
+    stale_pending_voided: stalePendingVoided || undefined,
     purge: purgeResult && purgeResult.events_deleted > 0 ? purgeResult : undefined,
     daily_report_sent: dailyReportSent || undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
