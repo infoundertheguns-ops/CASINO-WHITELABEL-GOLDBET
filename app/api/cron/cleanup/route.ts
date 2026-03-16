@@ -81,10 +81,10 @@ export async function POST(req: NextRequest) {
     staleLiveFinished = ids.length;
   }
 
-  // ── 2b. End abandoned prematch events (no scraper update for 2+ hours) ──
+  // ── 2b. End abandoned prematch events (no scraper update for 75+ min) ──
   // If scraper stopped processing an event, it becomes stale.
-  // 2h threshold = ~24 Kambi prematch cycles.
-  const prematchStaleThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  // 75min threshold = ~15 Kambi prematch cycles (plenty to confirm it's gone).
+  const prematchStaleThreshold = new Date(Date.now() - 75 * 60 * 1000).toISOString();
   const { data: stalePrematch } = await supabase
     .from("events")
     .select("id")
