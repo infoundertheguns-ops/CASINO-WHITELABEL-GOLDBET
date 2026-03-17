@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   fetchApi, formatNum, formatNumFull, formatTime,
@@ -46,6 +46,13 @@ interface LeagueEventRow {
   coverage_pct: number | null;
 }
 
+interface CountryGroup {
+  country: string;
+  leagues: LeagueRow[];
+  totalEvents: number;
+  coveragePct: number;
+}
+
 // ═══ MAIN COMPONENT ═══
 
 export default function SportDetailDashboard() {
@@ -65,7 +72,10 @@ export default function SportDetailDashboard() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Expanded league row
+  // Expanded countries (multiple allowed)
+  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set());
+
+  // Expanded league row (one at a time)
   const [expandedLeague, setExpandedLeague] = useState("");
   const [leagueEvents, setLeagueEvents] = useState<LeagueEventRow[]>([]);
   const [leagueEventsLoading, setLeagueEventsLoading] = useState(false);
@@ -77,6 +87,33 @@ export default function SportDetailDashboard() {
   // Auto-refresh
   const refreshRef = useRef<NodeJS.Timeout | null>(null);
   const [lastRefresh, setLastRefresh] = useState("");
+
+  // ─── Group leagues by country ───
+  const countryGroups = useMemo((): CountryGroup[] => {
+    const map = new Map<string, LeagueRow[]>();
+    for (const league of leagues) {
+      const country = league.country || "Altro";
+      const list = map.get(country);
+      if (list) list.push(league);
+      else map.set(country, [league]);
+    }
+
+    const groups: CountryGroup[] = [];
+    for (const [country, countryLeagues] of map) {
+      const totalEvents = countryLeagues.reduce((s, l) => s + l.events_count, 0);
+      const totalSource = countryLeagues.reduce((s, l) => s + l.avg_source * l.events_count, 0);
+      const totalDb = countryLeagues.reduce((s, l) => s + l.avg_db * l.events_count, 0);
+      const coveragePct = totalSource > 0
+        ? Math.round((totalDb / totalSource) * 1000) / 10
+        : 100;
+
+      groups.push({ country, leagues: countryLeagues, totalEvents, coveragePct });
+    }
+
+    // Sort by total events DESC
+    groups.sort((a, b) => b.totalEvents - a.totalEvents);
+    return groups;
+  }, [leagues]);
 
   // ─── Load sport leagues ───
   const loadData = useCallback(async () => {
@@ -108,6 +145,16 @@ export default function SportDetailDashboard() {
     refreshRef.current = setInterval(loadData, 30000);
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, [loadData]);
+
+  // ─── Toggle country expand ───
+  const toggleCountry = (country: string) => {
+    setExpandedCountries(prev => {
+      const next = new Set(prev);
+      if (next.has(country)) next.delete(country);
+      else next.add(country);
+      return next;
+    });
+  };
 
   // ─── Expand league → load events ───
   const handleExpandLeague = async (leagueId: string) => {
@@ -144,10 +191,10 @@ export default function SportDetailDashboard() {
   };
 
   const handleExportLeagues = () => {
-    const headers = ["Lega", "Paese", "Eventi", `Avg ${sourceLabel}`, "Avg DB", "Coverage %", "Con Gap", "Zero"];
+    const headers = ["Paese", "Lega", "Eventi", `Avg ${sourceLabel}`, "Avg DB", "Coverage %", "Con Gap", "Zero"];
     const rows = leagues.map(l => [
-      l.league_name,
       l.country || "N/D",
+      l.league_name,
       l.events_count,
       l.avg_source,
       l.avg_db,
@@ -272,192 +319,277 @@ export default function SportDetailDashboard() {
         </div>
       )}
 
-      {/* Leagues Table */}
+      {/* Country Accordion */}
       <div style={{
-        background: "var(--admin-card, #0f1f35)", border: "1px solid var(--admin-border, #1e3a5f)",
-        borderRadius: 12, overflow: "hidden",
+        background: "var(--admin-card, #0f1f35)",
+        border: "1px solid var(--admin-border, #1e3a5f)",
+        borderRadius: 12,
+        overflow: "hidden",
       }}>
-        {/* Table header */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1.8fr 0.6fr 0.7fr 0.7fr 1fr 0.5fr 0.5fr",
-          padding: "10px 20px",
-          background: "rgba(255,255,255,0.03)",
-          borderBottom: "1px solid var(--admin-border, #1e3a5f)",
-          fontSize: 11,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          color: "var(--admin-text-muted, #94a3b8)",
-          letterSpacing: 0.5,
-        }}>
-          <div>Lega</div>
-          <div style={{ textAlign: "center" }}>Eventi</div>
-          <div style={{ textAlign: "center" }}>Avg {sourceLabel}</div>
-          <div style={{ textAlign: "center" }}>Avg DB</div>
-          <div style={{ textAlign: "center" }}>Coverage</div>
-          <div style={{ textAlign: "center" }}>Con Gap</div>
-          <div style={{ textAlign: "center" }}>Zero</div>
-        </div>
+        <div style={{ maxHeight: 700, overflowY: "auto" }}>
+          {countryGroups.map((group) => {
+            const isCountryOpen = expandedCountries.has(group.country);
+            const covColor = coverageColor(group.coveragePct);
 
-        {/* Table rows */}
-        <div style={{ maxHeight: 600, overflowY: "auto" }}>
-          {leagues.map((league, i) => {
-            const isExpanded = expandedLeague === league.league_id;
-            const covColor = coverageColor(league.coverage_pct);
             return (
-              <div key={league.league_id}>
+              <div key={group.country}>
+                {/* Country header */}
                 <div
-                  onClick={() => handleExpandLeague(league.league_id)}
+                  onClick={() => toggleCountry(group.country)}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.8fr 0.6fr 0.7fr 0.7fr 1fr 0.5fr 0.5fr",
-                    padding: "12px 20px",
-                    background: isExpanded ? "rgba(37, 99, 235, 0.08)" : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"),
-                    borderBottom: "1px solid rgba(255,255,255,0.03)",
-                    cursor: "pointer",
-                    fontSize: 14,
+                    display: "flex",
                     alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 20px",
+                    background: isCountryOpen ? "rgba(37, 99, 235, 0.10)" : "rgba(255,255,255,0.02)",
+                    borderBottom: "1px solid var(--admin-border, #1e3a5f)",
+                    cursor: "pointer",
                     transition: "background 0.15s",
-                    height: 48,
+                    height: 44,
                   }}
-                  onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget.style.background = "rgba(255,255,255,0.04)"); }}
-                  onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"); }}
+                  onMouseEnter={(e) => { if (!isCountryOpen) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                  onMouseLeave={(e) => { if (!isCountryOpen) e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
                 >
-                  <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 10, color: "var(--admin-text-muted)" }}>{isExpanded ? "▼" : "▶"}</span>
-                    {league.league_name}
-                  </div>
-                  <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
-                    {formatNumFull(league.events_count)}
-                  </div>
-                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 13 }}>
-                    {league.avg_source}
-                  </div>
-                  <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 13 }}>
-                    {league.avg_db}
-                  </div>
-                  <div style={{ textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                    <div style={{
-                      width: 60, height: 6, borderRadius: 3,
-                      background: "rgba(255,255,255,0.06)", overflow: "hidden",
-                    }}>
-                      <div style={{
-                        width: `${Math.min(100, league.coverage_pct)}%`,
-                        height: "100%", borderRadius: 3,
-                        background: covColor,
-                        transition: "width 0.3s",
-                      }} />
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{
-                      fontSize: 12, fontWeight: 600, fontFamily: "monospace",
-                      padding: "2px 6px", borderRadius: 3,
-                      background: coverageBg(league.coverage_pct),
-                      color: covColor,
+                      fontSize: 10,
+                      color: "var(--admin-text-muted, #94a3b8)",
+                      transition: "transform 0.2s",
+                      display: "inline-block",
+                      transform: isCountryOpen ? "rotate(90deg)" : "rotate(0deg)",
                     }}>
-                      {league.coverage_pct}%
+                      &#9654;
+                    </span>
+                    <span style={{
+                      fontWeight: 700,
+                      fontSize: 14,
+                      color: "var(--admin-text, #e2e8f0)",
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                    }}>
+                      {group.country}
+                    </span>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 10,
+                      background: "rgba(255,255,255,0.06)",
+                      color: "var(--admin-text-muted, #94a3b8)",
+                    }}>
+                      {group.leagues.length} {group.leagues.length === 1 ? "lega" : "leghe"}
                     </span>
                   </div>
-                  <div style={{ textAlign: "center", fontWeight: 600, color: league.gap_events > 0 ? "#f59e0b" : "var(--admin-text-muted)" }}>
-                    {league.gap_events}
-                  </div>
-                  <div style={{ textAlign: "center", color: league.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
-                    {league.zero_markets}
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--admin-text-muted, #94a3b8)",
+                    }}>
+                      {formatNumFull(group.totalEvents)} eventi
+                    </span>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      fontFamily: "monospace",
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      background: coverageBg(group.coveragePct),
+                      color: covColor,
+                    }}>
+                      {group.coveragePct}%
+                    </span>
                   </div>
                 </div>
 
-                {/* Expanded: league events */}
-                {isExpanded && (
-                  <div style={{
-                    padding: "8px 20px 12px 36px",
-                    background: "rgba(37, 99, 235, 0.04)",
-                    borderBottom: "1px solid var(--admin-border, #1e3a5f)",
-                    maxHeight: 500,
-                    overflowY: "auto",
-                  }}>
-                    {leagueEventsLoading ? (
-                      <div style={{ fontSize: 13, color: "var(--admin-text-muted)", padding: 8 }}>Caricamento eventi...</div>
-                    ) : leagueEvents.length === 0 ? (
-                      <div style={{ fontSize: 13, color: "var(--admin-text-muted)", padding: 8 }}>Nessun evento</div>
-                    ) : (
-                      <div>
-                        {/* Events header */}
-                        <div style={{
-                          display: "grid",
-                          gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
-                          padding: "6px 8px",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          color: "var(--admin-text-muted, #94a3b8)",
-                          borderBottom: "1px solid rgba(255,255,255,0.05)",
-                        }}>
-                          <div>Evento</div>
-                          <div style={{ textAlign: "center" }}>{sourceLabel}</div>
-                          <div style={{ textAlign: "center" }}>DB</div>
-                          <div style={{ textAlign: "center" }}>Gap</div>
-                          <div style={{ textAlign: "center" }}>Coverage</div>
-                          <div style={{ textAlign: "center" }}>Data</div>
-                        </div>
+                {/* Leagues inside country */}
+                {isCountryOpen && (
+                  <div>
+                    {/* League table header */}
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.8fr 0.6fr 0.7fr 0.7fr 1fr 0.5fr 0.5fr",
+                      padding: "8px 20px 8px 40px",
+                      background: "rgba(255,255,255,0.015)",
+                      borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      color: "var(--admin-text-muted, #94a3b8)",
+                      letterSpacing: 0.5,
+                    }}>
+                      <div>Lega</div>
+                      <div style={{ textAlign: "center" }}>Eventi</div>
+                      <div style={{ textAlign: "center" }}>Avg {sourceLabel}</div>
+                      <div style={{ textAlign: "center" }}>Avg DB</div>
+                      <div style={{ textAlign: "center" }}>Coverage</div>
+                      <div style={{ textAlign: "center" }}>Con Gap</div>
+                      <div style={{ textAlign: "center" }}>Zero</div>
+                    </div>
 
-                        {/* Events rows */}
-                        {leagueEvents.map((ev) => (
+                    {/* League rows */}
+                    {group.leagues.map((league, i) => {
+                      const isExpanded = expandedLeague === league.league_id;
+                      const leagueCovColor = coverageColor(league.coverage_pct);
+                      return (
+                        <div key={league.league_id}>
                           <div
-                            key={ev.id}
-                            onClick={() => handleEventDetail(ev.id)}
+                            onClick={() => handleExpandLeague(league.league_id)}
                             style={{
                               display: "grid",
-                              gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
-                              padding: "6px 8px",
-                              fontSize: 13,
+                              gridTemplateColumns: "1.8fr 0.6fr 0.7fr 0.7fr 1fr 0.5fr 0.5fr",
+                              padding: "10px 20px 10px 40px",
+                              background: isExpanded ? "rgba(37, 99, 235, 0.08)" : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"),
+                              borderBottom: "1px solid rgba(255,255,255,0.025)",
                               cursor: "pointer",
-                              borderBottom: "1px solid rgba(255,255,255,0.02)",
+                              fontSize: 13,
                               alignItems: "center",
+                              transition: "background 0.15s",
+                              height: 44,
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            onMouseEnter={(e) => { if (!isExpanded) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                            onMouseLeave={(e) => { if (!isExpanded) e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
                           >
-                            <div style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
-                              {ev.home_team} vs {ev.away_team}
+                            <div style={{ fontWeight: 600, color: "var(--admin-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 9, color: "var(--admin-text-muted)" }}>{isExpanded ? "\u25BC" : "\u25B6"}</span>
+                              {league.league_name}
+                            </div>
+                            <div style={{ textAlign: "center", fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
+                              {formatNumFull(league.events_count)}
                             </div>
                             <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
-                              {ev.source_count != null ? ev.source_count : "\u2014"}
+                              {league.avg_source}
                             </div>
                             <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
-                              {ev.db_count}
+                              {league.avg_db}
                             </div>
-                            <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: ev.gap != null && ev.gap > 0 ? "#ef4444" : "var(--admin-text-muted)" }}>
-                              {ev.gap != null ? (ev.gap > 0 ? `\u2212${ev.gap}` : ev.gap === 0 ? "0" : `+${Math.abs(ev.gap)}`) : "\u2014"}
+                            <div style={{ textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                              <div style={{
+                                width: 60, height: 6, borderRadius: 3,
+                                background: "rgba(255,255,255,0.06)", overflow: "hidden",
+                              }}>
+                                <div style={{
+                                  width: `${Math.min(100, league.coverage_pct)}%`,
+                                  height: "100%", borderRadius: 3,
+                                  background: leagueCovColor,
+                                  transition: "width 0.3s",
+                                }} />
+                              </div>
+                              <span style={{
+                                fontSize: 11, fontWeight: 600, fontFamily: "monospace",
+                                padding: "2px 6px", borderRadius: 3,
+                                background: coverageBg(league.coverage_pct),
+                                color: leagueCovColor,
+                              }}>
+                                {league.coverage_pct}%
+                              </span>
                             </div>
-                            <div style={{ textAlign: "center" }}>
-                              {ev.coverage_pct != null ? (
-                                <span style={{
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  padding: "2px 6px",
-                                  borderRadius: 3,
-                                  background: coverageBg(ev.coverage_pct),
-                                  color: coverageColor(ev.coverage_pct),
-                                }}>
-                                  {ev.coverage_pct}%
-                                </span>
-                              ) : (
-                                <span style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>&mdash;</span>
-                              )}
+                            <div style={{ textAlign: "center", fontWeight: 600, color: league.gap_events > 0 ? "#f59e0b" : "var(--admin-text-muted)" }}>
+                              {league.gap_events}
                             </div>
-                            <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
-                              {formatTime(ev.starts_at)}
+                            <div style={{ textAlign: "center", color: league.zero_markets > 0 ? "#ef4444" : "var(--admin-text-muted)", fontWeight: 600 }}>
+                              {league.zero_markets}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+
+                          {/* Expanded: league events */}
+                          {isExpanded && (
+                            <div style={{
+                              padding: "8px 20px 12px 56px",
+                              background: "rgba(37, 99, 235, 0.04)",
+                              borderBottom: "1px solid var(--admin-border, #1e3a5f)",
+                              maxHeight: 500,
+                              overflowY: "auto",
+                            }}>
+                              {leagueEventsLoading ? (
+                                <div style={{ fontSize: 13, color: "var(--admin-text-muted)", padding: 8 }}>Caricamento eventi...</div>
+                              ) : leagueEvents.length === 0 ? (
+                                <div style={{ fontSize: 13, color: "var(--admin-text-muted)", padding: 8 }}>Nessun evento</div>
+                              ) : (
+                                <div>
+                                  {/* Events header */}
+                                  <div style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
+                                    padding: "6px 8px",
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    color: "var(--admin-text-muted, #94a3b8)",
+                                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                                  }}>
+                                    <div>Evento</div>
+                                    <div style={{ textAlign: "center" }}>{sourceLabel}</div>
+                                    <div style={{ textAlign: "center" }}>DB</div>
+                                    <div style={{ textAlign: "center" }}>Gap</div>
+                                    <div style={{ textAlign: "center" }}>Coverage</div>
+                                    <div style={{ textAlign: "center" }}>Data</div>
+                                  </div>
+
+                                  {/* Events rows */}
+                                  {leagueEvents.map((ev) => (
+                                    <div
+                                      key={ev.id}
+                                      onClick={() => handleEventDetail(ev.id)}
+                                      style={{
+                                        display: "grid",
+                                        gridTemplateColumns: "2fr 0.5fr 0.5fr 0.5fr 0.6fr 0.6fr",
+                                        padding: "6px 8px",
+                                        fontSize: 13,
+                                        cursor: "pointer",
+                                        borderBottom: "1px solid rgba(255,255,255,0.02)",
+                                        alignItems: "center",
+                                      }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                    >
+                                      <div style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
+                                        {ev.home_team} vs {ev.away_team}
+                                      </div>
+                                      <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#f59e0b", fontSize: 12 }}>
+                                        {ev.source_count != null ? ev.source_count : "\u2014"}
+                                      </div>
+                                      <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa", fontSize: 12 }}>
+                                        {ev.db_count}
+                                      </div>
+                                      <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: ev.gap != null && ev.gap > 0 ? "#ef4444" : "var(--admin-text-muted)" }}>
+                                        {ev.gap != null ? (ev.gap > 0 ? `\u2212${ev.gap}` : ev.gap === 0 ? "0" : `+${Math.abs(ev.gap)}`) : "\u2014"}
+                                      </div>
+                                      <div style={{ textAlign: "center" }}>
+                                        {ev.coverage_pct != null ? (
+                                          <span style={{
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            padding: "2px 6px",
+                                            borderRadius: 3,
+                                            background: coverageBg(ev.coverage_pct),
+                                            color: coverageColor(ev.coverage_pct),
+                                          }}>
+                                            {ev.coverage_pct}%
+                                          </span>
+                                        ) : (
+                                          <span style={{ color: "var(--admin-text-muted)", fontSize: 11 }}>&mdash;</span>
+                                        )}
+                                      </div>
+                                      <div style={{ textAlign: "center", fontSize: 11, color: "var(--admin-text-muted)" }}>
+                                        {formatTime(ev.starts_at)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             );
           })}
 
-          {leagues.length === 0 && (
+          {countryGroups.length === 0 && (
             <div style={{ padding: 24, textAlign: "center", color: "var(--admin-text-muted)", fontSize: 13 }}>
               Nessuna lega trovata
             </div>
