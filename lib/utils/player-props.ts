@@ -13,6 +13,7 @@ const PLAYER_MARKET_PATTERNS = [
   /tripletta/i,
   /doppietta/i,
   /assist/i,
+  /fornisce/i,
   /shots?.on.target/i,
   /tiri?.in.porta/i,
   /saves/i,
@@ -22,12 +23,16 @@ const PLAYER_MARKET_PATTERNS = [
   /defensive.tackle/i,
   /falli/i,
   /cartellini/i,
+  /cartellino\b/i,
   /ammonito/i,
   /espulso/i,
   /to.score/i,
-  /segna.*gol/i,
+  /^segna\b/i,
   /player/i,
   /giocatore/i,
+  /rimbalzi/i,
+  /rebounds/i,
+  /first.basket/i,
   /man.of.the.match/i,
   /mvp/i,
 ];
@@ -44,10 +49,13 @@ const CATEGORY_MAP: [RegExp, string][] = [
   [/^marcatore$|^anytime\s+goal\s*scorer|^to\s+score\s+anytime/i, "Marcatore"],
   [/doppietta|to\s+score\s+2\+/i, "Doppietta"],
   [/tripletta|hat.?trick/i, "Tripletta"],
-  [/assist/i, "Assist"],
-  [/tiri|shots?.on.target/i, "Tiri in Porta"],
-  [/cartellini|ammonito|yellow/i, "Cartellini"],
+  [/assist|fornisce/i, "Assist"],
+  [/tiri|shots?.on.target|giocatore.*specchio/i, "Tiri"],
+  [/cartellini|cartellino|ammonito|yellow/i, "Cartellini"],
   [/parate|saves/i, "Parate"],
+  [/punti.*giocatore|points.*player|first.basket/i, "Punti"],
+  [/rimbalzi|rebounds/i, "Rimbalzi"],
+  [/^segna\b/i, "Marcatore"],
 ];
 
 /** Get display category for a player market */
@@ -123,7 +131,7 @@ export function buildPlayerMatches(
     }
 
     // Sort categories: Primo Marcatore first, then alphabetically
-    const CATEGORY_ORDER = ["Primo Marcatore", "Ultimo Marcatore", "Marcatore", "Doppietta", "Tripletta", "Assist"];
+    const CATEGORY_ORDER = ["Primo Marcatore", "Ultimo Marcatore", "Marcatore", "Doppietta", "Tripletta", "Assist", "Tiri", "Cartellini", "Punti", "Rimbalzi", "Parate"];
     categories.sort((a, b) => {
       const aIdx = CATEGORY_ORDER.indexOf(a.category);
       const bIdx = CATEGORY_ORDER.indexOf(b.category);

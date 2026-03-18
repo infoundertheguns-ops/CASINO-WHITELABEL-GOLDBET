@@ -58,7 +58,7 @@ export function usePlayerProps(): UsePlayerPropsReturn {
           .in("status", ["prematch", "live"])
           .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
           .order("starts_at", { ascending: true })
-          .limit(500);
+          .limit(2000);
 
         if (cancelled) return;
         if (err) throw err;

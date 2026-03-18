@@ -38,6 +38,19 @@ export function getMarketCategoryId(market: Market): string {
   // Player markets (contain " | " separator, e.g. "Marc Plus | Nikola Stulic")
   if (name.includes(' | ')) return "giocatori";
 
+  // Player markets — Kambi style (market_type as name, player names as outcomes)
+  if (/marcatore/i.test(name)) return "giocatori";
+  if (/^segna\b/i.test(name)) return "giocatori";
+  if (/fornisce.*assist/i.test(name)) return "giocatori";
+  if (/\bgiocatore\b/i.test(name)) return "giocatori";
+  if (/\bplayer\b/i.test(name)) return "giocatori";
+  if (/\brimbalzi\b/i.test(name)) return "giocatori";
+  if (/\brebounds?\b/i.test(name)) return "giocatori";
+  if (/riceve un cartellino/i.test(name)) return "giocatori";
+  if (/prende un cartellino/i.test(name)) return "giocatori";
+  if (/first.basket/i.test(name)) return "giocatori";
+  if (/\bscorer\b/i.test(name)) return "giocatori";
+
   // Primo Tempo — must check before generic patterns
   if (name.includes("primo tempo") || name.includes("1° tempo") || name.includes("1 tempo")) return "primo_tempo";
   if (name === "1x2 pt" || name === "u/o pt" || name === "gg/ng pt") return "primo_tempo";
@@ -69,7 +82,7 @@ export function getMarketCategoryId(market: Market): string {
   if (name.startsWith("gol totali") || name.includes("numero totale esatto di gol")) return "gol";
   if (name.includes("gol segnato in entrambi")) return "gol";
   if (name.includes("rete inviolata") || name.includes("vincente a 0") || name.includes("vince senza subire gol") || name.includes("clean sheet")) return "gol";
-  if (name.includes("segna") && !name.includes("+")) return "gol";
+  // NB: "Segna ..." player markets already caught above in giocatori section
 
   // Winner markets per tutti sport → "1x2" category
   if (["t/t risultato", "testa a testa", "vincente incontro", "t/t match", "esito finale 1x2"]
@@ -94,7 +107,7 @@ export function getMarketCategoryId(market: Market): string {
   if (name.includes("ammonizion") || name.includes("cartellini") || name.includes("cartellino")) return "speciali";
   if (name.includes("pari/dispari") || name.includes("odd/even")) return "speciali";
   if (name.includes("calci di rigore") || name.includes("penalty") || name.includes("rigore assegnato")) return "speciali";
-  if (name.includes("tiri totali") || name.includes("tiri del giocatore") || name.includes("tiri in porta")) return "speciali";
+  if (name.includes("tiri totali") || name.includes("tiri in porta")) return "speciali";
   if (name.includes("fuorigioco") || name.includes("falli totali") || name.includes("woodwork")) return "speciali";
 
   return "altro";
