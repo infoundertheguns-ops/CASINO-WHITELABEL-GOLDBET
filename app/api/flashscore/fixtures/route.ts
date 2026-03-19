@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import {
   matchFixtures,
+  getSportGroup,
 } from "@/lib/flashscore";
 import type { FlashscoreFixture } from "@/lib/flashscore";
 
@@ -106,15 +107,25 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2. Pre-match with DB events (save flashscore_id) ──
-  const { data: events, error: evErr } = await supabase
+  const sportGroup = getSportGroup(sport);
+  let evQuery = supabase
     .from("events")
     .select(
       "id, external_id, home_team, away_team, score_home, score_away, starts_at, live_data, flashscore_id, sports!inner(name)"
     )
     .eq("status", "prematch")
-    .is("flashscore_id", null)
-    .ilike("sports.name", sport || "%")
-    .limit(1000);
+    .is("flashscore_id", null);
+
+  if (sportGroup.length === 1) {
+    evQuery = evQuery.ilike("sports.name", sportGroup[0]);
+  } else {
+    evQuery = evQuery.or(
+      sportGroup.map((s) => `name.ilike.${s}`).join(","),
+      { referencedTable: "sports" }
+    );
+  }
+
+  const { data: events, error: evErr } = await evQuery.limit(1000);
 
   if (evErr || !events) {
     return NextResponse.json({

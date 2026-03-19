@@ -110,11 +110,37 @@ const SPORT_IDS: Record<string, number> = {
   basketball: 3,
   "hockey ghiaccio": 4,
   hockey: 4,
+  "football americano": 5,
   pallamano: 6,
   handball: 6,
+  rugby: 8,
+  baseball: 11,
   volley: 12,
   volleyball: 12,
-  baseball: 11,
+  cricket: 13,
+  freccette: 14,
+  snooker: 15,
+  boxe: 16,
+  pugilato: 16,
+  "australian rules": 18,
+  "rugby league": 19,
+  badminton: 21,
+  golf: 23,
+  "tennis tavolo": 25,
+  mma: 28,
+  "arti marziali": 28,
+  automobilismo: 32,
+  "formula 1": 32,
+  nascar: 32,
+  indycar: 32,
+  motociclismo: 32,
+  ciclismo: 34,
+  esports: 36,
+  counter_strike: 36,
+  "league of legends": 36,
+  valorant: 36,
+  "dota 2": 36,
+  dota: 36,
 };
 
 // ═══ FEED FORMAT FIELD CODES ═══
@@ -729,10 +755,51 @@ export const SPORT_MAP: Record<string, string> = {
   tennis: "tennis",
   basket: "basket",
   "hockey ghiaccio": "hockey ghiaccio",
-  volley: "volley",
+  "football americano": "football americano",
   pallamano: "pallamano",
+  rugby: "rugby",
   baseball: "baseball",
+  volley: "volley",
+  cricket: "cricket",
+  freccette: "freccette",
+  snooker: "snooker",
+  boxe: "boxe",
+  pugilato: "boxe",
+  "australian rules": "australian rules",
+  "rugby league": "rugby league",
+  badminton: "badminton",
+  golf: "golf",
+  "tennis tavolo": "tennis tavolo",
+  mma: "mma",
+  "arti marziali": "mma",
+  automobilismo: "automobilismo",
+  "formula 1": "automobilismo",
+  nascar: "automobilismo",
+  indycar: "automobilismo",
+  motociclismo: "automobilismo",
+  ciclismo: "ciclismo",
+  esports: "esports",
+  counter_strike: "esports",
+  "league of legends": "esports",
+  valorant: "esports",
+  "dota 2": "esports",
+  dota: "esports",
 };
+
+/**
+ * Get all DB sport names that map to the same Flashscore sport.
+ * e.g. "mma" → ["mma", "arti marziali"], "automobilismo" → ["automobilismo", "formula 1", "nascar", ...]
+ * Used by endpoints to query events across grouped sports.
+ */
+export function getSportGroup(sport: string): string[] {
+  const mapped = SPORT_MAP[sport.toLowerCase()];
+  if (!mapped) return [sport];
+  // Collect all keys that map to the same value
+  const group = Object.entries(SPORT_MAP)
+    .filter(([, v]) => v === mapped)
+    .map(([k]) => k);
+  return group.length > 0 ? group : [sport];
+}
 
 // ═══ HELPERS ═══
 

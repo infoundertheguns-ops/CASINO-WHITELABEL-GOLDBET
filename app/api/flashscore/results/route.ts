@@ -5,6 +5,7 @@ import {
   matchEvents,
   buildHalfScores,
   SPORT_MAP,
+  getSportGroup,
 } from "@/lib/flashscore";
 import type { FlashscoreResult } from "@/lib/flashscore";
 
@@ -44,15 +45,26 @@ export async function POST(req: NextRequest) {
     errors: [] as string[],
   };
 
-  // 1. Find finished unsettled events for this sport
-  const { data: events, error: evErr } = await supabase
+  // 1. Find finished unsettled events for this sport (handles grouped sports)
+  const sportGroup = getSportGroup(sport);
+  let query = supabase
     .from("events")
     .select(
       "id, external_id, home_team, away_team, score_home, score_away, starts_at, live_data, flashscore_id, sports!inner(name)"
     )
     .eq("status", "finished")
-    .is("settled_at", null)
-    .ilike("sports.name", sport || "%")
+    .is("settled_at", null);
+
+  if (sportGroup.length === 1) {
+    query = query.ilike("sports.name", sportGroup[0]);
+  } else {
+    query = query.or(
+      sportGroup.map((s) => `name.ilike.${s}`).join(","),
+      { referencedTable: "sports" }
+    );
+  }
+
+  const { data: events, error: evErr } = await query
     .order("updated_at", { ascending: true })
     .limit(500);
 

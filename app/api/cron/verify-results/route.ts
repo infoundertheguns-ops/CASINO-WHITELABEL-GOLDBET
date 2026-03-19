@@ -123,14 +123,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 4. Group fuzzy events by sport
+  // 4. Group fuzzy events by mapped sport (e.g. counter_strike → esports)
   const eventsBySport = new Map<string, typeof events>();
   for (const ev of fuzzyEvents) {
     const sportName = ((ev.sports as any)?.name || "").toLowerCase();
-    if (!FS_SPORT_MAP[sportName]) continue;
-    const group = eventsBySport.get(sportName) || [];
+    const mappedSport = FS_SPORT_MAP[sportName];
+    if (!mappedSport) continue;
+    const group = eventsBySport.get(mappedSport) || [];
     group.push(ev);
-    eventsBySport.set(sportName, group);
+    eventsBySport.set(mappedSport, group);
   }
 
   // 5. For each sport, fetch Flashscore results and match
