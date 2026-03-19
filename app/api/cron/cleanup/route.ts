@@ -196,7 +196,19 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* non-critical */ }
 
-  // ── 7. Purge old ended events (>48h) with all markets + outcomes ──
+  // ── 7. Purge old fixtures from be_fixtures (match_date < 2h ago) ──
+  let fixturesPurged = 0;
+  try {
+    const fixtureThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { data: deleted } = await supabase
+      .from("be_fixtures")
+      .delete()
+      .lt("match_date", fixtureThreshold)
+      .select("id");
+    fixturesPurged = deleted?.length || 0;
+  } catch { /* non-critical */ }
+
+  // ── 8. Purge old ended events (>48h) with all markets + outcomes ──
   // Prevents DB bloat from accumulating ~170K outcomes/day.
   let purgeResult: { events_deleted: number; markets_deleted: number; outcomes_deleted: number } | null = null;
   try {
@@ -209,7 +221,7 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* non-critical — RPC may not exist yet */ }
 
-  // ── 7. Daily report (between 03:50-04:10 Rome time) ──
+  // ── 9. Daily report (between 03:50-04:10 Rome time) ──
   let dailyReportSent = false;
   try {
     const romaHour = new Date().toLocaleString("en-US", {
@@ -261,6 +273,7 @@ export async function POST(req: NextRequest) {
     orphan_markets: orphanMarkets || undefined,
     orphan_outcomes: orphanOutcomes || undefined,
     stale_pending_voided: stalePendingVoided || undefined,
+    fixtures_purged: fixturesPurged || undefined,
     purge: purgeResult && purgeResult.events_deleted > 0 ? purgeResult : undefined,
     daily_report_sent: dailyReportSent || undefined,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
