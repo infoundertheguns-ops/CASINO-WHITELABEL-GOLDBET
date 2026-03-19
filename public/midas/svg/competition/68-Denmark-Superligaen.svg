@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 58 (84663) - https://sketch.com -->
+    <title>Superligaen</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <circle id="path-1" cx="251" cy="250" r="221"></circle>
+        <filter x="-3.6%" y="-3.6%" width="107.2%" height="107.2%" filterUnits="objectBoundingBox" id="filter-2">
+            <feGaussianBlur stdDeviation="15.5" in="SourceAlpha" result="shadowBlurInner1"></feGaussianBlur>
+            <feOffset dx="0" dy="1" in="shadowBlurInner1" result="shadowOffsetInner1"></feOffset>
+            <feComposite in="shadowOffsetInner1" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner1"></feComposite>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.182376585 0" type="matrix" in="shadowInnerInner1"></feColorMatrix>
+        </filter>
+        <linearGradient x1="167.206987%" y1="52.0059375%" x2="-34.7699065%" y2="49.330692%" id="linearGradient-3">
+            <stop stop-color="#BEBFC1" offset="0%"></stop>
+            <stop stop-color="#D7D7D7" offset="10.6816799%"></stop>
+            <stop stop-color="#9B9C9F" offset="20.009878%"></stop>
+            <stop stop-color="#B4B4B4" offset="25.2077866%"></stop>
+            <stop stop-color="#818181" offset="32.9375493%"></stop>
+            <stop stop-color="#000000" offset="38.8276734%"></stop>
+            <stop stop-color="#4E4E4E" offset="47.113437%"></stop>
+            <stop stop-color="#B8B9BC" offset="60.5160492%"></stop>
+            <stop stop-color="#B8B9BC" offset="63.2270038%"></stop>
+            <stop stop-color="#6B6C70" offset="77.1180268%"></stop>
+            <stop stop-color="#3D3E43" offset="100%"></stop>
+        </linearGradient>
+        <path d="M250.5,471 C228.080448,471 206.442388,467.654038 186.057939,461.434234 L380.059427,428.941855 C343.687462,455.395658 298.916026,471 250.5,471 Z M55.1625335,148.112101 L241.975461,398.314956 L141.080313,441.978929 C74.7150904,403.973027 30,332.458398 30,250.5 C30,213.54206 39.0924871,178.707785 55.1625335,148.112101 Z M243.811568,30.0995036 L164,64.7443226 L242.047391,165 L270.991488,30.9395472 C383.163229,41.2764541 471,135.630539 471,250.5 C471,297.023958 456.591442,340.182618 431.993256,375.757049 L65.9062578,129.849624 C104.146381,71.4615641 169.341562,32.3181126 243.811568,30.0995036 Z" id="path-4"></path>
+        <filter x="-3.2%" y="-3.2%" width="106.3%" height="106.4%" filterUnits="objectBoundingBox" id="filter-5">
+            <feGaussianBlur stdDeviation="13.5" in="SourceAlpha" result="shadowBlurInner1"></feGaussianBlur>
+            <feOffset dx="0" dy="1" in="shadowBlurInner1" result="shadowOffsetInner1"></feOffset>
+            <feComposite in="shadowOffsetInner1" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner1"></feComposite>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowInnerInner1"></feColorMatrix>
+        </filter>
+    </defs>
+    <g id="Superligaen" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Oval-2">
+            <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-1"></use>
+            <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
+        </g>
+        <g id="Combined-Shape">
+            <use fill="#000000" fill-rule="evenodd" xlink:href="#path-4"></use>
+            <use fill-opacity="0.319999993" fill="url(#linearGradient-3)" fill-rule="evenodd" xlink:href="#path-4"></use>
+            <use fill="black" fill-opacity="1" filter="url(#filter-5)" xlink:href="#path-4"></use>
+        </g>
+        <g id="Page-1" transform="translate(17.000000, 17.000000)"></g>
+    </g>
+</svg>

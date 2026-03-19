@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116.16 135.25">
+  <defs>
+    <style>
+      .cls-1 {
+        isolation: isolate;
+      }
+
+      .cls-2 {
+        fill: #00b0e7;
+      }
+
+      .cls-2, .cls-3, .cls-4 {
+        stroke-width: 0px;
+      }
+
+      .cls-3 {
+        fill: #006098;
+      }
+
+      .cls-4 {
+        fill: #0095d9;
+      }
+    </style>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g class="cls-1">
+      <polygon class="cls-3" points="68.5 70.39 62.16 121.81 58.08 110.23 58.08 41.87 68.5 70.39"/>
+      <polygon class="cls-2" points="58.08 41.87 58.08 110.23 54.01 121.81 47.68 70.39 58.08 41.87"/>
+      <polygon class="cls-3" points="75.12 88.53 64.71 129.06 51.44 129.1 41.02 88.65 75.12 88.53"/>
+      <path class="cls-4" d="M69.3,0l46.87,104.19h-35.35l-5.69-15.65-34.1.11-5.66,15.54H0L46.62,0h22.67ZM47.68,70.39h20.82l-10.42-28.52-10.4,28.52"/>
+      <polygon class="cls-3" points="35.35 104.19 49.28 135.25 35.6 135.25 0 104.19 35.35 104.19"/>
+      <polygon class="cls-2" points="41.02 88.65 51.44 129.1 49.28 135.25 35.35 104.19 41.02 88.65"/>
+      <polygon class="cls-3" points="116.16 104.19 80.56 135.25 66.88 135.25 80.81 104.19 116.16 104.19"/>
+      <polygon class="cls-3" points="80.81 104.19 66.88 135.25 64.71 129.06 75.12 88.53 80.81 104.19"/>
+    </g>
+  </g>
+</svg>

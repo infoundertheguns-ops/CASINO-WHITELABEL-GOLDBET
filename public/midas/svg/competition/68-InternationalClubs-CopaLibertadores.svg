@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 50.2 (55047) - http://www.bohemiancoding.com/sketch -->
+    <title>Copa Libertadores</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <radialGradient cx="50%" cy="50%" fx="50%" fy="50%" r="60.5342159%" id="radialGradient-1">
+            <stop stop-color="#DDDDDD" offset="0%"></stop>
+            <stop stop-color="#DEDEDE" offset="28.0527457%"></stop>
+            <stop stop-color="#CACACA" offset="53.4420777%"></stop>
+            <stop stop-color="#EBEBEB" offset="70.4728143%"></stop>
+            <stop stop-color="#D8D8D8" offset="100%"></stop>
+        </radialGradient>
+        <linearGradient x1="50%" y1="98.4510548%" x2="50%" y2="-13.3607305%" id="linearGradient-2">
+            <stop stop-color="#000000" stop-opacity="0" offset="0%"></stop>
+            <stop stop-color="#000000" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="26.277849%" y1="-181.70347%" x2="62.5973482%" y2="201.4861%" id="linearGradient-3">
+            <stop stop-color="#BEBFC1" offset="0%"></stop>
+            <stop stop-color="#D7D7D7" offset="10.6816799%"></stop>
+            <stop stop-color="#9B9C9F" offset="20.009878%"></stop>
+            <stop stop-color="#B4B4B4" offset="25.2077866%"></stop>
+            <stop stop-color="#818181" offset="32.9375493%"></stop>
+            <stop stop-color="#000000" offset="38.8276734%"></stop>
+            <stop stop-color="#4E4E4E" offset="47.113437%"></stop>
+            <stop stop-color="#B8B9BC" offset="60.5160492%"></stop>
+            <stop stop-color="#B8B9BC" offset="63.2270038%"></stop>
+            <stop stop-color="#6B6C70" offset="77.1180268%"></stop>
+            <stop stop-color="#3D3E43" offset="100%"></stop>
+        </linearGradient>
+        <circle id="path-4" cx="251.5" cy="242.5" r="158.5"></circle>
+        <circle id="path-5" cx="251" cy="243" r="164"></circle>
+        <polygon id="path-6" points="2.21535332 2.42235255 167.758424 2.42235255 167.758424 257.245013 2.21535332 257.245013"></polygon>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-8">
+            <stop stop-color="#C8C8C8" offset="0%"></stop>
+            <stop stop-color="#DDDDDD" offset="100%"></stop>
+        </linearGradient>
+        <path d="M140.018718,91.3070371 L101.722699,73.6333303 C100.668648,73.146788 99.4502355,71.8840498 99.0015016,70.8125209 L94.2585846,59.4901578 C93.8098507,58.4186289 92.5075767,57.4827764 91.3496963,57.3996877 L81.6755411,56.7048977 C80.5176606,56.6215987 78.8326493,55.9810793 77.9116415,55.2736682 L63.0962785,43.8957725 C62.1752707,43.1885718 60.4879473,42.6389241 59.3275447,42.6681629 L46.8554762,42.9830587 C45.6950736,43.0122975 44.2194013,42.2611334 43.559647,41.3052976 L43.2868336,40.9100477 C42.6268691,39.9544223 41.2241292,39.5429753 40.153053,39.9912337 L37.1651371,41.2424026 C36.0942711,41.6908713 35.326064,42.9908417 35.4492294,44.14588 L35.5637773,45.2214057 C35.6869427,46.3766544 35.1436279,47.0933209 34.3506196,46.8221782 C33.5574011,46.5512459 33.0758792,45.4035698 33.2751296,44.259049 L34.1648207,39.1483565 C34.3640711,38.0038357 33.7024251,37.5318076 32.6866262,38.0944971 L25.5403033,42.052465 C24.5247146,42.6149441 23.2106706,43.874527 22.6053528,44.8659122 L17.8613848,52.6350229 C17.2562772,53.6264081 16.7844236,55.3714815 16.8079637,56.5330408 L16.9332309,62.7392423 C16.9565608,63.9005912 16.4674725,65.6349367 15.8405062,66.612649 L8.26457575,78.4276546 C7.63760945,79.4053669 7.48060515,81.071769 7.91378569,82.1493981 L8.55189152,83.7371289 C8.98507206,84.8149684 9.01092417,86.5724526 8.60948078,87.6624924 L7.85598625,89.7094198 C7.45475303,90.79967 7.6298328,92.4810071 8.24713083,93.4648196 L23.0355908,117.035722 C23.6528888,118.019745 24.9696652,119.285428 25.9768467,119.862842 L40.2987076,128.07348 C41.3060993,128.650894 42.089019,130.060036 42.0478238,131.221175 L40.6211234,171.297914 C40.5799281,172.459053 40.3577681,174.322975 40.1250991,175.460975 L38.1300725,185.222322 C37.8976137,186.360322 37.7580543,188.223402 37.8185861,189.383699 L39.4909867,221.466042 C39.5515184,222.625918 40.1232074,224.349746 40.7678289,225.315679 L45.863848,232.951637 C46.5086795,233.91778 47.9385326,234.950605 49.05774,235.25898 L56.4596415,237.297914 C57.5788489,237.606078 57.8642731,237.149195 57.097327,236.27729 L52.0233768,230.509039 C51.2562206,229.636923 51.0863953,228.104094 51.6440023,227.084943 L56.8757975,217.52364 C57.4334045,216.504909 57.1916977,215.042337 56.3360558,214.257307 L55.6515003,213.629408 C54.7958584,212.844378 54.4980336,211.353619 54.9864914,210.299759 L58.8926828,201.870146 C59.3809304,200.816497 59.5036754,199.060906 59.1667572,197.9492 L59.1257721,197.814365 C58.7888539,196.702658 59.4568053,195.801514 60.6176283,195.801514 L61.1428675,195.801514 C62.3036905,195.801514 63.5429105,194.908363 63.9109353,193.806333 L64.4700136,192.132148 C64.8380384,191.030328 66.0585524,189.950596 67.1964658,189.720682 L73.6367948,188.419239 C74.7747082,188.189115 75.9977443,187.110434 76.3687117,186.009666 L77.0457007,184.001023 C77.4166681,182.900255 77.2230925,181.206507 76.6131507,180.218277 L75.067909,177.714046 C74.4579672,176.725817 74.8966124,176.04512 76.0479773,176.193628 L81.6515806,176.917236 C82.8029455,177.065954 84.3620591,176.483492 85.1342597,175.616004 L97.7854014,161.404046 C98.5576019,160.536558 99.3598582,158.908229 99.5771841,157.767074 L100.681258,151.971058 C100.898795,150.829692 101.9457,149.547812 103.020139,149.107547 L120.716016,141.856741 C121.790245,141.416476 122.983436,140.174773 123.381096,139.083471 L130.619477,119.216012 C131.017138,118.1245 131.9785,116.548128 132.766464,115.695154 L142.838069,104.793493 C143.626033,103.940519 144.070143,102.327757 143.829908,101.190808 L142.362222,94.2460639 C142.122197,93.1093261 141.072979,91.7935794 140.018718,91.3070371" id="path-9"></path>
+        <filter x="-0.7%" y="-0.5%" width="101.5%" height="102.0%" filterUnits="objectBoundingBox" id="filter-10">
+            <feOffset dx="0" dy="2" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feComposite in="shadowOffsetOuter1" in2="SourceAlpha" operator="out" result="shadowOffsetOuter1"></feComposite>
+            <feColorMatrix values="0 0 0 0 1   0 0 0 0 1   0 0 0 0 1  0 0 0 0.5 0" type="matrix" in="shadowOffsetOuter1"></feColorMatrix>
+        </filter>
+        <filter x="-5.5%" y="-3.8%" width="111.0%" height="108.5%" filterUnits="objectBoundingBox" id="filter-11">
+            <feGaussianBlur stdDeviation="7" in="SourceAlpha" result="shadowBlurInner1"></feGaussianBlur>
+            <feOffset dx="0" dy="1" in="shadowBlurInner1" result="shadowOffsetInner1"></feOffset>
+            <feComposite in="shadowOffsetInner1" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner1"></feComposite>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.289713542 0" type="matrix" in="shadowInnerInner1" result="shadowMatrixInner1"></feColorMatrix>
+            <feGaussianBlur stdDeviation="2.5" in="SourceAlpha" result="shadowBlurInner2"></feGaussianBlur>
+            <feOffset dx="0" dy="1" in="shadowBlurInner2" result="shadowOffsetInner2"></feOffset>
+            <feComposite in="shadowOffsetInner2" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner2"></feComposite>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowInnerInner2" result="shadowMatrixInner2"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixInner1"></feMergeNode>
+                <feMergeNode in="shadowMatrixInner2"></feMergeNode>
+            </feMerge>
+        </filter>
+        <filter x="-9.2%" y="-11.2%" width="118.5%" height="123.8%" filterUnits="objectBoundingBox" id="filter-12">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="5" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.215919384 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <polygon id="path-13" points="15 73.4077873 5 79 10.5922127 69 5 59 15 64.5922127 25 59 19.4077873 69 25 79"></polygon>
+        <polygon id="path-15" points="0 0.159338776 53.36298 0.159338776 53.36298 104.011257 0 104.011257"></polygon>
+        <polygon id="path-17" points="0.485422727 0.710967742 95.4241727 0.710967742 95.4241727 66.3283355 0.485422727 66.3283355"></polygon>
+        <polygon id="path-19" points="0.902368627 0.62788 111.953663 0.62788 111.953663 44 0.902368627 44"></polygon>
+    </defs>
+    <g id="Copa-Libertadores" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <circle id="Oval-10" fill="#FFFFFF" cx="251" cy="243" r="160"></circle>
+        <g id="Oval">
+            <use fill-opacity="0.170000002" fill="url(#radialGradient-1)" xlink:href="#path-4"></use>
+            <use fill-opacity="0.0899999961" fill="url(#linearGradient-2)" xlink:href="#path-4"></use>
+            <use fill-opacity="0" fill="url(#linearGradient-3)" xlink:href="#path-4"></use>
+        </g>
+        <g id="Oval">
+            <use stroke="#B6B6B6" stroke-width="9" xlink:href="#path-5"></use>
+            <circle stroke="#CECECE" stroke-width="5" stroke-linejoin="square" cx="251" cy="243" r="161.5"></circle>
+        </g>
+        <g id="Page-1" transform="translate(189.000000, 110.000000)">
+            <mask id="mask-7" fill="white">
+                <use xlink:href="#path-6"></use>
+            </mask>
+            <g id="Clip-2" transform="translate(84.986889, 129.833683) rotate(1.000000) translate(-84.986889, -129.833683) "></g>
+            <g id="Fill-1" mask="url(#mask-7)">
+                <use fill="black" fill-opacity="1" filter="url(#filter-10)" xlink:href="#path-9"></use>
+                <use fill-opacity="0.50999999" fill="url(#linearGradient-8)" fill-rule="evenodd" xlink:href="#path-9"></use>
+                <use fill="#C5C5C5" fill-rule="evenodd" xlink:href="#path-9"></use>
+                <use fill="black" fill-opacity="1" filter="url(#filter-11)" xlink:href="#path-9"></use>
+            </g>
+        </g>
+        <g id="Stars" filter="url(#filter-12)" transform="translate(160.000000, 184.000000)">
+            <polygon id="Star-4" fill="#DF2939" transform="translate(67.500000, 22.500000) rotate(-45.000000) translate(-67.500000, -22.500000) " points="67.5 29.3320704 52 38 60.6679296 22.5 52 7 67.5 15.6679296 83 7 74.3320704 22.5 83 38"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(109.000000, 34.000000) rotate(-45.000000) translate(-109.000000, -34.000000) " points="109 39.7301235 96 47 103.269876 34 96 21 109 28.2698765 122 21 114.730124 34 122 47"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(22.000000, 34.000000) rotate(-45.000000) translate(-22.000000, -34.000000) " points="22 39.7301235 9 47 16.2698765 34 9 21 22 28.2698765 35 21 27.7301235 34 35 47"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(136.000000, 51.000000) rotate(-45.000000) translate(-136.000000, -51.000000) " points="136 55.4077873 126 61 131.592213 51 126 41 136 46.5922127 146 41 140.407787 51 146 61"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(155.500000, 82.500000) rotate(-45.000000) translate(-155.500000, -82.500000) " points="155.5 86.2466192 147 91 151.753381 82.5 147 74 155.5 78.7533808 164 74 159.246619 82.5 164 91"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(143.500000, 107.500000) rotate(-45.000000) translate(-143.500000, -107.500000) " points="143.5 111.246619 135 116 139.753381 107.5 135 99 143.5 103.753381 152 99 147.246619 107.5 152 116"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(120.000000, 119.500000) rotate(-45.000000) translate(-120.000000, -119.500000) " points="120 122.365062 113 126 116.914549 119.5 113 113 120 116.634938 127 113 123.085451 119.5 127 126"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(51.000000, 104.500000) rotate(-45.000000) translate(-51.000000, -104.500000) " points="51 107.365062 44 111 47.9145489 104.5 44 98 51 101.634938 58 98 54.0854511 104.5 58 111"></polygon>
+            <polygon id="Star-4" fill="#DF2939" transform="translate(29.500000, 91.500000) rotate(-45.000000) translate(-29.500000, -91.500000) " points="29.5 95.2466192 21 100 25.7533808 91.5 21 83 29.5 87.7533808 38 83 33.2466192 91.5 38 100"></polygon>
+            <mask id="mask-14" fill="white">
+                <use xlink:href="#path-13"></use>
+            </mask>
+            <use id="Star-4" fill="#DF2939" transform="translate(15.000000, 69.000000) rotate(-45.000000) translate(-15.000000, -69.000000) " xlink:href="#path-13"></use>
+        </g>
+        <g id="Group" transform="translate(27.000000, -31.000000)"></g>
+        <g id="Page-1" transform="translate(94.000000, 80.000000)">
+            <path d="M89.8442872,21 C77.4085248,26.8877593 65.6303059,34.4069599 54.9812019,43.4030674 C44.4760048,52.2777552 35.1132063,62.4990995 27.2337549,73.8926974 C26.9503692,81.3103468 26.8950204,89.1386162 27.2337549,97 C45.4280037,88.5602161 64.1558146,81.6150003 83.3286296,76.4800442 C91.7217176,58.083832 101.673427,40.8024749 113,24.4262476 C105.49692,23.3445071 97.6794596,22.0442108 89.9040639,21.0706443 L89.8442872,21 Z" id="Fill-1" fill="#C03ABC"></path>
+            <g id="Group-7" transform="translate(0.000000, 162.000000)">
+                <mask id="mask-16" fill="white">
+                    <use xlink:href="#path-15"></use>
+                </mask>
+                <g id="Clip-6"></g>
+                <path d="M0.05918,21.0562367 C3.44278,48.413298 14.14578,74.5404816 30.94498,96.6959102 C38.38978,99.4818694 45.86758,101.87991 53.36298,104.011257 C50.42378,84.0510939 49.70438,64.1460327 50.56018,44.2365633 C35.97418,30.998849 22.51018,16.0838286 10.37718,0.159338776 C7.00238,6.9126449 3.41198,13.8466857 -0.00022,20.9879102 L0.05918,21.0562367 Z" id="Fill-5" fill="#F28F11" mask="url(#mask-16)"></path>
+            </g>
+            <g id="Group-10" transform="translate(179.000000, 11.000000)">
+                <mask id="mask-18" fill="white">
+                    <use xlink:href="#path-17"></use>
+                </mask>
+                <g id="Clip-9"></g>
+                <path d="M22.4449,0.866270968 C49.1287182,8.81569032 73.1406273,23.6155613 92.1680591,43.8203355 C93.4202409,50.8594323 94.5533773,58.6048516 95.4241727,66.3283355 C76.8817409,60.8137548 57.4288318,56.7929806 37.6474455,54.3800774 C29.4333091,42.5853677 21.2015364,31.6373677 12.2797409,21.1565935 C8.44603636,16.6554323 4.53296818,12.3429161 0.485422727,8.02162581 C7.87946818,5.29065806 15.3793318,2.83827097 22.9188773,0.710529032 L22.4449,0.866270968 Z" id="Fill-8" fill="#323E8D" mask="url(#mask-18)"></path>
+            </g>
+            <g id="Group-13" transform="translate(110.000000, 277.000000)">
+                <mask id="mask-20" fill="white">
+                    <use xlink:href="#path-19"></use>
+                </mask>
+                <g id="Clip-12"></g>
+                <path d="M16.8942118,41.28388 C44.1014275,46.42308 72.2441725,44.22968 98.3423686,35.04248 C102.971702,28.93308 107.625192,22.55968 111.953663,16.09828 C92.7072314,12.92808 73.5771922,7.47428 55.0862118,0.62788 C37.675702,10.07468 19.5185255,18.21248 0.902368627,24.80588 C6.11146667,30.68208 11.608251,36.31628 17.320251,41.64688 L16.8942118,41.28388 Z" id="Fill-11" fill="#004F32" mask="url(#mask-20)"></path>
+            </g>
+            <path d="M300.415275,141.413314 C291.192217,158.438762 280.229578,175.121624 268,190.703788 C271.485725,210.242274 273.57541,230.121137 274.102754,250 C281.26895,246.90788 288.286352,243.340559 295.119949,239.563265 C307.933763,215.328027 314.56605,187.739861 313.96212,160.014661 C309.590194,153.649181 304.957877,147.268229 300.187707,141 L300.415275,141.413314 Z" id="Fill-14" fill="#0164AB"></path>
+        </g>
+    </g>
+</svg>

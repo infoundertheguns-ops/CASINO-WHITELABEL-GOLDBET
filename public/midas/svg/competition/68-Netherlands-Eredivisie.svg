@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="53px" height="53px" viewBox="0 0 53 53" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 51.2 (57519) - http://www.bohemiancoding.com/sketch -->
+    <title>Other/ Eredivise/Icon</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="59.2376919%" y1="-12.9242344%" x2="6.43883004%" y2="40.6282444%" id="linearGradient-1">
+            <stop stop-color="#043167" offset="0%"></stop>
+            <stop stop-color="#004393" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-2">
+            <stop stop-color="#043167" offset="0%"></stop>
+            <stop stop-color="#004393" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="15.4307806%" y1="0%" x2="84.3524511%" y2="0%" id="linearGradient-3">
+            <stop stop-color="#043167" offset="0%"></stop>
+            <stop stop-color="#004393" offset="100%"></stop>
+            <stop stop-color="#004393" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-4">
+            <stop stop-color="#043167" offset="0%"></stop>
+            <stop stop-color="#004393" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Other/-Eredivise/Icon" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Group" transform="translate(1.000000, 2.000000)">
+            <path d="M24.1933005,44 C34.0276691,44 42,36.1649831 42,26.5 C42,16.8350169 34.0276691,9 24.1933005,9 C14.358932,9 7,16.5762419 7,26.241225" id="Oval" stroke="url(#linearGradient-1)" stroke-width="5" transform="translate(24.500000, 26.500000) rotate(-150.000000) translate(-24.500000, -26.500000) "></path>
+            <path d="M24.7159461,44.124146 C34.3302289,44.124146 42.124145,36.2891291 42.124145,26.624146 C42.124145,16.9591629 34.3302289,9.12414601 24.7159461,9.12414601 C15.1016633,9.12414601 6.875854,16.9591629 6.875854,26.624146" id="Oval-Copy" stroke="url(#linearGradient-2)" stroke-width="5" transform="translate(24.500000, 26.624146) rotate(-90.000000) translate(-24.500000, -26.624146) "></path>
+            <polygon id="Rectangle-2" fill="url(#linearGradient-3)" fill-rule="nonzero" points="23.6859836 22 28.9141709 26.4 40.5 26.4 40.5 22"></polygon>
+            <path d="M2,11.087417 C6.8717621,4.38278462 14.9383037,0 24.0650666,0 C38.9408196,0 51,11.6432575 51,26.0059435 C51,29.9350394 50.0975322,33.6606226 48.4818158,37 M43.9232918,34.4565061 C45.1267187,31.8388207 45.9497,29.0544598 45.9497,26.0059435 C45.9497,14.3362611 36.1516159,4.8761144 24.0650666,4.8761144 C16.7858352,4.8761144 9.93030685,8.01290616 5.9516671,13.2917073" id="Oval-19" fill="url(#linearGradient-4)" fill-rule="nonzero"></path>
+        </g>
+    </g>
+</svg>

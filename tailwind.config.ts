@@ -58,6 +58,20 @@ const config: Config = {
           secondary: "#a09cc0",
           tertiary: "#645fa0",
         },
+        // ═══ Kiosk Theme (Stanleybet MIDAS) ═══
+        kiosk: {
+          bg: "#E8ECEF",
+          surface: "#FFFFFF",
+          accent: "#C41E2A",
+          green: "#2E7D32",
+          deep: "#2D3844",
+          text: "#1A1A1A",
+          header: "#1a1a2e",
+          sidebar: "#1e2228",
+          border: "#D0D5DD",
+          "row-alt": "#F5F7FA",
+          "odds-bg": "#F0F2F5",
+        },
       },
       borderRadius: {
         xl: "12px",

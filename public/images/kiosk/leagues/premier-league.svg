@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <circle cx="100" cy="90" r="80" fill="#3D195B"/>
+  <!-- Lion silhouette simplified -->
+  <circle cx="100" cy="90" r="65" fill="none" stroke="#E8D44D" stroke-width="3"/>
+  <text x="100" y="85" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="42" fill="white">PL</text>
+  <text x="100" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="14" fill="#E8D44D">PREMIER</text>
+  <text x="100" y="190" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="16" fill="#3D195B">LEAGUE</text>
+</svg>

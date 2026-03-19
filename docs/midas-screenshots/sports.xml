@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sports>
+  <regular id="2">
+    <athletics id="60" colour="140,129,163"/>
+    <bandy id="61" colour="0,104,169"/>
+    <baseball id="62" colour="232,172,154"/>
+    <basketball id="63" colour="250,166,26"/>
+    <boxing id="64" colour="177,179,182"/>
+    <bowls id="30" colour="143,164,152"/>
+    <mma id="65" colour="104,77,159"/>
+    <cricket id="3" colour="196,217,165"/>
+    <cycling id="66" colour="67,103,155"/>
+    <darts id="4" colour="197,140,247"/>
+    <floorball id="67" colour="242,207,154"/>
+    <football id="68" colour="141,198,63"/>
+    <formula1 id="69" colour="215,25,32"/>
+    <futsal id="70" colour="189,163,123"/>
+    <golf id="71" colour="0,152,213"/>
+    <handball id="72" colour="167,36,40"/>
+    <icehockey id="73" colour="0,104,166"/>
+    <motogp id="74" colour="88,89,91"/>
+    <otherevents id="75" colour="119,119,119 "/>
+    <othersports id="76" colour="196,22,28"/>
+    <rugby id="77" colour="98,167,141"/>
+    <skiing id="78" colour="0,135,191"/>
+    <snooker id="79" colour="0,107,105"/>
+    <speedway id="80" colour="207,156,112"/>
+    <tennis id="81" colour="238,220,0"/>
+    <volleyball id="82" colour="224,0,133"/>
+    <waterpolo id="83" colour="171,225,250"/>
+    <lotteries id="84" colour="225,26,44"/>
+    <sailing id="85" colour="61,89,168"/>
+    <americanfootball id="86" colour="64,186,141"/>
+    <olympicgames id="87" colour="206,175,76"/>
+	<horseracing id="89" colour="89,139,44"/>
+    <olympics id="101" colour="206,175,76"/>
+    <beachsoccer id="102" colour="242,193,48"/>
+    <hockey id="103" colour="153,188,122"/>
+    <beachvolley id="104" colour="237,110,113"/>
+    <badminton id="105" colour="110,171,196"/>
+    <tabletennis id="106" colour="0,66,122"/>
+    <squash id="32" colour="48,135,61"/>
+	<biathlon id="1044" colour="0,125,200"/>	
+	<bobsleigh id="1045" colour="0,85,255"/>	
+	<crosscountry id="1046" colour="0,135,255"/>
+    <curling id="1028" colour="112,115,164"/>
+	<figureskating id="1102" colour="20,125,220"/>	
+	<luge id="1051" colour="40,125,220"/>	
+	<nordiccombined id="1047" colour="60,125,220"/>	
+	<shorttrack id="1105" colour="0,105,220"/>	
+	<skeleton id="1104" colour="0,30,220"/>	
+	<snowboarding id="1049" colour="0,65,220"/>	
+	<speedskating id="1050" colour="20,105,220"/>	
+    <alpineskiing id="49" colour="0,15,150"/>	
+    <hockey id="73" colour="153,188,122"/>
+  </regular>
+  <live id="3">
+    <baseball id="1" colour="232,172,154"/>
+    <basketball id="2" colour="250,166,26"/>
+    <cricket id="3" colour="196,217,165"/>
+    <darts id="4" colour="197,140,247"/>
+    <football id="5" colour="141,198,63"/>
+    <icehockey id="6" colour="0,104,166"/>
+    <motorsport id="7" colour="88,89,91"/>
+    <americanfootball id="8" colour="64,186,141"/>
+    <snooker id="9" colour="0,107,105"/>
+    <tennis id="10" colour="238,220,0"/>
+    <rugby id="11" colour="98,167,141"/>
+    <bandy id="12" colour="0,104,169"/>
+    <curling id="13" colour="112,115,164"/>
+    <floorball id="14" colour="242,207,154"/>
+    <futsal id="15" colour="189,163,123"/>
+    <handball id="16" colour="167,36,40"/>
+    <pesapallo id="17" colour="231,132,131"/>
+    <volleyball id="18" colour="224,0,133"/>
+    <waterpolo id="19" colour="171,225,250"/>
+    <wintersports id="20" colour="0,135,191"/>
+    <cycling id="21" colour="67,103,155"/>
+    <golf id="22" colour="0,152,213"/>
+    <aussierules id="23" colour="229,193,1"/>
+    <beachvolleyball id="24" colour="237,110,113"/>
+    <badminton id="26" colour="110,171,196"/>
+    <tabletennis id="28" colour="0,66,122"/>
+    <bowls id="30" colour="143,164,152"/>
+	<biathlon id="33" colour="0,125,220"/>	
+    <skijumping id="34" colour="0,145,160"/>	
+    <padel id="35" colour="238,220,0"/>	
+    <formula1 id="42" colour="215,25,32"/>
+	<formulae id="44" colour="215,25,32"/>
+	<motogp id="45" colour="88,89,91"/>
+	<E-Leagues-Football id="46" colour="141,198,63"/>
+	<E-Leagues-Basketball id="47" colour="141,198,63"/>
+	<E-Leagues-IceHockey id="48" colour="141,198,63"/>
+    <alpineskiing id="49" colour="0,135,191"/>	
+    
+  </live>
+  <virtual id="1">
+    <greyhound id="2136" colour="206,0,22"/>
+    <vfootball id="2135" colour="206,0,22" nopadding="1" />
+	<rfootball id="2142" colour="206,0,22" nopadding="1" />
+    <horseracing id="2137" colour="206,0,22"/>
+    <tennis id="2132" colour="206,0,22"/>
+    <formula1 id="2139" colour="206,0,22"/>
+    <speedway id="2138" colour="206,0,22"/>
+    <cycling id="2133" colour="206,0,22"/>
+ <marbles id="2144" colour="206,0,22"/>
+  </virtual>
+  <sibVirtual id="5">
+    <greyhound id="5" colour="#e15cff" colour2="#7e009a" colour3="#4f0061" nopadding="1" />
+    <football id="4" colour="#00ff76" colour2="#006c32" colour3="#00431f" nopadding="1" />
+    <footballTournament id="3" label="Tournaments" colour="#00ff76" colour2="#006c32" colour3="#00431f" linked="4" nopadding="1" />
+    <horseracing id="6" colour="#00d4f9" colour2="#007083" colour3="#004c59" nopadding="1" />    
+    <motorracing id="8" colour="#ff0054" colour2="#a50036" colour3="#7e0029" nopadding="1" />
+    <speedway id="7" colour="#8d11ce" colour2="#580086" colour3="#370054" nopadding="1" />
+    <motogp id="11" colour="#1389c7" colour2="#00517c" colour3="#003b5b" nopadding="1" />
+    <supercars id="12" colour="#117A65" colour2="#1ABC9C" colour3="#0B5345" nopadding="1" />
+    <survivors id="14" colour="#2cffe6" colour2="#008272" colour3="#008676" nopadding="1" />
+  </sibVirtual>
+  <lottery id="4">
+    <lottery id="84" colour="#ffffff" />
+  </lottery>
+  <sibVLive id="11">
+	<falcon id="13" colour="#fff38e" colour2="#e4cd4b" colour3="#977d00" />
+  </sibVLive>
+  <provider id="8">
+    <horseracing id="1" colour="89,139,44" />
+    <dogracing id="2" colour="#DB14CB" />
+  </provider>
+  
+</sports>

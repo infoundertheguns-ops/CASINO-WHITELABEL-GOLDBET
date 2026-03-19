@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="44px"
+   height="44px"
+   viewBox="0 0 44 44"
+   version="1.1"
+   id="svg13"
+   sodipodi:docname="Supergoal_Icon_Live.svg"
+   inkscape:version="1.1.2 (b8e25be833, 2022-02-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview
+     id="namedview15"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     inkscape:zoom="19.840909"
+     inkscape:cx="22"
+     inkscape:cy="23.738832"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg13" />
+  <!-- Generator: Sketch 41.2 (35397) - http://www.bohemiancoding.com/sketch -->
+  <title
+     id="title2">Supergoal Icon Live</title>
+  <desc
+     id="desc4">Created with Sketch.</desc>
+  <defs
+     id="defs6" />
+  <g
+     id="Symbols"
+     stroke="none"
+     stroke-width="1"
+     fill="none"
+     fill-rule="evenodd"
+     style="fill:#000000;fill-opacity:1;stroke:#cdcdcd;stroke-opacity:1">
+    <g
+       id="Supergoal-Icon-Live"
+       style="fill:#000000;fill-opacity:1;stroke:#cdcdcd;stroke-opacity:1">
+      <g
+         id="Group-7"
+         style="fill:#000000;fill-opacity:1;stroke:#cdcdcd;stroke-opacity:1">
+        <path
+           d="M12.8849558,29.6551724 C15.4218416,30.5747172 18.2890696,31.0344828 21.4867257,31.0344828 C25.368751,31.0344828 27.3097345,29.7701276 27.3097345,27.2413793 C27.3097345,25.4022897 26.118006,24.4827586 23.7345133,24.4827586 L19.7699115,24.4827586 C14.5899446,24.4827586 12,22.183931 12,17.5862069 C12,12.5287103 15.6872788,10 23.0619469,10 C25.8938195,10 28.5781584,10.4022948 31.1150442,11.2068966 L31.1150442,15.3448276 C28.5781584,14.4252828 25.8938195,13.9655172 23.0619469,13.9655172 C18.8141381,13.9655172 16.6902655,15.1724017 16.6902655,17.5862069 C16.6902655,19.4252966 17.7168039,20.3448276 19.7699115,20.3448276 L23.7345133,20.3448276 C29.2448653,20.3448276 32,22.6436552 32,27.2413793 C32,32.413819 28.4956103,35 21.4867257,35 C18.2890696,35 15.4218416,34.5977052 12.8849558,33.7931034 L12.8849558,29.6551724 Z"
+           id="S"         
+           style="fill:#000000;fill-opacity:1;stroke:none;stroke-opacity:1" />
+      </g>
+    </g>
+  </g>
+  <metadata
+     id="metadata3744">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Supergoal Icon Live</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <circle
+     style="opacity:1;fill:none;stroke:#cdcdcd;stroke-width:1.92571;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;paint-order:fill markers stroke"
+     id="path21394"
+     cx="22.000002"
+     cy="22"
+     r="21.037142" />
+</svg>

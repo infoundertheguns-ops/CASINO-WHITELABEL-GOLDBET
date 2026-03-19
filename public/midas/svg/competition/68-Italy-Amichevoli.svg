@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 51.2 (57519) - http://www.bohemiancoding.com/sketch -->
+    <title>Amichevoli</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="45.1627792%" y1="37.0013058%" x2="69.7023595%" y2="237.462851%" id="linearGradient-2">
+            <stop stop-color="#BEBFC1" offset="0%"></stop>
+            <stop stop-color="#D7D7D7" offset="10.6816799%"></stop>
+            <stop stop-color="#9B9C9F" offset="20.009878%"></stop>
+            <stop stop-color="#B4B4B4" offset="25.2077866%"></stop>
+            <stop stop-color="#818181" offset="32.9375493%"></stop>
+            <stop stop-color="#B8B9BC" offset="60.5160492%"></stop>
+            <stop stop-color="#B8B9BC" offset="63.2270038%"></stop>
+            <stop stop-color="#6B6C70" offset="77.1180268%"></stop>
+            <stop stop-color="#3D3E43" offset="100%"></stop>
+        </linearGradient>
+        <circle id="path-3" cx="330.597826" cy="330.597826" r="233.640419"></circle>
+        <linearGradient x1="48.6166%" y1="0%" x2="49.1417795%" y2="100%" id="linearGradient-4">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#549DD1" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <circle id="path-5" cx="331.271141" cy="331.271141" r="172.368724"></circle>
+        <linearGradient x1="48.9634603%" y1="50%" x2="50%" y2="-33.0031988%" id="linearGradient-6">
+            <stop stop-color="#FFFFFF" stop-opacity="0" offset="0%"></stop>
+            <stop stop-color="#FFFFFF" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="48.1093198%" y1="-59.1511052%" x2="65.8520706%" y2="234.016133%" id="linearGradient-7">
+            <stop stop-color="#BEBFC1" offset="0%"></stop>
+            <stop stop-color="#D7D7D7" offset="10.6816799%"></stop>
+            <stop stop-color="#9B9C9F" offset="20.009878%"></stop>
+            <stop stop-color="#B4B4B4" offset="25.2077866%"></stop>
+            <stop stop-color="#818181" offset="32.9375493%"></stop>
+            <stop stop-color="#000000" offset="38.8276734%"></stop>
+            <stop stop-color="#4E4E4E" offset="47.113437%"></stop>
+            <stop stop-color="#B8B9BC" offset="60.5160492%"></stop>
+            <stop stop-color="#B8B9BC" offset="63.2270038%"></stop>
+            <stop stop-color="#6B6C70" offset="77.1180268%"></stop>
+            <stop stop-color="#3D3E43" offset="100%"></stop>
+        </linearGradient>
+        <circle id="path-8" cx="94.4565217" cy="94.4565217" r="94.4565217"></circle>
+        <filter x="-7.9%" y="-7.9%" width="115.9%" height="115.9%" filterUnits="objectBoundingBox" id="filter-9">
+            <feOffset dx="0" dy="0" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="5" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0.973028274   0 0 0 0 0.973028274   0 0 0 0 0.973028274  0 0 0 0.0855695199 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <linearGradient x1="49.997741%" y1="-279.243164%" x2="49.997741%" y2="591.601562%" id="linearGradient-10">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50.0580728%" y1="-581.820913%" x2="47.3513067%" y2="1417.53305%" id="linearGradient-11">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="73.1749594%" y1="-209.584263%" x2="50%" y2="372.786458%" id="linearGradient-12">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="75.4211724%" y1="-540.618265%" x2="50%" y2="354.808728%" id="linearGradient-13">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50.1217723%" y1="-527.559267%" x2="50.1217723%" y2="339.439655%" id="linearGradient-14">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="27.2710443%" y1="-213.695126%" x2="45.3773201%" y2="376.143973%" id="linearGradient-15">
+            <stop stop-color="#0164AB" offset="0%"></stop>
+            <stop stop-color="#0164AB" offset="19.1993316%"></stop>
+            <stop stop-color="#0164AB" offset="37.9628793%"></stop>
+            <stop stop-color="#7DC3F6" offset="53.9321416%"></stop>
+            <stop stop-color="#0164AB" offset="69.836073%"></stop>
+            <stop stop-color="#0164AB" offset="89.2623154%"></stop>
+            <stop stop-color="#0164AB" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="98.5929528%" id="linearGradient-16">
+            <stop stop-color="#013B11" offset="0%"></stop>
+            <stop stop-color="#40BF6A" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Amichevoli" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Group" transform="translate(-85.010870, -75.565217)">
+            <circle id="Oval" stroke="url(#linearGradient-1)" stroke-width="17.5061985" fill-opacity="0.769999981" fill="#FFFFFF" transform="translate(330.597826, 330.597826) rotate(131.000000) translate(-330.597826, -330.597826) " cx="330.597826" cy="330.597826" r="233.640419"></circle>
+            <g id="Oval-Copy-2" transform="translate(330.597826, 330.597826) rotate(27.000000) translate(-330.597826, -330.597826) " stroke-width="6.61195652">
+                <use stroke="url(#linearGradient-2)" xlink:href="#path-3"></use>
+                <use stroke-opacity="0.521314538" stroke="#FFFFFF" xlink:href="#path-3"></use>
+            </g>
+            <g id="Oval">
+                <use stroke="#FFFFFF" stroke-width="6.61195652" fill="url(#linearGradient-4)" fill-rule="evenodd" xlink:href="#path-5"></use>
+                <circle stroke="url(#linearGradient-1)" stroke-width="6.73315328" cx="331.271141" cy="331.271141" r="175.735301"></circle>
+            </g>
+            <circle id="Oval-Copy-3" transform="translate(330.597826, 330.597826) rotate(131.000000) translate(-330.597826, -330.597826) " cx="330.597826" cy="330.597826" r="202.667914"></circle>
+            <circle id="Oval-2" fill-opacity="0.75999999" fill="url(#linearGradient-6)" cx="331.271141" cy="331.271141" r="171.022093"></circle>
+            <g id="Group-2-Copy" transform="translate(236.141304, 236.141304)">
+                <g id="Oval-Copy">
+                    <use fill="url(#linearGradient-7)" xlink:href="#path-8"></use>
+                    <use fill="#FFFFFF" xlink:href="#path-8"></use>
+                    <use fill="#FFFFFF" xlink:href="#path-8"></use>
+                </g>
+                <g id="Asset-7">
+                    <g filter="url(#filter-9)" id="Shape">
+                        <polygon fill="url(#linearGradient-10)" points="70.9777638 121.334394 58.3633793 83.3660713 91.3847649 59.8992577 124.406151 83.3660713 111.794525 121.334394"></polygon>
+                        <path d="M114.247506,8.76859566 C118.399988,13.3117751 122.298162,17.9622009 125.942029,22.7198731 C114.563882,23.4108814 103.261353,25.0584748 92.1499794,27.6458112 C81.040301,25.0602954 69.7395805,23.4145553 58.3633793,22.7254203 C62.0072459,17.9732954 65.9045121,13.3228695 70.0551778,8.77414289 C84.7510581,7.31633084 99.5512727,7.31447305 114.247506,8.76859566 Z" fill="url(#linearGradient-11)"></path>
+                        <path d="M18.4489056,46.844682 C24.0513246,44.2681262 29.6767572,41.9641783 35.3252033,39.9328385 C32.4136433,51.0007125 30.431402,62.2881492 29.3987535,73.6797026 C23.470151,83.4990182 18.3722781,93.7874801 14.1573386,104.439731 C10.7992011,99.5145528 7.61596666,94.3760288 4.60763521,89.0241594 C7.83343655,74.5541215 12.4689026,60.4281397 18.4489056,46.844682 Z" fill="url(#linearGradient-12)"></path>
+                        <path d="M25.9931308,150.292835 C25.249149,144.161132 24.7761236,138.092034 24.5740544,132.085543 C34.284757,138.309282 44.4918141,143.718237 55.0910842,148.25722 C62.6724211,156.959259 70.9588706,165.017792 79.8656769,172.350396 C74.108544,174.007613 68.2035331,175.43282 62.1506445,176.626016 C49.2765896,169.041536 37.1673157,160.222464 25.9931308,150.292835 Z" fill="url(#linearGradient-13)"></path>
+                        <path d="M123.690642,176.626016 C117.641428,175.438418 111.736417,174.013299 105.97561,172.350661 C114.881806,165.016824 123.168195,156.957925 130.750202,148.256217 C141.350525,143.719727 151.557761,138.311013 161.267232,132.085543 C161.061489,138.084297 160.588464,144.153939 159.848156,150.294468 C148.673971,160.223481 136.564697,169.042006 123.690642,176.626016 Z" fill="url(#linearGradient-14)"></path>
+                        <path d="M181.233651,87.4915486 C178.229002,92.8368143 175.044847,97.9742491 171.681186,102.903853 C167.465496,92.2537867 162.368616,81.966731 156.442533,72.1476096 C155.409287,60.7549485 153.427058,49.466319 150.516083,38.3969601 C156.155324,40.4260463 161.779836,42.7295058 167.389619,45.3073386 C173.371754,58.8920874 178.00817,73.019729 181.233651,87.4915486 Z" fill="url(#linearGradient-15)"></path>
+                    </g>
+                </g>
+            </g>
+        </g>
+        <circle id="Oval-3" fill-opacity="0.63" fill="url(#linearGradient-16)" fill-rule="nonzero" style="mix-blend-mode: color;" cx="245.586957" cy="255.032609" r="245.586957"></circle>
+        <circle id="Oval-4" stroke="#FFFFFF" stroke-width="44.3945652" fill-rule="nonzero" cx="245.586957" cy="255.032609" r="201.664674"></circle>
+        <circle id="Oval-4-Copy" stroke="#FFFFFF" stroke-width="9.44565217" fill-rule="nonzero" cx="245.586957" cy="255.032609" r="231.418478"></circle>
+        <circle id="Oval-4-Copy-2" stroke="#03715A" stroke-width="4.72282609" fill-rule="nonzero" cx="245.586957" cy="255.032609" r="229.057065"></circle>
+    </g>
+</svg>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="44px" height="44px" viewBox="0 0 44 44" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 47.1 (45422) - http://www.bohemiancoding.com/sketch -->
+    <title>LotteryBall/NotSelected</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#FFFFFF" offset="0%"></stop>
+            <stop stop-color="#FFFFFF" offset="50.9055398%"></stop>
+            <stop stop-color="#A5A4A4" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-2">
+            <stop stop-color="#EEDD87" offset="0%"></stop>
+            <stop stop-color="#AB8E43" offset="100%"></stop>
+        </linearGradient>
+        <rect id="path-3" x="0" y="0" width="44" height="44" rx="22"></rect>
+    </defs>
+    <g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="LotteryBall/NotSelected">
+            <g id="Rectangle-3">
+                <use fill="url(#linearGradient-1)" fill-rule="evenodd" xlink:href="#path-3"></use>
+                <rect stroke="url(#linearGradient-2)" stroke-width="5" x="2.5" y="2.5" width="39" height="39" rx="19.5"></rect>
+            </g>
+        </g>
+    </g>
+</svg>

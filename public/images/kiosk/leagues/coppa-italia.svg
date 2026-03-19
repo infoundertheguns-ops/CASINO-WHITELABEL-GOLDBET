@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <circle cx="100" cy="90" r="75" fill="#1a237e"/>
+  <!-- Trophy shape -->
+  <path d="M70 50 H130 L125 90 Q120 120 100 130 Q80 120 75 90 Z" fill="#FFD700" opacity="0.9"/>
+  <rect x="92" y="130" width="16" height="20" rx="2" fill="#FFD700" opacity="0.9"/>
+  <rect x="80" y="148" width="40" height="8" rx="3" fill="#FFD700" opacity="0.9"/>
+  <text x="100" y="190" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="16" fill="#1a237e">COPPA ITALIA</text>
+</svg>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="122px" height="121px" viewBox="0 0 122 121" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 40.1 (33804) - http://www.bohemiancoding.com/sketch -->
+    <title>EuropaLeague</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <ellipse id="path-1" cx="61" cy="61.4977133" rx="61" ry="60.5022867"></ellipse>
+    </defs>
+    <g id="Comp-Icons-(Colour)" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Europa-League" transform="translate(-65.000000, -50.000000)">
+            <g id="EuropaLeague" transform="translate(65.000000, 49.000000)">
+                <mask id="mask-2" fill="white">
+                    <use xlink:href="#path-1"></use>
+                </mask>
+                <use id="Mask" fill="#F5C923" xlink:href="#path-1"></use>
+                <path d="M59.6444444,93.7655995 C59.6444444,93.7655995 70.4888889,111.244038 82.6888889,121.551835 C73.6518519,124.688991 72.971517,125.585321 64.162963,125.585321 C64.162963,108.106882 59.6444444,93.7655995 59.6444444,93.7655995 Z" id="Path-21" fill="#8D000F" mask="url(#mask-2)"></path>
+                <path d="M49.2518519,70.9091801 C49.2518519,70.9091801 60.0962963,101.384406 58.2888889,125.585321 C46.5407407,125.585321 47.8962963,124.240825 39.3111111,120.20734 C50.6074074,104.453772 49.2518519,70.9091801 49.2518519,70.9091801 Z" id="Path-20" fill="#8D000F" mask="url(#mask-2)"></path>
+                <path d="M72.2962963,83.0096375 C72.2962963,83.0096375 58.2888892,33.2633129 73.2,-3.48622424 C89.0148143,-8.41604014 87.2074069,-6.62337984 93.9851852,3.23625206 C70.4888888,43.5711114 72.2962963,83.0096375 72.2962963,83.0096375 Z" id="Path-19" fill="#8D000F" mask="url(#mask-2)"></path>
+                <path d="M33.8888889,1.44359171 C33.8888889,1.44359171 48.3481481,85.698628 80.8814815,114.381194 C46.0888889,46.2601004 63.2592593,-4.8307195 63.2592593,-4.8307195 L33.8888889,1.44359171 Z" id="Path-18" fill="#8D000F" mask="url(#mask-2)"></path>
+            </g>
+        </g>
+    </g>
+</svg>

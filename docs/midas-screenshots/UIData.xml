@@ -1,0 +1,1674 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data>
+  <colours>
+	<core-1>#d0141c</core-1>
+	<core-2>#500B0D</core-2>
+	<core-3>#870E12</core-3>
+	<core-4>#d0141c</core-4>
+	<core-5>#d0141c</core-5>
+	<newcore-4>#d0141c</newcore-4>
+	<newcore-5>#403c44</newcore-5>
+	<newcore-6>#161517</newcore-6>	
+  </colours>
+  <widget name="HeaderBarView">
+	<type>
+	  <image>images/svg/Stanleybet-logo-2022-WHITE.svg</image>
+	</type>
+  </widget>
+  <widget name="LogoModel">
+	<type>
+	  <image>images/svg/Stanleybet-logo-2022-WHITE.svg</image>
+	</type>
+  </widget>
+  <widget name="MidasCore">
+    <type>
+      <background>#000000</background>
+    </type>
+    <type name=".regular">
+      <background>#ffffff</background>
+    </type>
+  </widget>
+  <widget name="HomePage">
+    <type name="background">
+		<image>images/background/stadium.png</image>
+	</type>
+  </widget>
+  <widget name="HeaderBarView">
+    <type>
+      <background>{core-1}</background>
+	  <colour>#ffffff</colour>
+    </type>
+	<type name="back">
+      <colour>#ffffff</colour>
+      <background>{core-4}</background>
+    </type>
+	<type name="button"> <!-- New UI --> 
+      <colour>#ffffff</colour>
+      <background>{core-1}</background>  
+	  <border>#ffffff</border>
+    </type>
+	<type name="creditbalance"> <!-- New UI --> 
+      <colour>#ffffff</colour>
+      <background>{core-2}</background>  	  
+    </type>
+    <type name="credit">
+      <colour>#ffffff</colour>
+      <background>#57b300</background>
+      <font size="20">Open Sans Condensed</font>
+    </type>
+    <type name="cashout">
+      <colour>#ffffff</colour>
+      <background>{core-4}</background>
+      <font size="20">Open Sans Condensed</font>
+    </type>
+    <type name="balance">
+      <colour>#ffffff</colour>
+      <background>#8d000f</background>
+    </type>
+  </widget>  
+  <widget name="NavDrawer">
+	<type>
+      <background>{core-1}</background>
+    </type>
+    <type name="control">
+      <background>{core-4}</background>
+      <font size="20">Open Sans Condensed</font>
+    </type>
+  </widget>
+  <widget name="DebugDropDown">
+    <type>
+      <background>#57b300</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type>
+      <background>#ffffff</background>
+      <colour>#57b300</colour>
+    </type>
+  </widget>
+  <widget name="LangSelectButton">
+	<type>
+      <background>{newcore-5}</background>
+      <colour>{newcore-5}</colour>
+    </type>
+	<type name="langBtn">
+      <background>{newcore-5}</background>
+      <colour>{newcore-5}</colour>
+    </type>
+	<type name="langBtnCheck">
+      <background>{core-1}</background>
+      <colour>{core-1}</colour>
+    </type>
+  </widget>
+  <widget name="HomeNavBar"> <!-- New UI -->
+	<type>
+      <background>{newcore-5}</background>
+    </type>
+	<type name="button">
+      <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+    </type>
+	<type name="selectedbutton">
+      <colour>#ffffff</colour>
+      <background>#209cac</background>
+	  <border>#209cac</border>
+    </type>
+  </widget>
+  <widget name="LeftBarView"> <!-- New UI -->
+	<type>
+      <background>{newcore-5}</background>
+    </type>
+  </widget>
+  <widget name="LeftBarNavView"> <!-- New UI -->
+	<type>
+      <background>{newcore-5}</background>
+    </type>
+	<type name="button">
+      <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+    </type>
+	<type name="selectedbutton">
+      <colour>#ffffff</colour>
+      <background>#209cac</background>
+	  <border>#209cac</border>
+    </type>
+  </widget>
+  <widget name="NavigationView">
+    <type>
+      <background>{newcore-5}</background>
+    </type>
+    <type name=".live">
+      <background>#1e2021</background>
+    </type>
+    <type name=".sibvirtual">
+      <background>#181818</background>
+    </type>
+    <type name="unselcomp">
+      <background>{newcore-6}</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="unselante">
+      <background>{newcore-6}</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="selcomp">
+      <background>#ffffff</background>
+      <colour>{core-4}</colour>
+    </type>
+    <type name="selante">
+      <background>#ffffff</background>
+      <colour>{core-4}</colour>
+    </type>
+	<type name=".sibvlive">
+		<background>#000000</background>
+	</type>
+  </widget>
+  <widget name="NavigationButton">
+    <type>
+      <background>{newcore-6}</background>
+    </type>
+    <type name=".live">
+      <background>#4a4a4a</background>
+    </type>
+    <type name=".virtual">
+      <background>#ce0016</background>
+    </type>
+  </widget>
+  <widget name="EventsViewItem">
+    <type name=".live">
+      <background>#000000</background>
+	  <colour>#333333</colour>
+    </type>
+	<type name=".regular">
+      <background>#ffffff</background>
+	  <colour>#fff6a6</colour>
+    </type>
+	<type name=".virtual">
+      <background>#000000</background>
+	  <colour>#333333</colour>
+    </type>
+	<type name=".sibvirtual">
+      <background>#000000</background>
+	  <colour>#333333</colour>
+    </type>
+	<type name=".sibvlive">
+      <background>#000000</background>
+	  <colour>#333333</colour>
+    </type>
+	<type name="info.sibvlive">
+	  <background>#e4cd4b</background>
+	  <colour>#000000</colour>
+	</type>
+	<type name="info-small.sibvlive">
+	  <colour>#000000</colour>
+	</type>
+	<type name="info-small.regular">
+	  <colour>#4d4d4d</colour>
+	</type>
+	<type name="info-small">
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="time-small.regular">
+	  <colour>#000000</colour>
+	</type>
+	<type name="time-small">
+	  <colour>#ffffff</colour>
+	</type>
+    <type name="time-running">
+      <border>#74be29</border>
+    </type>
+    <type name="time-abouttostart">
+      <border>#fae83c</border>
+    </type>
+    <type name="time-upcoming">
+      <border>#f5a623</border>
+    </type>
+    <type name="label.regular">
+      <colour>#4d4d4d</colour>
+    </type>
+    <type name="label">
+      <border>#4a4a4a</border>
+    </type>
+    <type name="label.regular">
+      <colour>#4a4a4a</colour>
+      <border>#d5d5d5</border>
+    </type>
+    <type name="label.virtual">
+      <border>#000000</border>
+    </type>
+    <type name="label.sibvirtual">
+      <border>#000000</border>
+    </type>
+    <type name="desc">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="desc.regular">
+      <colour>#4d4d4d</colour>
+    </type>
+    <type name="desc-small">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="desc-small.regular">
+      <colour>#4d4d4d</colour>
+    </type>
+	<type name="desc-small.sibvlive">
+	  <colour>#ffe254</colour>
+	</type>
+    <type name="more">
+      <background>#9c0011</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="more.live">
+      <background>#383838</background>
+    </type>
+    <type name="more.regular">
+      <background>#ececec</background>
+      <colour>#0066cc</colour>
+    </type>
+	<type name="more.sibvlive">
+	 <background>#977d00</background>
+	</type>
+    <type name="data.live">
+      <background>#000000</background>
+      <border>#8d8d8d</border>
+    </type>
+    <type name="lowscore">
+      <colour>#7e7e7e</colour>
+    </type>
+	<type name="indicator">
+	  <colour>#0066cc</colour>
+	</type>
+	<type name="row-highlighted">
+	  <background>#d2f4f4</background>
+	</type>	
+	<type name="data.regular">
+      <background>transparent</background>
+      <border>transparent</border>
+	  <colour>#000000</colour>
+    </type>
+  </widget>
+  <widget name="SelectionButton">
+    <type name="compopen.regular">
+      <colour>#3B3C43</colour>
+      <background>#ffffff</background>
+      <border size="2">#cccccc</border>
+    </type>
+	<type name=".sibvlive">
+	</type>
+    <type name="compopen">
+      <colour>#ffffff</colour>
+      <background>#4a4a4a</background>
+      <border size="0">transparent</border>
+    </type>
+	<type name="compopen.sibvlive">
+		<colour>#ffffff</colour>
+		<background>#99202b33</background>
+		<border>#99ffffff</border>
+		<font size="26" bold="1">Kanit</font>
+	</type>
+    <type name="compchecked.regular">
+      <colour>#ffffff</colour>
+      <background>{core-1}</background>
+      <border size="0">transparent</border>
+    </type>
+    <type name="compchecked.sibvlive">
+      <colour>#ffffff</colour>
+      <background>#977d00</background>
+      <border>#fff38e</border>
+    </type>
+    <type name="compchecked">
+      <colour>#ffffff</colour>
+      <background>#007dfb</background>
+      <border size="0">transparent</border>
+    </type>
+    <type name="compclosed.regular">
+      <colour>#0066cc</colour>
+      <background>#ffffff</background>
+      <border size="2">#cccccc</border>
+    </type>
+    <type name="compclosed">
+      <colour>#ffffff</colour>
+      <background>#000000</background>
+      <border size="2">#4a4a4a</border>
+    </type>
+    <type name="compopen-subscript.regular">
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="compchecked-subscript.regular">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="compclosed-subscript.regular">
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="compopen-subscript">
+      <colour>#d1d1d1</colour>
+    </type>
+    <type name="compchecked-subscript">
+      <colour>#d1d1d1</colour>
+    </type>
+    <type name="compclosed-subscript">
+      <colour>#d1d1d1</colour>
+    </type>
+    <type name="subscript">
+      <font size="22">Open Sans Condensed</font>
+    </type>
+    <type name="subscript.sibvlive">
+      <font size="22">Kanit</font>
+    </type>
+  </widget>
+  <widget name="SystemButton">
+    <type name="system">
+      <background>#400106</background>
+    </type>
+    <type name="system-checked">
+      <background>{core-4}</background>
+    </type>
+    <type name="checksel">
+      <colour>#ffffff</colour>
+      <background>{core-1}</background>
+    </type>
+    <type name="checknosel">
+      <colour>#ffffff</colour>
+      <background>#600008</background>
+    </type>
+    <type name="comblabelsel">
+      <background>{core-5}</background>
+    </type>
+    <type name="comblabelnosel">
+      <background>{core-5}</background>
+    </type>
+  </widget>  
+  <widget name="RegulationsView">
+    <type>
+      <background>#000000</background>
+    </type>
+  </widget>
+  <widget name="EventsViewHeader">
+    <type name="title.virtual">
+      <background>#3c0006</background>
+    </type>
+    <type name="title.regular">
+      <background>{core-1}</background>
+    </type>
+	<type name="title.sibvlive">
+      <colour>#000000</colour>
+      <background>#383838</background>
+    </type>
+    <type name="title">
+      <colour>#ffffff</colour>
+      <background>#383838</background>
+    </type>
+    <type name="collapse">
+      <colour>#ffffff</colour>
+      <background>{core-3}</background>
+    </type>
+    <type name="collapse.live">
+      <background>#1e2021</background>
+    </type>
+    <type name="heading.regular">
+      <colour>#4a4a4a</colour>
+      <background>#ececec</background>
+    </type>
+    <type name="heading">
+      <colour>#ffffff</colour>
+      <background>#1e2021</background>
+    </type>
+	<type name="filters">
+	  <background>{core-3}</background>
+	</type>
+	<type name="filters-checked">
+	  <background>{core-2}</background>
+	</type>
+	<type name="filters.regular">
+	  <background>#343843</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="filters-checked.regular">
+	  <background>#ffffff</background>
+	  <colour>#CD0000</colour>
+	</type>
+    <type name="market-desc.regular">
+      <colour>#000000</colour>
+      <background>#ececec</background>
+    </type>
+    <type name="market-desc">
+      <colour>#ffffff</colour>
+      <background>#1e2021</background>
+    </type>
+    <type name="nextmarket.regular">
+      <colour>#000000</colour>
+      <background>#ececec</background>
+    </type>
+    <type name="nextmarket">
+      <colour>#ffffff</colour>
+      <background>#1e2021</background>
+    </type>
+    <type name="market-comp.regular">
+      <colour>#000000</colour>
+    </type>
+    <type name="market-comp">
+      <colour>#ffffff</colour>
+    </type>
+	<type name="filters.live">
+	  <background>#4a4a4a</background>
+	</type>
+	<type name="filters-checked.live">
+	  <background>#1e2021</background>
+	</type>
+  </widget>
+  <widget name="EventViewMarket">
+    <type name=".antepost">
+      <background>#ffffff</background>
+    </type>
+    <type name=".virtual.antepost">
+      <background>#000000</background>
+    </type>
+    <type name=".sibvirtual.antepost">
+      <background>#000000</background>
+    </type>
+    <type name="market-label.antepost">
+      <background>#ececec</background>
+      <colour>#4a4a4a</colour>
+    </type>
+	<type name="market-label.sibvlive">
+		<background>#64d71921</background>
+		<colour>#ffffff</colour>
+	</type>
+    <type name="competitor.antepost">
+      <background>#f3f3f3</background>
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="market-label">
+      <colour>#ffffff</colour>
+      <background>#8d8d8d</background>
+    </type>
+    <type name="market-label.live">
+      <colour>#ffffff</colour>
+      <background>#2d3031</background>
+    </type>
+    <type name="market-label.virtual">
+      <colour>#ffffff</colour>
+      <background>#2d3031</background>
+    </type>
+    <type name="market-label.sibvirtual">
+      <colour>#ffffff</colour>
+      <background>#2d3031</background>
+    </type>
+    <type name=".live">
+      <colour>#ffffff</colour>
+      <background>#101112</background>
+    </type>
+    <type name=".virtual">
+      <colour>#ffffff</colour>
+      <background>#101112</background>
+    </type>
+    <type name=".sibvirtual">
+      <colour>#ffffff</colour>
+      <background>#101112</background>
+    </type>
+  </widget> 
+  <widget name="EventViewMarketLiveVertical">
+    <type>
+      <colour>#ffffff</colour>
+      <background>#000000</background>
+    </type>
+    <type name="market-label">
+      <colour>#ffffff</colour>
+      <background>#333333</background>
+    </type>
+    <type name="market.antepost">
+      <colour>#ffffff</colour>
+      <background>#000000</background>
+    </type>
+    <type name="market-label.antepost">
+      <colour>#ffffff</colour>
+      <background>#333333</background>
+    </type>	
+  </widget>
+  <widget name="EventViewMarketBase">
+    <type>
+      <colour>#ffffff</colour>
+      <background>#101112</background>
+    </type>
+    <type name=".regular">
+      <background>#f2f2f2</background>
+    </type>
+    <type name=".antepost">
+      <background>#ffffff</background>
+    </type>
+    <type name=".virtual.antepost">
+      <background>#000000</background>
+    </type>
+    <type name=".sibvirtual.antepost">
+      <background>#000000</background>
+    </type>
+    <type name="market-label.antepost">
+      <background>#ececec</background>
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="competitor.antepost">
+      <background>#f3f3f3</background>
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="market-label.regular">
+      <colour>#ffffff</colour>
+      <background>#8d8d8d</background>
+    </type>
+    <type name="market-label">
+      <colour>#ffffff</colour>
+      <background>#2d3031</background>
+    </type>	
+	<type name="market.antepost">
+      <background>#000000</background>
+      <colour>#ffffff</colour>
+    </type>
+	 <type name="market-label.antepost">
+      <colour>#ffffff</colour>
+      <background>#181a1b</background>
+    </type>
+	 <type name="market-label.antepost.extcode">
+      <colour>#ffffff</colour>      
+      <background>#fc0320</background>
+      <border>#b10216</border>
+    </type>
+  </widget>
+  <widget name="DropDownButton">
+	<type name=".regular">
+	  <background>#343843</background>
+	</type>
+	<type name="checked.regular">
+	  <background>#ffffff</background>
+	  <colour>#ff00ff</colour>
+	</type>
+	<type name=".live">
+	  <background>#4a4a4a</background>
+	</type>
+	<type name="checked.live">
+	  <background>#1e2021</background>
+	</type>
+    <type name="value">
+      <colour>#ffffff</colour>
+      <background>{core-2}</background>
+    </type>
+    <type name="value-checked">
+      <colour>#CD0000</colour>
+      <background>{core-3}</background>
+    </type>
+    <type name="value-subscript">
+      <colour>#ffffff</colour>
+      <background>{core-3}</background>
+    </type>
+  </widget>
+  <widget name="SortingDropDown">
+    <type name="value">
+      <colour>#ffffff</colour>
+      <background>{core-2}</background>
+    </type>
+    <type name="value-checked">
+      <colour>#ffffff</colour>
+      <background>{core-1}</background>
+    </type>
+    <type name="value-subscript">
+      <colour>#ffffff</colour>
+      <background>{core-2}</background>
+    </type>
+  </widget>
+  <widget name="DropDownWidget">
+	<type>
+		<background>#343843</background>
+	</type>
+	<type name="buttonarea">
+		<background>{core-4}</background>
+	</type>
+	<type name="button">
+		<background>#6D7278</background>
+		<colour>#ffffff</colour>
+	</type>
+	<type name="button-checked">
+		<background>#ffffff</background>
+		<colour>#CD0000</colour>
+	</type>
+	<type name=".live">
+		<background>#1e2021</background>
+	</type>
+	<type name="button.live">
+		<background>#383838</background>
+		<colour>#ffffff</colour>
+	</type>
+	<type name="button-checked.live">
+		<background>#555555</background>
+		<colour>#ffffff</colour>
+	</type>
+  </widget>
+  <widget name="EventView">
+    <type>
+      <background>#ffffff</background>
+    </type>
+    <type name="header">
+      <colour>#ffffff</colour>
+      <background>{core-3}</background>
+    </type>
+    <type name=".live">
+      <background>#000000</background>
+    </type>
+    <type name=".regular">
+      <background>#dddddd</background>
+    </type>
+    <type name="markets">
+      <background>{core-1}</background>
+    </type>
+    <type name="events">
+      <background>{core-2}</background>
+    </type>
+    <type name="markets-button">
+      <colour>#ffffff</colour>
+      <background>{core-3}</background>
+    </type>
+    <type name="markets-button-checked">
+      <colour>#ffffff</colour>
+	  <background>{core-2}</background>
+    </type>	
+    <type name="header.live.antepost">
+      <colour>#ffffff</colour>
+      <background>#2d3031</background>
+    </type>		
+	<type name="indicator">
+	  <colour>#0066cc</colour>
+	</type>
+  </widget>
+  <widget name="EventViewHeader">
+    <type name=".regular">
+      <background>#ffffff</background>
+    </type>
+    <type>
+      <background>#000000</background>
+    </type>
+    <type name="teama-score">
+      <background>#ffffff</background>
+      <colour>#000000</colour>
+      <border size="3">#a7a7a7</border>
+    </type>
+    <type name="teamb-score">
+      <background>#ffffff</background>
+      <colour>#000000</colour>
+      <border size="3">#a7a7a7</border>
+    </type>
+    <type name="sporticon.virtual">
+      <background>#3c0006</background>
+    </type>
+    <type name=".virtual">
+      <background>#000000</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="teama.regular">
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="teamb.regular">
+      <colour>#4a4a4a</colour>
+    </type>
+    <type name="teama.virtual">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="teamb.virtual">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="description.virtual">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="starttime.virtual">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="starttime-small.virtual">
+      <colour>#ffffff</colour>
+    </type>
+  </widget>
+   <widget name="BetSlipViewRightHeader">
+    <type name="title.virtual">
+      <background>#3c0006</background>
+    </type>
+    <type name="title.regular">
+      <background>{core-1}</background>
+    </type>
+	<type name="title.sibvlive">
+      <colour>#000000</colour>
+      <background>#383838</background>
+    </type>
+    <type name="title">
+      <colour>#ffffff</colour>
+      <background>#383838</background>
+    </type>
+  </widget>
+   <widget name="BetSlipViewRightCollapsed">
+    <type name="button.virtual">
+      <background>#3c0006</background>
+    </type>
+    <type name="button.regular">
+      <background>{core-1}</background>
+    </type>
+	<type name="button.sibvlive">
+      <colour>#000000</colour>
+      <background>#383838</background>
+    </type>
+    <type name="button">
+      <colour>#ffffff</colour>
+      <background>{core-1}</background>
+    </type>
+	 <type name="placebet">
+      <colour>#ffffff</colour>
+      <background>#57b300</background>
+    </type>
+	<type name="bookbet">
+      <colour>#ffffff</colour>
+      <background>#218abe</background>
+    </type>
+  </widget>
+  <widget name="BetSlipViewItemBase">
+    <type>
+      <background>#e4e4e4</background>
+    </type>
+    <type name="description">	  
+      <colour>{core-1}</colour>
+    </type>
+    <type name="inactive">
+      <background>#e7e7e7</background>
+    </type>
+    <type name="remove">
+      <background>#4a4a4a</background>
+    </type>
+    <type name="banker">
+      <background>#4a4a4a</background>
+    </type>
+    <type name="banker-checked">
+      <background>#ecbe25</background>
+      <colour>#000000</colour>
+    </type>
+    <type name="banker-disabled">
+      <background>#aaaaaa</background>
+    </type>
+    <type name="enable">
+      <background>#4a4a4a</background>
+    </type>
+    <type name="enable-checked">
+      <background>#009ca7</background>
+    </type>
+    <type name="error">
+      <background>#ff9000</background>
+      <border>#ff9000</border>
+	  <colour>#000000</colour>
+    </type>
+    <type name="choice">	  
+      <colour>{core-1}</colour>
+    </type>
+  </widget>
+  <widget name="BetSlipViewRightTabs">
+    <type name="tabs-checked">	  
+      <colour>{core-1}</colour>
+    </type>
+  </widget>
+  <widget name="BetSlipInfo">
+    <type name="error">	  
+      <colour>#000000</colour>	  
+	  <background>#ff9000</background>
+    </type> 
+	<type name="icon.error">	  
+	  <colour>#ffffff</colour>	  
+	  <background>#000000</background>
+	</type>
+  </widget>
+  <widget name="BetSlipViewRightFooter">
+    <type name="button">
+      <colour>#ffffff</colour>
+      <background>{core-3}</background>
+    </type>
+	 <type name="placebet">
+      <colour>#ffffff</colour>
+      <background>#57b300</background>
+    </type>
+	<type name="bookbet">
+      <colour>#ffffff</colour>
+      <background>#218abe</background>
+    </type>
+	<type name="addstake">
+      <colour>#ffffff</colour>
+      <background>#009ca7</background>
+    </type>
+	<type name="deductstake">
+      <colour>#ffffff</colour>
+      <background>#666666</background>
+    </type>
+  </widget>
+  <widget name="DialogView">
+    <type>
+      <background>{core-3}</background>
+      <border size="2">{core-2}</border>
+    </type>
+    <type name="numkey">
+      <background>{core-3}</background>
+    </type>
+    <type name="numkey2">
+      <background>#444444</background>
+    </type>
+    <type name="accept">
+      <background>#57b300</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="reject">
+      <background>#4a4a4a</background>
+      <colour>#ffffff</colour>
+    </type>
+  </widget>    
+  <widget name="BetSlipStakeInput">
+    <type name="stake">
+      <background>#ffffff</background>
+      <colour>#000000</colour>
+    </type>
+    <type name="numkey">
+      <background>#444444</background>
+    </type>
+    <type name="addkey">
+      <background>{core-4}</background>
+    </type>
+    <type name="add">
+      <background>{core-2}</background>
+    </type>
+    <type name="deduct">
+      <background>{core-2}</background>
+    </type>
+    <type name="done">
+      <colour>#ffffff</colour>
+      <background>#57b300</background>
+    </type>
+    <type name="clear">
+      <colour>#ffffff</colour>
+      <background>#4a4a4a</background>
+    </type>
+    <type name="close">
+      <colour>#ffffff</colour>
+      <background>{core-2}</background>
+    </type>
+  </widget>
+  <widget name="CompetitionView">
+    <type name="sport">
+      <background>{core-1}</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="region">
+      <background>{newcore-5}</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="comp">
+      <background>#9b9b9b</background>
+      <colour>#ffffff</colour>
+    </type>
+  </widget>
+  <!-- Lotto 10e Style --> 
+  <widget name="NumbersView">
+    <type name=".Lotto10e">
+      <background>#0000000</background>
+    </type>
+    <type name="header.Lotto10e">
+		<background>#8d1010</background>
+    </type>
+    <type name="tab.Lotto10e">
+      <background>#00451a</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="tab:checked.Lotto10e">
+      <background>#00451a</background>
+    </type>
+	<type name="nextdraw.Lotto10e">
+	   <colour>#ffadad</colour>
+	</type>
+  </widget> 
+  <!-- SIB Keno Style --> 
+  <widget name="NumbersView">
+    <type name=".keno">
+      <background>#3f0007</background>
+    </type>
+    <type name=".geko">
+      <background>#091734</background>
+    </type>
+    <type name="header.geko">
+      <background>#2b7ccf</background>
+    </type>
+    <type name="tab.keno">
+      <background>#3b3c43</background>
+      <colour>#ffffff</colour>
+    </type>
+    <type name="tab.geko">
+      <background>#25548e</background>
+      <colour>#ffffff</colour>
+    </type>
+	<type name="tab10e:checked.keno">
+      <background>#b30013</background>
+    </type>
+    <type name="tab:checked.keno">
+      <background>{core-1}</background>
+    </type>
+    <type name="tab:checked.geko">
+      <background>#113561</background>
+    </type>
+  </widget>
+  <widget name="NumbersDrawView">
+    <type name="keno">
+      <gradient>0:#bf2222,1:#b41818</gradient>
+    </type>
+    <type name="lotto">
+      <gradient>0:#bf2222,1:#b41818</gradient>
+    </type>
+    <type name="geko">
+      <gradient>0:#3884db,0.25:#0b5ebf,0.75:#054ea3,1:#00326d</gradient>
+    </type>
+    <type name="select.keno">
+      <background>{core-4}</background>
+    </type>
+    <type name="quickselect.keno">
+      <colour>#000000</colour>
+    </type>
+    <type name="quickselect:disabled.keno">
+      <background>#c06c74</background>
+    </type>
+	<type name="quickselect:disabled.geko">
+      <background>#6d8db4</background>
+    </type>
+    <type name="addbetslip:disabled.keno">
+      <background>#c06c74</background>
+    </type>
+	<type name="addbetslip:disabled.geko">
+      <background>#6d8db4</background>
+    </type>
+	<type name="addbetslip:disabled.lotto">
+      <background>#c06c74</background>
+    </type>
+    <type name="adddraw:disabled.keno">
+      <background>#c06c74</background>
+    </type>
+	<type name="adddraw:disabled.geko">
+      <background>#6d8db4</background>
+    </type>
+    <type name="deductdraw:disabled.keno">
+      <background>#c06c74</background>
+    </type>
+	<type name="deductdraw:disabled.geko">
+      <background>#6d8db4</background>
+    </type>
+    <type name="Lotto10e">
+      <gradient>0:#eaeaea,0.25:#c1c1c1,0.75:#989898,1:#454545</gradient>
+    </type>
+    <type name="select.Lotto10e">
+      <background>#00ececec</background>
+	  <colour>#137c00</colour>
+    </type>
+    <type name="quickselect.Lotto10e">
+	  <colour>#137c00</colour>
+    </type>
+	<type name="quickselect:disabled.Lotto10e">
+      <background>#f5f5f5</background>
+	  <colour>#b1beae</colour>
+    </type>
+	<type name="adddraw.Lotto10e">
+      <background>#f5f5f5</background>
+	  <colour>#137c00</colour>
+    </type>
+	<type name="deductdraw.Lotto10e">
+      <background>#f5f5f5</background>
+	  <colour>#137c00</colour>
+    </type>
+	<type name="adddraw:disabled.Lotto10e">
+      <background>#f5f5f5</background>
+	  <colour>#66137c00</colour>
+    </type>
+	<type name="deductdraw:disabled.Lotto10e">
+      <background>#f5f5f5</background>
+	  <colour>#66137c00</colour>
+    </type>
+	<type name="draws.Lotto10e">
+      <background>#f5f5f5</background>
+	  <colour>#971212</colour>
+    </type>
+	<type name="minstake.Lotto10e">
+	   <colour>#ffffff</colour>
+	</type>
+	<type name="addbetslip.Lotto10e">
+	   <colour>#137c00</colour>
+	   <background>#ffffff</background>
+	</type>
+	<type name="addbetslip:disabled.Lotto10e">
+	   <colour>#4d093a00</colour>
+	   <background>#99ffffff</background>
+	</type>
+  </widget>
+  <widget name="NumbersTipsWidget">
+    <type name="tips.keno">
+      <gradient>0:#ffffff,1:#ffffff</gradient>
+    </type>
+    <type name="tipsheader.keno">
+      <gradient>0:#cd0000,1:#cd0000</gradient>
+    </type>
+    <type name="selectedtipstop.keno">	
+      <gradient>0:#ffea98,1:#b18f0d</gradient>
+    </type>
+    <type name="selectedtips.keno">
+      <gradient>0:#ffea98,1:#b18f0d</gradient>
+    </type>
+    <type name="tips.geko">
+      <gradient>0:#3884db,0.49:#0b5ebf,0.5:#054ea3,1:#00326d</gradient>
+    </type>
+    <type name="selectedtipstop.geko">
+      <gradient>0:#f1e701,1:#cec500</gradient>
+    </type>
+    <type name="selectedtips.geko">
+      <gradient>0:#fff400,0.49:#fff400,0.5:#cec500,1:#cec500</gradient>
+    </type>
+    <type name="activedesc">
+      <colour>#000000</colour>
+      <font size="30">Open Sans Condensed</font>
+    </type>
+    <type name="selecteddesc">
+      <colour>#000000</colour>
+      <font size="30">Open Sans Condensed</font>
+    </type>
+    <type name="nextdesc">
+      <colour>#CD0000</colour>
+      <font size="30">Open Sans Condensed</font>
+    </type>
+    <type name="desc">
+      <colour>#75767b</colour>
+      <font size="30">Open Sans Condensed</font>
+    </type>
+    <type name="descheader">
+      <colour>#000000</colour>
+      <font size="30">Open Sans Condensed</font>
+    </type>
+    <type name="selecteddesc.geko">
+      <colour>#2b3d52</colour>
+    </type>
+    <type name="nextdesc.geko">
+      <colour>#fff400</colour>
+    </type>
+    <type name="desc.geko">
+      <colour>#9db4cf</colour>
+    </type>
+    <type name="descheader.keno">
+      <colour>#ffffff</colour>
+      <font size="30">Open Sans Condensed</font>
+    </type>
+    <type name="nextreturns">
+      <font size="14">Open Sans Condensed</font>
+    </type>
+    <type name="returns">
+      <font size="18">Open Sans Condensed</font>
+    </type>
+  </widget>
+  <widget name="NumbersFirstLastMarkets">
+    <type name="selection.keno">
+      <gradient>0:#b30013,1:#8d000f</gradient>
+    </type>
+    <type name="selection.geko">
+      <gradient>0:#3884db,0.49:#0b5ebf,0.5:#054ea3,1:#00326d</gradient>
+    </type>
+  </widget>
+  <widget name="NumbersMagicKenoMarkets">
+    <type name="selection.keno">
+      <gradient>0:#b30013,1:#8d000f</gradient>
+    </type>
+  </widget>
+  <widget name="NumbersGreekKenoWidget">
+    <type name="keno">
+      <gradient>0:#b30013,1:#8d000f</gradient>
+    </type>
+    <type name="enabled.keno">
+      <gradient>0:#b30013,1:#8d000f</gradient>
+    </type>
+    <type name="geko">
+      <colour>#091734</colour>
+      <gradient>0:#3884db,0.49:#0b5ebf,0.5:#054ea3,1:#00326d</gradient>
+    </type>
+    <type name="select.geko">
+      <colour>#000000</colour>
+      <background>#ffffff</background>
+	  <border size="1"></border>
+    </type>
+	<type name="select:enabled.geko">
+	  <border>#003470</border>
+	</type>
+	<type name="select:selected.geko">
+	  <border>#003470</border>
+	</type>
+    <type name="select:checked.geko">
+      <colour>#000000</colour>
+      <background>#fff400</background>
+    </type>
+    <type name="select:disabled.geko">      
+      <colour>#9db4cf</colour>
+      <background>#6d8db4</background>
+    </type>
+    <type name="disabled.geko">
+      <colour>#9db4cf</colour>
+    </type>    
+    <type name="enabled.geko">
+      <gradient>0:#fff400,0.49:#fff506,0.5:#cec500,1:#cec500</gradient>
+    </type>
+    <type name="selected.geko">
+      <gradient>0:#ffffff,0.43:#eeeeee,0.85:#dedede,1:#d8d8d8</gradient>
+    </type>
+    <type name="nextselected.geko">
+      <colour>#fff400</colour>
+    </type>
+    <type name="select.lotto">
+      <colour>#8d000f</colour>      
+    </type>
+    <type name="select:checked.lotto">
+      <colour>#000000</colour>
+      <background>#e0c046</background>
+    </type>
+    <type name="select:enabled.lotto">
+      <colour>#000000</colour>
+      <background>#ffffff</background>
+    </type>    
+	  <type name="select:disabled.lotto">
+      <colour>#dfb1b1</colour>
+      <background>#7f7f7f</background>
+    </type>
+    <type name="lotto">      
+      <colour>#dfb1b1</colour>
+      <gradient>0:#b30013,1:#8d000f</gradient>
+    </type>
+    <type name="enabled.lotto">
+      <colour>#ffffff</colour>
+    </type>
+    <type name="nextselected.lotto">
+      <colour>#d3ffa7</colour>
+    </type>
+    <type name="selected.lotto">
+      <colour>#000000</colour>      
+      <gradient>0:#ffffff,0.43:#eeeeee,0.85:#dedede,1:#d8d8d8</gradient>
+    </type>
+    <type name="selected.Lotto10e">
+      <colour>#137c00</colour>      
+	  <background>#e7e7e7</background>
+    </type>
+    <type name="nextselected.Lotto10e">
+      <colour>#d3ffa7</colour>
+    </type>
+	
+    <type name="Lotto10e">
+	    <colour>#dfb1b1</colour>
+      <gradient>0:#d75757,0.49:#c73939,0.50:#bf2222,1:#b41818</gradient>
+    </type>
+    <type name="enabled.Lotto10e">
+	    <colour>#ffffff</colour>
+      <gradient>0:#d75757,0.49:#c73939,0.50:#bf2222,1:#b41818</gradient>
+    </type>   
+    <type name="select.Lotto10e">
+      <border>#00336f</border>
+	    <colour>#951211</colour>
+    </type> 
+	  <type name="select:checked.Lotto10e">
+	    <background>#1b9344</background>
+	    <colour>#ffffff</colour>
+    </type> 
+    <type name="select:disabled.Lotto10e">
+	    <background>#dfb1b1</background>
+	    <colour>#a18d7c</colour>
+    </type> 
+	
+    <type name="nextreturns">
+      <font size="9">Open Sans Condensed</font>
+    </type>
+    <type name="returns">
+      <font size="9">Open Sans Condensed</font>
+    </type>
+    <type name="desc.Lotto10e">
+      <font size="24" bold="1">Oswald</font>
+    </type>
+    <type name="nextreturns.Lotto10e">
+      <font size="9" bold="1">Oswald</font>
+    </type>
+    <type name="returns.Lotto10e">
+      <font size="9" bold="1">Oswald</font>
+    </type>
+  </widget>
+  <widget name="NumbersTotalBallsWidget">
+    <type name=".keno">
+      <gradient>0:#b30013,1:#8d000f</gradient>
+    </type>
+    <type name=".geko">
+      <colour>#091734</colour>
+      <gradient>0:#3884db,0.49:#0b5ebf,0.5:#054ea3,1:#00326d</gradient>
+    </type>
+    <type name="select.geko">
+      <colour>#000000</colour>
+      <background>#ffffff</background>
+      <border>#00336f</border>
+    </type>
+    <type name="select:checked.geko">
+      <colour>#000000</colour>
+      <background>#fff400</background>
+    </type>
+  </widget>
+  <widget name="NumbersKenoBallWidget">
+    <type name=".geko">
+      <colour>#000000</colour>
+      <background>#babbbd</background>
+    </type>
+    <type name="checked.geko">
+      <colour>#000000</colour>
+      <background>#fff400</background>
+    </type>
+	<type name=".Lotto10e">
+      <colour>#137c00</colour>
+      <background>#babbbd</background>
+    </type>
+    <type name="checked.Lotto10e">
+      <colour>#ffffff</colour>
+      <background>#137c00</background>
+    </type>
+  </widget>
+  <widget name="KenoView">
+	<type name="tab">
+		<colour>#3b3c43</colour>
+		<background>#3b3c43</background>
+	</type>
+	<type name="tab:checked">
+		<colour>#ffffff</colour>
+		<background>#cd0000</background>
+	</type>
+  </widget>
+  <widget name="DialogView">
+	<type>
+      <background>{newcore-5}</background>
+      <border>{newcore-5}</border>
+    </type>
+	<type name="title">
+       <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+    </type>
+	<type name="bet-value">
+       <colour>#000000</colour>
+      <background>#FFFFFF</background>
+    </type>
+	<type name="bet-title">
+       <colour>#ffffff</colour>
+      <background>#707880</background>
+    </type>
+	<type name="numkey">
+       <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+    </type>
+	<type name="numkey2">
+       <colour>#ffffff</colour>
+      <background>{newcore-6}</background>
+    </type>
+    <type name=".keno.keno">
+      <background>#9962010d</background>
+      <border>{core-1}</border>
+    </type>
+    <type name=".keno.geko">
+      <background>#99001125</background>
+      <border>#9900326d</border>
+    </type>
+    <type name="tips.geko">
+      <colour>#ffffff</colour>
+      <background>#2b7ccf</background>
+      <font size="16">Oswald</font>
+    </type>
+    <type name="tipsnum.geko">
+      <colour>#fff400</colour>
+      <background>#2b7ccf</background>
+      <font size="40">Oswald</font>
+    </type>
+    <type name="balls.keno">
+      <colour>#fff400</colour>
+      <font size="20">Open Sans Condensed</font>
+    </type>
+    <type name="prices.keno">
+      <font size="20">Open Sans Condensed</font>
+    </type>
+    <type name="balls.geko">
+      <colour>#fff400</colour>
+      <background>#00326d</background>
+      <font size="18">Oswald</font>
+    </type>
+    <type name="prices.geko">
+      <background>#00326d</background>
+      <font size="18">Oswald</font>
+    </type>
+    <type name="ballstitle.keno">
+      <font size="16">Open Sans Condensed</font>
+    </type>
+    <type name="pricestitle.keno">
+      <font size="16">Open Sans Condensed</font>
+    </type>
+    <type name="ballstitle.geko">
+      <font size="14">Oswald</font>
+    </type>
+    <type name="pricestitle.geko">
+      <font size="14">Oswald</font>
+    </type>
+  </widget>
+
+  <widget name="RandomBallPicker">
+    <type name=".geko">
+      <background>#2b7ccf</background>
+    </type>
+	  <type name=".lotto">
+      <background>#000000</background>
+    </type>
+	<type name=".Lotto10e">
+      <background>#444444</background>
+    </type>
+	
+  </widget>
+  
+  <widget name="NumbersKenoBallsView">
+	  <type name="random2.Lotto10e">
+		<colour>#d3ffa7</colour>
+	</type>
+	<type name="label2.Lotto10e">
+		<colour>#ffffff</colour>
+	  </type>	
+  </widget>
+
+  <widget name="EventFilterWidget">
+	<type>
+	  <background>{core-1}</background>
+	</type>
+	<type name="filterarea">
+	  <background>{core-3}</background>
+	</type>
+	<type name="activefilterarea">
+	  <background>{core-5}</background>
+	</type>
+	<type name=".live">
+	  <background>#4a4a4a</background>
+	</type>
+	<type name="filterarea.live">
+	  <background>#1e2021</background>
+	</type>
+	<type name="activefilterarea.live">
+	  <background>#383838</background>
+	</type>
+	<type name="unchecked">
+	  <background>{core-2}</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="checked">
+	  <background>#ffffff</background>
+	  <colour>{core-2}</colour>
+	</type>
+	<type name="checked-remove">
+	  <background>#ffffff</background>
+	  <colour>{core-5}</colour>
+	</type>
+	<type name="clear">
+	  <background>{core-3}</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="apply">
+	  <background>#008d0f</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="close">
+	  <background>{core-3}</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="unchecked.live">
+	  <background>#4a4a4a</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="checked.live">
+	  <background>#ffffff</background>
+	  <colour>#4a4a4a</colour>
+	</type>
+	<type name="clear.live">
+	  <background>#1e2021</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="close.live">
+	  <background>#1e2021</background>
+	  <colour>#ffffff</colour>
+	</type>
+  </widget>
+  
+  <widget name="EventRegionWidget">
+	<type>
+	  <background>{core-1}</background>
+	</type>
+	<type name="filterarea">
+	  <background>{core-3}</background>
+	</type>
+	<type name="unchecked">
+	  <background>{core-2}</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="checked">
+	  <background>#ffffff</background>
+	  <colour>{core-2}</colour>
+	</type>
+	<type name="checked-remove">
+	  <background>#ffffff</background>
+	  <colour>{core-5}</colour>
+	</type>
+	<type name="clear">
+	  <background>{core-3}</background>
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="close">
+	  <background>{core-3}</background>
+	  <colour>#ffffff</colour>
+	</type>	
+  </widget>
+  
+  <widget name="NumbersEventsViewItem">
+	  <type name=".lotto">
+      <gradient>0:#ffffff,0.43:#eeeeee,0.85:#dedede,1:#d8d8d8</gradient>
+	  </type>
+  </widget>  
+  <widget name="DiagnosticsView">
+	  <type>
+	    <image>images/svg/Stanleybet-logo-2022-WHITE.svg</image>
+	  </type>
+	  <type name="startup-window">
+		  <background>#000000</background>
+		  <colour>#ffffff</colour>
+	  </type>
+	  <type name="startup-icon-container">
+		  <background>#666666</background>
+		  <colour>#ffffff</colour>
+	  </type>
+	  <type name="startup-tick">
+		  <colour>#ACF0CD</colour>
+	  </type>
+	  <type name="startup-cross">
+		  <colour>#F0ACAC</colour>
+	  </type>
+	  <type name="errorhandler-window">
+		  <background>#b30013</background>
+		  <colour>#ffffff</colour>
+	  </type>
+	  <type name="errorhandler-icon-container">
+		  <background>#D16470</background>
+		  <colour>#ffffff</colour>
+	  </type>
+	  <type name="errorhandler-tick">
+		  <colour>#106326</colour>
+	  </type>
+	  <type name="errorhandler-cross">
+		  <colour>#9B0B0B</colour>
+	  </type>
+  </widget>
+  <widget name="VirtualLiveEventView">
+	<type name="alert-red">
+		<gradient>0:#b30013,1:#61040f</gradient>
+		<colour>#ffffff</colour>
+	</type>	
+	<type name="alert-gold">
+		<gradient>0:#B59F5E,1:#755701</gradient>
+		<colour>#FFFFFF</colour>
+	</type>		
+  </widget>
+  <widget name="VirtualLiveHeader">
+	<type name="background-gold">
+		<gradient>0:#ffda00,1:#a56f00</gradient>
+	</type>
+	<type name="boxes-gold">
+		<gradient>0:#B59F5E,1:#755701</gradient>
+	</type>
+	<type name="background-red">
+		<gradient>0:#b30013,1:#61040f</gradient>
+	</type>
+	<type name="boxes-red">
+		<gradient>0:#b30013,1:#61040f</gradient>
+	</type>
+  </widget>
+  <widget name="VirtualLiveMarketGroup">
+	<type name="title-gold">
+		<background>#98780F</background>
+		<colour>#ffffff</colour>
+	</type>
+	<type name="title-red">
+		<background>#96d71921</background>
+		<colour>#ffffff</colour>
+	</type>
+  </widget>
+  <widget name="VirtualLiveMarket">
+	<type name="title-gold">
+		<background>#98780F</background>
+		<colour>#ffffff</colour>
+	</type>
+	<type name="title-red">
+		<background>#64d71921</background>
+		<colour>#ffffff</colour>
+	</type>
+  </widget>
+  <widget name="VirtualLiveDataPanel">
+	<type name="state-indicator-gold">
+		<background>#D8AE00</background>
+		<colour>#000000</colour>
+	</type>
+	<type name="state-indicator-timer-gold">
+		<border>#D8AE00</border>
+		<colour>#D8AE00</colour>
+	</type>
+	<type name="state-indicator-red">
+		<background>#96d71921</background>
+		<colour>#000000</colour>
+	</type>
+	<type name="state-indicator-timer-red">
+		<border>#96d71921</border>
+		<colour>#ffffff</colour>
+	</type>
+  </widget>
+  <widget name="EventsViewVirtualLiveRoundHeader">
+    <type name="info">
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="info-small.sibvlive">
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="label.sibvirtual">
+      <border>#000000</border>
+	  <colour>#000000</colour>
+    </type>
+	<type name="desc-small.sibvlive">
+	  <colour>#e4cd4b</colour>
+	</type>
+	<type name="time">
+	  <colour>#ffffff</colour>
+	</type>
+	<type name="time-small">
+		<colour>#ffffff</colour>
+	</type>
+	<type name="heading">
+	  <colour>#e4cd4b</colour>
+	</type>
+  </widget>
+  <widget name="SearchEventsView">
+    <type name="background">
+	  <background>{newcore-5}</background>
+	</type>
+    <type name="scroll">
+	  <background>{newcore-5}</background>
+	</type>
+    <type name="search-item">
+	  <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+	</type>
+    <type name="search-dropdown">
+	  <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+	</type>
+	  <type name="search-check">
+	  <colour>#ffffff</colour>
+      <background>#ffffff</background>
+	</type>
+	  <type name="search-field">
+	  <colour>#000000</colour>
+      <background>#ffffff</background>
+	</type>
+    <type name="search-btn">
+	  <colour>#ffffff</colour>
+      <background>{newcore-4}</background>
+	</type>
+  </widget>
+  <widget name="RandomBetView">
+    <type name="background">
+	  <background>{newcore-5}</background>
+	</type>
+  </widget>
+  <widget name="OTCGrid">
+    <type name="grid header">
+	  <background>#343C43</background>
+	</type>
+    <type name="search-field">
+	  <background>#75787b</background>
+	</type>
+  </widget>
+  <widget name="OTCRecentBetsView">
+    <type name="recent bets header">
+	  <background>#343C43</background>
+	</type>
+  </widget>
+  <widget name="SupergoalMarketView">
+	<type name="add-market-button">
+		<colour>#ffffff</colour>
+		<background>#006be9</background>
+	</type>
+	<type name="addtoslip">
+		<colour>#ffffff</colour>
+		<background>#006be9</background>
+	</type>
+		<type name="price">
+		<colour>#006be9</colour>
+		<background>#006be9</background>
+	</type>
+  </widget>
+<widget name="ReportsWidget">
+	<type name="header">
+		<colour>#ffffff</colour>
+		<background>#3b3c43</background>
+	</type>
+	<type name="rowValue">
+		<colour>#000000</colour>
+		<background>#d8d6dc</background>
+	</type>
+	<type name="rowAltValue">
+		<colour>#000000</colour>
+		<background>#ffffff</background>
+	</type>
+  </widget>
+  <widget name="TableWidget">
+	<type name="header">
+		<colour>#ffffff</colour>
+		<background>#3b3c43</background>
+	</type>
+	<type name="rowValue">
+		<colour>#000000</colour>
+		<background>#ffffff</background>
+	</type>
+	<type name="rowAltValue">
+		<colour>#000000</colour>
+		<background>#d8d6dc</background>
+	</type>
+  </widget>
+</data>

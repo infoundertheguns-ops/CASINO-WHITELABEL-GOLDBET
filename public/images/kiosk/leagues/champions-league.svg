@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <circle cx="100" cy="100" r="90" fill="#00044D"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="white" stroke-width="2"/>
+  <!-- Star shape -->
+  <polygon points="100,30 112,72 156,72 120,98 132,140 100,114 68,140 80,98 44,72 88,72" fill="white"/>
+  <circle cx="100" cy="88" r="22" fill="#00044D"/>
+  <text x="100" y="185" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="20" fill="white">UCL</text>
+</svg>

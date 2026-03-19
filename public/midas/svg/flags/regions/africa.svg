@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 51.2 (57519) - http://www.bohemiancoding.com/sketch -->
+    <title>Africa</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Africa" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect id="Rectangle-10" stroke="#979797" fill="#D8D8D8" fill-rule="nonzero" x="50.5" y="116.5" width="400" height="267"></rect>
+        <rect id="Rectangle-10-Copy" fill="#006700" fill-rule="nonzero" x="50" y="116" width="401" height="89"></rect>
+        <rect id="Rectangle-10-Copy-2" fill="#FFF400" fill-rule="nonzero" x="50" y="205" width="401" height="90"></rect>
+        <rect id="Rectangle-10-Copy-3" fill="#CE0000" fill-rule="nonzero" x="50" y="295" width="401" height="89"></rect>
+        <polygon id="Star-5" fill="#006700" fill-rule="nonzero" points="251 263.860547 229.251946 279.933629 237.817837 254.283145 215.810909 238.566371 242.852975 238.786582 251 213 259.147025 238.786582 286.189091 238.566371 264.182163 254.283145 272.748054 279.933629"></polygon>
+    </g>
+</svg>

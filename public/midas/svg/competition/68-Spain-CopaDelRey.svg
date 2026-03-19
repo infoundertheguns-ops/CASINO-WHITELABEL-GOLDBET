@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 51.2 (57519) - http://www.bohemiancoding.com/sketch -->
+    <title>Coppa Del Rey</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="50%" y1="-17.2851562%" x2="50%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#F12125" offset="0%"></stop>
+            <stop stop-color="#A00D2D" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-2">
+            <stop stop-color="#F3CC8D" offset="0%"></stop>
+            <stop stop-color="#D49565" offset="100%"></stop>
+        </linearGradient>
+        <polygon id="path-3" points="0 0 160.272951 0 160.272951 321.152174 0 321.152174"></polygon>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-5">
+            <stop stop-color="#F3CC8D" offset="0%"></stop>
+            <stop stop-color="#D59766" offset="100%"></stop>
+        </linearGradient>
+        <polygon id="path-6" points="0.0180487522 0 160.290904 0 160.290904 321.152174 0.0180487522 321.152174"></polygon>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="99.1781069%" id="linearGradient-8">
+            <stop stop-color="#F01D24" offset="0%"></stop>
+            <stop stop-color="#B72A46" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Coppa-Del-Rey" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Group-11-Copy" transform="translate(9.445652, 56.673913)">
+            <path d="M122.793478,47.2282609 L368.380435,47.2282609 L368.380435,294.373793 C368.380435,294.373793 355.602433,396.717391 239.665444,396.717391 C123.728454,396.717391 124.66343,292.472673 124.66343,292.472673 L122.793478,47.2282609 Z" id="Fill-1" fill="url(#linearGradient-1)"></path>
+            <path d="M261.548528,47.2282609 C261.548528,47.2282609 276.719923,289.806751 122.793478,295.871213 L124.689903,306.180799 C124.689903,306.180799 368.380435,372.283438 368.380435,47.2282609 L261.548528,47.2282609 Z" id="Fill-3" fill="url(#linearGradient-2)"></path>
+            <g id="Group-7">
+                <mask id="mask-4" fill="white">
+                    <use xlink:href="#path-3"></use>
+                </mask>
+                <g id="Clip-6"></g>
+                <path d="M178.004686,30.147062 L178.004686,0 L0.0180166385,0 L0.0180166385,246.308687 C0.0180166385,246.308687 -3.83580945,321.152174 101.180951,321.152174 L97.3271253,309.802957 C97.3271253,309.802957 31.1697775,293.239234 31.1697775,243.548067 L31.1697775,30.147062 L178.004686,30.147062 Z" id="Fill-5" fill="url(#linearGradient-5)" mask="url(#mask-4)"></path>
+            </g>
+            <g id="Group-10" transform="translate(321.152174, 0.000000)">
+                <mask id="mask-7" fill="white">
+                    <use xlink:href="#path-6"></use>
+                </mask>
+                <g id="Clip-9"></g>
+                <path d="M0.0180487522,29.2490108 L0.0180487522,0 L160.272984,0 L160.272984,246.308687 C160.272984,246.308687 164.12681,321.152174 59.1100488,321.152174 L62.9638748,309.802957 C62.9638748,309.802957 129.121223,293.239234 129.121223,243.548067 L129.121223,29.2490108 L0.0180487522,29.2490108 Z" id="Fill-8" fill="url(#linearGradient-8)" mask="url(#mask-7)"></path>
+            </g>
+        </g>
+    </g>
+</svg>

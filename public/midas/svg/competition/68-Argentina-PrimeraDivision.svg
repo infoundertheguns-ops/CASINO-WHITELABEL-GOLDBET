@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 50.2 (55047) - http://www.bohemiancoding.com/sketch -->
+    <title>Primera Division</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="100%" y1="46.703455%" x2="0%" y2="46.7034549%" id="linearGradient-1">
+            <stop stop-color="#C6161D" offset="0%"></stop>
+            <stop stop-color="#5D0A0E" offset="40.9591763%"></stop>
+            <stop stop-color="#252525" offset="50.1472024%"></stop>
+            <stop stop-color="#5E701B" offset="58.59375%"></stop>
+            <stop stop-color="#8DA929" offset="100%"></stop>
+        </linearGradient>
+        <path d="M131.226954,132.365608 C144.865665,109.906517 152.075136,84.361598 152.075136,58.4928821 L152.075136,20.7206185 C126.864606,7.01207635 101.654075,0.157805303 76.4435454,0.157805303 C51.2330153,0.157805303 26.0224853,7.01207635 0.811955241,20.7206185 L0.811955241,58.4928821 C0.811955241,84.361598 8.02086924,109.906517 21.6595806,132.365034 C34.8311557,154.054246 53.7346043,172.441765 76.4435454,185.689873 C99.1519303,172.44234 118.054823,154.054246 131.226954,132.365608 Z" id="path-2"></path>
+        <linearGradient x1="48.4869927%" y1="10.1259154%" x2="48.4869934%" y2="-3.51509281%" id="linearGradient-4">
+            <stop stop-color="#DFE4E6" offset="0%"></stop>
+            <stop stop-color="#BCC4C9" offset="100%"></stop>
+        </linearGradient>
+        <path d="M1.00276352,164.200779 C3.90393113,242.995371 84.7066776,339.14938 183.961055,339.14938 C280.640291,339.14938 359.812925,247.920053 366.537259,170.366799 C366.844017,174.704628 367,179.084098 367,183.5 C367,284.844252 284.844252,367 183.5,367 C82.1557484,367 0,284.844252 0,183.5 C0,176.981971 0.339838303,170.543315 1.00276292,164.200785 Z M26.5911916,88.306981 C58.7799633,35.3630062 117.010245,0 183.5,0 C248.131192,0 304.958206,33.4136601 337.648873,83.9088125 C305.028679,46.6142173 248.38129,23.5871222 183.961055,23.5871222 C117.045152,23.5871222 58.5160066,48.4329367 26.5911916,88.306981 Z" id="path-5"></path>
+        <linearGradient x1="47.9431424%" y1="39.4450542%" x2="50%" y2="100%" id="linearGradient-7">
+            <stop stop-color="#B9BEC1" offset="0%"></stop>
+            <stop stop-color="#83898E" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Primera-Division" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Path-2" transform="translate(194.000000, 133.000000)"></g>
+        <path d="M327.050105,307.900218 C346.176137,276.699121 356.286224,241.211062 356.286224,205.273173 L356.286224,152.798382 C320.932634,133.753909 285.579043,124.231672 250.225453,124.231672 C214.871862,124.231672 179.518272,133.753909 144.164681,152.798382 L144.164681,205.273173 C144.164681,241.211062 154.273989,276.699121 173.400021,307.89942 C191.870972,338.030971 218.379926,363.575673 250.225453,381.980492 C282.070199,363.576471 308.578374,338.030971 327.050105,307.900218 Z" id="Page-1" stroke="#1C1C1C" stroke-width="3" fill="url(#linearGradient-1)" stroke-linecap="round"></path>
+        <path d="M307.226954,284.365608 C320.865665,261.906517 328.075136,236.361598 328.075136,210.492882 L328.075136,172.720618 C302.864606,159.012076 277.654075,152.157805 252.443545,152.157805 C227.233015,152.157805 202.022485,159.012076 176.811955,172.720618 L176.811955,210.492882 C176.811955,236.361598 184.020869,261.906517 197.659581,284.365034 C210.831156,306.054246 229.734604,324.441765 252.443545,337.689873 C275.15193,324.44234 294.054823,306.054246 307.226954,284.365608 Z" id="Page-1" stroke="#1C1C1C" stroke-width="6" fill="#FFFFFF" stroke-linecap="round"></path>
+        <g id="Rectangle" transform="translate(176.000000, 152.000000)">
+            <mask id="mask-3" fill="white">
+                <use xlink:href="#path-2"></use>
+            </mask>
+            <use id="Mask" fill="#FFFFFF" xlink:href="#path-2"></use>
+            <path d="M128.30236,130.228381 C141.212973,108.954935 148.037568,84.7585649 148.037568,60.2554922 L148.037568,24.4772755 C124.172894,11.4924252 100.30822,5 76.4435454,5 C52.5788713,5 28.7141971,11.4924252 4.84952302,24.4772755 L4.84952302,60.2554922 C4.84952302,84.7585649 11.6735915,108.954935 24.5842047,130.227837 C37.0526196,150.772048 54.9469138,168.188866 76.4435454,180.737589 C97.9396506,168.18941 115.833418,150.772048 128.30236,130.228381 Z" id="Mask" stroke="#1C1C1C" stroke-width="2" fill="#005AAB" stroke-linecap="round" mask="url(#mask-3)"></path>
+        </g>
+        <g id="Rectangle-2" transform="translate(67.000000, 67.000000)">
+            <mask id="mask-6" fill="white">
+                <use xlink:href="#path-5"></use>
+            </mask>
+            <use id="Mask" fill="url(#linearGradient-4)" xlink:href="#path-5"></use>
+            <rect fill="url(#linearGradient-7)" mask="url(#mask-6)" x="-36" y="132" width="450" height="242"></rect>
+        </g>
+        <circle id="Oval-4" fill="#FFFFFF" cx="226.5" cy="203.5" r="10.5"></circle>
+        <circle id="Oval-4" stroke="#FFFFFF" stroke-width="2" cx="226.5" cy="203.5" r="13.5"></circle>
+        <circle id="Oval-4" stroke="#FFFFFF" stroke-width="2" cx="279.5" cy="203.5" r="13.5"></circle>
+        <circle id="Oval-4" stroke="#FFFFFF" stroke-width="2" cx="252.5" cy="230.5" r="13.5"></circle>
+        <circle id="Oval-4" stroke="#FFFFFF" stroke-width="2" cx="226.5" cy="258.5" r="13.5"></circle>
+        <circle id="Oval-4" stroke="#FFFFFF" stroke-width="2" cx="279.5" cy="258.5" r="13.5"></circle>
+        <circle id="Oval-4" fill="#FFFFFF" cx="279.5" cy="203.5" r="10.5"></circle>
+        <circle id="Oval-4" fill="#FFFFFF" cx="226.5" cy="258.5" r="10.5"></circle>
+        <circle id="Oval-4" fill="#FFFFFF" cx="279.5" cy="258.5" r="10.5"></circle>
+        <circle id="Oval-4" fill="#FFFFFF" cx="252.5" cy="230.5" r="10.5"></circle>
+    </g>
+</svg>

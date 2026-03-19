@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="500px" height="500px" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 51.2 (57519) - http://www.bohemiancoding.com/sketch -->
+    <title>Asia </title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Asia-" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect id="Rectangle-10-Copy" fill="#CE0000" fill-rule="nonzero" x="50" y="116" width="401" height="89"></rect>
+        <rect id="Rectangle-10-Copy-2" fill="#FFFFFF" fill-rule="nonzero" x="50" y="205" width="401" height="90"></rect>
+        <rect id="Rectangle-10-Copy-3" fill="#006700" fill-rule="nonzero" x="50" y="295" width="401" height="89"></rect>
+        <polygon id="Star-5" fill="#FFFFFF" fill-rule="nonzero" points="123.485434 148.667163 119.351739 151.722206 120.979874 146.846768 116.796975 143.85945 121.936913 143.901306 123.485434 139 125.033955 143.901306 130.173893 143.85945 125.990993 146.846768 127.619129 151.722206"></polygon>
+        <polygon id="Star-5-Copy" fill="#FFFFFF" fill-rule="nonzero" points="108.94577 159.571911 104.812075 162.626953 106.440211 157.751515 102.257311 154.764198 107.397249 154.806054 108.94577 149.904748 110.494291 154.806054 115.63423 154.764198 111.45133 157.751515 113.079466 162.626953"></polygon>
+        <path d="M112,135.818785 C100.126473,138.794718 91.3333333,149.537152 91.3333333,162.333333 C91.3333333,175.129515 100.126473,185.871949 112,188.847882 C109.866209,189.382686 107.632935,189.666667 105.333333,189.666667 C90.2375502,189.666667 78,177.429116 78,162.333333 C78,147.23755 90.2375502,135 105.333333,135 C107.632935,135 109.866209,135.28398 112,135.818785 Z" id="Combined-Shape" fill="#FFFFFF" fill-rule="nonzero"></path>
+    </g>
+</svg>

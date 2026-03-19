@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect x="20" y="20" width="160" height="160" rx="20" fill="#091C3E"/>
+  <text x="100" y="115" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="72" fill="white">1</text>
+  <text x="100" y="60" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="22" fill="#D4E157" letter-spacing="4">LIGUE</text>
+</svg>

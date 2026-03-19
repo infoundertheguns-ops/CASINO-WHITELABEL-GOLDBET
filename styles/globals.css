@@ -4,6 +4,7 @@
 
 /* ═══ FONTS ═══ */
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans+Condensed:wght@300;700&family=Open+Sans:wght@400;600;700;800&display=swap");
 
 /* ═══ BASE ═══ */
 @layer base {
@@ -168,6 +169,132 @@
     @apply focus:outline-none focus:ring-2 focus:ring-yellow-400/30 focus:border-yellow-400/50;
     @apply placeholder:text-[#645fa0];
   }
+}
+
+/* ═══ KIOSK / MIDAS THEME ═══ */
+@layer base {
+  .kiosk-theme {
+    /* Core colors (UIData.xml) */
+    --midas-red: #d0141c;
+    --midas-dark-red: #500B0D;
+    --midas-medium-red: #870E12;
+    --midas-sidebar: #403c44;
+    --midas-bg: #161517;
+    --midas-selected: #209cac;
+
+    /* Event status borders */
+    --midas-running: #74be29;
+    --midas-about-start: #fae83c;
+    --midas-upcoming: #f5a623;
+
+    /* Betslip */
+    --midas-placebet: #57b300;
+    --midas-bookbet: #218abe;
+    --midas-slip-item: #e4e4e4;
+    --midas-slip-remove: #4a4a4a;
+    --midas-slip-error: #ff9000;
+    --midas-banker: #ecbe25;
+    --midas-enable: #009ca7;
+
+    /* Navigation */
+    --midas-nav-bg: #1e2021;
+    --midas-nav-unsel: #161517;
+
+    /* Events */
+    --midas-event-live-bg: #000000;
+    --midas-event-regular-bg: #ffffff;
+    --midas-market-label-live: #2d3031;
+    --midas-market-label-regular: #8d8d8d;
+    --midas-row-highlight: #d2f4f4;
+    --midas-event-more: #9c0011;
+    --midas-event-more-live: #383838;
+    --midas-event-more-regular: #ececec;
+    --midas-indicator: #0066cc;
+
+    /* Score boxes */
+    --midas-score-bg: #ffffff;
+    --midas-score-border: #a7a7a7;
+
+    /* Numpad */
+    --midas-numkey: #444444;
+    --midas-addkey: #d0141c;
+
+    /* Glass panel */
+    --midas-glass-bg: rgba(128, 128, 128, 0.1);
+    --midas-glass-border: rgba(255, 255, 255, 0.2);
+
+    font-family: 'Open Sans Condensed', 'Open Sans', sans-serif;
+    font-size: 16px;
+    color: white;
+  }
+  /* Undo global text-size overrides inside kiosk */
+  .kiosk-theme .text-\[7px\] { font-size: 7px !important; }
+  .kiosk-theme .text-\[8px\] { font-size: 8px !important; }
+  .kiosk-theme .text-\[9px\] { font-size: 9px !important; }
+  .kiosk-theme .text-\[10px\] { font-size: 10px !important; }
+  .kiosk-theme .text-\[11px\] { font-size: 11px !important; }
+  .kiosk-theme .text-\[12px\] { font-size: 12px !important; }
+  .kiosk-theme .text-\[13px\] { font-size: 13px !important; }
+  .kiosk-theme .text-\[14px\] { font-size: 14px !important; }
+  .kiosk-theme ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .kiosk-theme ::-webkit-scrollbar-track {
+    background: var(--midas-bg);
+  }
+  .kiosk-theme ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+  }
+  .kiosk-theme ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+}
+
+@layer components {
+  .kiosk-header {
+    background: var(--midas-red);
+  }
+  .kiosk-sidebar {
+    background: var(--midas-sidebar);
+  }
+  .glass-panel {
+    background: var(--midas-glass-bg);
+    border: 1px solid var(--midas-glass-border);
+    border-radius: 4px;
+  }
+  .coupon-button {
+    background: linear-gradient(to bottom, #eeeeee 0%, #cecece 50%, #c5c5c5 51%, #bbbbbb 100%);
+    border-radius: 4px;
+    font-family: 'Open Sans', sans-serif;
+    font-weight: bold;
+    font-size: 15px;
+    color: black;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .coupon-button:hover {
+    opacity: 0.9;
+  }
+  .page-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+  }
+  .page-dot.active {
+    background: #b30013;
+  }
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.live-pulse {
+  animation: live-pulse 1.5s ease-in-out infinite;
 }
 
 /* ═══ ODDS FLASH ANIMATIONS ═══ */
