@@ -7,9 +7,10 @@ interface AdminTopBarProps {
   notificationCount?: number;
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
+  onMenuClick?: () => void;
 }
 
-export function AdminTopBar({ title, theme = "dark", onToggleTheme }: AdminTopBarProps) {
+export function AdminTopBar({ title, theme = "dark", onToggleTheme, onMenuClick }: AdminTopBarProps) {
   const now = new Date();
   const dateStr = now.toLocaleDateString("it-IT", {
     day: "numeric",
@@ -23,12 +24,32 @@ export function AdminTopBar({ title, theme = "dark", onToggleTheme }: AdminTopBa
 
   return (
     <div
-      className="border-b px-5 py-2.5 flex items-center justify-between flex-shrink-0"
+      className="border-b px-3 md:px-5 py-2.5 flex items-center justify-between flex-shrink-0 gap-2"
       style={{ background: "var(--admin-surface)", borderColor: "var(--admin-border)" }}
     >
-      <h1 className="text-base font-extrabold tracking-tight" style={{ color: "var(--admin-text)" }}>{title}</h1>
-      <div className="flex items-center gap-4 text-xs">
-        <span style={{ color: "var(--admin-text4)" }}>
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Hamburger - mobile only */}
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="md:hidden flex flex-col gap-1 p-1 flex-shrink-0"
+            aria-label="Menu"
+          >
+            <span className="block w-5 h-0.5 rounded" style={{ background: "var(--admin-text)" }} />
+            <span className="block w-5 h-0.5 rounded" style={{ background: "var(--admin-text)" }} />
+            <span className="block w-5 h-0.5 rounded" style={{ background: "var(--admin-text)" }} />
+          </button>
+        )}
+        <h1
+          className="text-sm md:text-base font-extrabold tracking-tight truncate"
+          style={{ color: "var(--admin-text)" }}
+        >
+          {title}
+        </h1>
+      </div>
+
+      <div className="flex items-center gap-2 md:gap-4 text-xs flex-shrink-0">
+        <span className="hidden sm:inline" style={{ color: "var(--admin-text4)" }}>
           {dateStr} · {timeStr}
         </span>
 
@@ -53,7 +74,6 @@ export function AdminTopBar({ title, theme = "dark", onToggleTheme }: AdminTopBa
           </button>
         )}
 
-        {/* Notification Bell with realtime dropdown */}
         <NotificationBell />
       </div>
     </div>

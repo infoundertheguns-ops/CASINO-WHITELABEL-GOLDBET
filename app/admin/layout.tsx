@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminTopBar } from "@/components/layout/admin-topbar";
@@ -67,9 +67,11 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
 
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const activeId = useMemo(() => {
     const parts = pathname.split("/").filter(Boolean);
-    // parts[0] = "admin", parts[1] = section, parts[2+] = sub-route
     if (parts[1] === "market-coverage") return "market-coverage";
     if (parts[1] === "market-translations") return "market-translations";
     if (parts[1] === "risk") return "risk";
@@ -105,14 +107,21 @@ export default function AdminLayout({
 
   const isLight = theme === "light";
 
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
   return (
-    <div className={`admin-theme ${isLight ? "admin-light" : ""} flex min-h-screen font-sans`}
+    <div
+      className={`admin-theme ${isLight ? "admin-light" : ""} flex min-h-screen font-sans`}
       style={{ background: "var(--admin-bg)", color: "var(--admin-text)" }}
     >
       <AdminSidebar
         navigation={NAVIGATION}
         activeId={activeId}
         onNavigate={handleNavigate}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(!collapsed)}
+        mobileOpen={mobileOpen}
+        onCloseMobile={closeMobile}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -121,9 +130,10 @@ export default function AdminLayout({
           notificationCount={notifCount}
           theme={theme}
           onToggleTheme={toggle}
+          onMenuClick={() => setMobileOpen(!mobileOpen)}
         />
 
-        <main className="flex-1 overflow-auto p-5">{children}</main>
+        <main className="flex-1 overflow-auto p-3 md:p-5">{children}</main>
       </div>
     </div>
   );
