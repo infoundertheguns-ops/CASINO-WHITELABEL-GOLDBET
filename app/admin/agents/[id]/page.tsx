@@ -112,14 +112,47 @@ export default function AgentDetailPage() {
       {/* Info Tab */}
       {activeTab === "info" && (
         <div style={{ background: "var(--admin-card, #0f172a)", border: "1px solid #1e3a5f", borderRadius: 12, padding: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, fontSize: 13 }}>
-            <div><span style={{ color: "#64748b" }}>Status:</span> <span style={{ color: agent.status === "active" ? "#10b981" : "#f59e0b", fontWeight: 700 }}>{agent.status.toUpperCase()}</span></div>
-            <div><span style={{ color: "#64748b" }}>Livello:</span> <span style={{ color: "#e2e8f0" }}>{LEVEL_LABELS[agent.level as AgentLevel]}</span></div>
-            <div><span style={{ color: "#64748b" }}>Wallet:</span> <span style={{ color: "#e2e8f0" }}>{agent.wallet_model}</span></div>
-            <div><span style={{ color: "#64748b" }}>Commissione:</span> <span style={{ color: "#e2e8f0" }}>{agent.commission_rate}%</span></div>
-            <div><span style={{ color: "#64748b" }}>Giocatori:</span> <span style={{ color: "#60a5fa", fontWeight: 700 }}>{data.player_count}</span></div>
-            <div><span style={{ color: "#64748b" }}>Sub-Agenti:</span> <span style={{ color: "#a78bfa", fontWeight: 700 }}>{data.sub_agents?.length || 0}</span></div>
+          {/* Editable fields */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, fontSize: 13, marginBottom: 16 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Nome</label>
+              <input
+                defaultValue={agent.name}
+                onBlur={e => { if (e.target.value !== agent.name) handleSave({ name: e.target.value }); }}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Commissione %</label>
+              <input
+                type="number"
+                defaultValue={agent.commission_rate}
+                onBlur={e => { const v = parseFloat(e.target.value); if (v !== agent.commission_rate) handleSave({ commission_rate: v }); }}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Wallet Model</label>
+              <select
+                defaultValue={agent.wallet_model}
+                onChange={e => handleSave({ wallet_model: e.target.value })}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }}
+              >
+                <option value="postpaid">Post-pagato</option>
+                <option value="prepaid">Prepagato</option>
+              </select>
+            </div>
           </div>
+
+          {/* Read-only info */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, fontSize: 13, padding: "12px 0", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div><span style={{ color: "#64748b" }}>Status: </span><span style={{ color: agent.status === "active" ? "#10b981" : "#f59e0b", fontWeight: 700 }}>{agent.status.toUpperCase()}</span></div>
+            <div><span style={{ color: "#64748b" }}>Livello: </span><span style={{ color: "#e2e8f0" }}>{LEVEL_LABELS[agent.level as AgentLevel]}</span></div>
+            <div><span style={{ color: "#64748b" }}>Giocatori: </span><span style={{ color: "#60a5fa", fontWeight: 700 }}>{data.player_count}</span></div>
+            <div><span style={{ color: "#64748b" }}>Sub-Agenti: </span><span style={{ color: "#a78bfa", fontWeight: 700 }}>{data.sub_agents?.length || 0}</span></div>
+          </div>
+
+          {/* Actions */}
           <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
             {agent.status === "active" ? (
               <button onClick={() => handleSave({ status: "suspended" })} disabled={saving}
