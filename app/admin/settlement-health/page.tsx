@@ -24,9 +24,10 @@ interface StuckEvent {
 
 interface SettlementEntry {
   event_id: string;
-  created_at: string;
-  markets_settled: number;
-  bets_settled: number;
+  match: string;
+  score: string | null;
+  sport: string;
+  settled_at: string;
 }
 
 interface Subsystem {
@@ -447,7 +448,7 @@ export default function SettlementHealthPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                {["Ora", "Event ID", "Mercati", "Scommesse"].map(h => (
+                {["Ora", "Evento", "Sport", "Risultato"].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>{h}</th>
                 ))}
               </tr>
@@ -456,16 +457,16 @@ export default function SettlementHealthPage() {
               {data.recent_settlements.map((s, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "var(--admin-text-muted, #94a3b8)" }}>
-                    {formatTime(s.created_at)}
+                    {formatTime(s.settled_at)}
                   </td>
-                  <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)", fontSize: 11 }}>
-                    {s.event_id.slice(0, 8)}...
+                  <td style={{ padding: "6px 12px", color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
+                    {s.match}
                   </td>
-                  <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "#60a5fa", fontWeight: 600 }}>
-                    {s.markets_settled ?? "—"}
+                  <td style={{ padding: "6px 12px", color: "var(--admin-text-muted, #94a3b8)" }}>
+                    {s.sport}
                   </td>
-                  <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "#a78bfa", fontWeight: 600 }}>
-                    {s.bets_settled ?? "—"}
+                  <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "#60a5fa", fontWeight: 700 }}>
+                    {s.score || "—"}
                   </td>
                 </tr>
               ))}

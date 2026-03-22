@@ -76,11 +76,13 @@ export async function GET() {
       .not("flashscore_id", "is", null)
       .gte("updated_at", twentyFourHoursAgo);
 
-    // ── 5. Settlement log (recent entries) ──
-    const { data: recentSettlement } = await supabase
-      .from("settlement_log")
-      .select("*")
-      .order("created_at", { ascending: false })
+    // ── 5. Recent settlements — use ended events as the real log ──
+    const { data: recentSettled } = await supabase
+      .from("events")
+      .select("id, home_team, away_team, score_home, score_away, updated_at, sports!inner(name)")
+      .eq("source", "kambi")
+      .eq("status", "ended")
+      .order("updated_at", { ascending: false })
       .limit(20);
 
     // ── 6. Backlog by sport ──
@@ -119,12 +121,12 @@ export async function GET() {
     }
 
     // ── 8. Cleanup cron health — check system_health_log ──
-    const { data: healthLog } = await supabase
+    const { data: healthLogRows } = await supabase
       .from("system_health_log")
-      .select("created_at, data")
+      .select("created_at")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+    const healthLog = healthLogRows?.[0] || null;
 
     // ── 9. Verify-results cron — use latest ended event as proxy ──
     // (settlement_log is not actively written by current flow)
@@ -263,11 +265,12 @@ export async function GET() {
       avg_settlement_minutes: avgSettlementMin,
       backlog_by_sport: sportBacklog,
       actors,
-      recent_settlements: (recentSettlement || []).map((s: any) => ({
-        event_id: s.event_id,
-        created_at: s.created_at,
-        markets_settled: s.markets_settled,
-        bets_settled: s.bets_settled,
+      recent_settlements: (recentSettled || []).map((e: any) => ({
+        event_id: e.id,
+        match: `${e.home_team} vs ${e.away_team}`,
+        score: e.score_home != null ? `${e.score_home}-${e.score_away}` : null,
+        sport: e.sports?.name || "?",
+        settled_at: e.updated_at,
       })),
       ippica: {
         unsettled_odds: ippicaUnsettled || 0,
