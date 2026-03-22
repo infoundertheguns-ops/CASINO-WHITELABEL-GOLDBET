@@ -86,8 +86,44 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Detect role: super_admin, agent, or player
+    const userId = authData.user?.id;
+    let role = "player";
+    let agentData = null;
+
+    if (userId) {
+      const { createClient: createSb } = await import("@supabase/supabase-js");
+      const adminSb = createSb(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+      // Check if super admin
+      const { data: userRow } = await adminSb
+        .from("users")
+        .select("is_super_admin, username, agent_id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (userRow?.is_super_admin) {
+        role = "super_admin";
+      } else if (userRow?.agent_id) {
+        // Check if this user IS an agent (not just assigned to one)
+        const { data: agentRow } = await adminSb
+          .from("agents")
+          .select("id, name, code, level, permissions, status")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (agentRow) {
+          role = "agent";
+          agentData = agentRow;
+        }
+      }
+    }
+
     return NextResponse.json({
-      user: { id: authData.user?.id, email: authData.user?.email },
+      user: { id: userId, email: authData.user?.email },
+      role,
+      agent: agentData,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Errore interno" }, { status: 500 });

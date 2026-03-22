@@ -57,6 +57,17 @@ export function PlayerNavbar({ desktop = false }: { desktop?: boolean }) {
                 </span>
                 <span className="text-brand text-[10px]">▼</span>
               </Link>
+              <button
+                onClick={async () => {
+                  const { useAuth: getAuth } = await import("@/lib/hooks/use-auth");
+                  await getAuth.getState().signOut();
+                  window.location.href = "/login";
+                }}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1"
+                title="Esci"
+              >
+                ↪
+              </button>
             </>
           ) : (
             <a href="/login" className="text-sm font-semibold text-brand hover:underline">

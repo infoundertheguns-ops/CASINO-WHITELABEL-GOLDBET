@@ -27,21 +27,39 @@ function LoginForm() {
 
     try {
       setStatus("Autenticazione...");
-      const result = await signIn(email, password);
 
-      if (result.error) {
+      // Direct fetch to get role info
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
         setError(
-          result.error.includes("Invalid")
-            ? "Email o password non corretti"
-            : result.error
+          (data.error || "").includes("Invalid")
+            ? "Username o password non corretti"
+            : data.error || "Errore di autenticazione"
         );
         setLoading(false);
         setStatus("");
         return;
       }
 
+      // Initialize auth state
+      await signIn(email, password).catch(() => {});
+
       setStatus("Accesso riuscito, reindirizzamento...");
-      window.location.href = redirect;
+
+      // Redirect based on role
+      if (data.role === "super_admin") {
+        window.location.href = "/admin/dashboard";
+      } else if (data.role === "agent") {
+        window.location.href = "/admin/agents";
+      } else {
+        window.location.href = redirect;
+      }
     } catch (err: any) {
       setError(err?.message || "Errore di connessione. Riprova.");
       setLoading(false);
