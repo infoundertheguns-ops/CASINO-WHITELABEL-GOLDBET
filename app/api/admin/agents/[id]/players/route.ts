@@ -1,13 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
-import { getDescendantAgentIds } from "@/lib/agent-permissions";
+import { createClient } from "@supabase/supabase-js";
+
+function getAdminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // GET — List players belonging to this agent (and descendants)
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = createAdminClient();
+  const supabase = getAdminSupabase();
 
-  const agentIds = await getDescendantAgentIds(supabase, id);
+  // Get all descendant agent IDs
+  const agentIds: string[] = [id];
+  let currentLevel = [id];
+  for (let i = 0; i < 3; i++) {
+    if (currentLevel.length === 0) break;
+    const { data } = await supabase
+      .from("agents")
+      .select("id")
+      .in("parent_id", currentLevel)
+      .eq("status", "active");
+    const childIds = (data || []).map((a: any) => a.id);
+    agentIds.push(...childIds);
+    currentLevel = childIds;
+  }
+
+  // Get players, EXCLUDE users that are agents themselves
+  const { data: agentUserIds } = await supabase
+    .from("agents")
+    .select("user_id")
+    .in("id", agentIds);
+  const excludeIds = new Set((agentUserIds || []).map((a: any) => a.user_id));
 
   const { data: players, error } = await supabase
     .from("users")
@@ -18,8 +44,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Get wallet balances
-  const playerIds = (players || []).map((p: any) => p.id);
+  // Filter out agent users + get wallets
+  const realPlayers = (players || []).filter((p: any) => !excludeIds.has(p.id));
+  const playerIds = realPlayers.map((p: any) => p.id);
+
   const { data: wallets } = await supabase
     .from("wallets")
     .select("user_id, balance")
@@ -28,7 +56,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const balanceMap = new Map((wallets || []).map((w: any) => [w.user_id, w.balance]));
 
-  const enriched = (players || []).map((p: any) => ({
+  const enriched = realPlayers.map((p: any) => ({
     ...p,
     balance: balanceMap.get(p.id) ?? 0,
   }));
