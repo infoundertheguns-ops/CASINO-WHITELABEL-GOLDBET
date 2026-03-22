@@ -142,13 +142,14 @@ export default function AdminLayout({
   const handleNavigate = (id: string) => {
     const routeMap: Record<string, string> = {
       // Agent routes
-      "agent-dashboard": "/admin/dashboard",
-      "agent-players": "/admin/agents",
+      "agent-dashboard": "/admin/agent-dashboard",
+      "agent-players": "/admin/agent-players",
       "agent-subagents": "/admin/agents",
-      "agent-credit": "/admin/agents",
-      "agent-bets": "/admin/sportsbook",
-      "agent-reports": "/admin/financial",
-      "agent-commissions": "/admin/financial",
+      "agent-credit": "/admin/agent-players",
+      "agent-tickets": "/admin/agent-tickets",
+      "agent-bets": "/admin/agent-bets",
+      "agent-reports": "/admin/agent-commissions",
+      "agent-commissions": "/admin/agent-commissions",
       "agent-risk": "/admin/risk",
       // Super admin routes
       dashboard: "/admin/dashboard",
@@ -157,7 +158,6 @@ export default function AdminLayout({
       risk: "/admin/risk",
       liability: "/admin/risk",
       agents: "/admin/agents",
-      "agent-tickets": "/admin/agent-tickets",
       financial: "/admin/financial",
       scraper: "/admin/scraper",
       "settlement-health": "/admin/settlement-health",
