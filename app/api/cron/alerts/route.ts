@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     // ── Check 7: Settlement Backlog ──
     const backlog = metrics.quality?.finished_backlog ?? 0;
     const prevBacklog = getAlertState("settlement_backlog");
-    const backlogHigh = backlog > 20;
+    const backlogHigh = backlog > 200;
     const wasHigh = prevBacklog && (prevBacklog.level === "warning" || prevBacklog.level === "critical");
 
     if (backlogHigh && !wasHigh) {
