@@ -3,14 +3,32 @@ import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email: rawIdentifier, password } = await request.json();
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email e password richiesti" }, { status: 400 });
+    if (!rawIdentifier || !password) {
+      return NextResponse.json({ error: "Username/email e password richiesti" }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    // If input doesn't contain @, treat as username → lookup email
+    let email = rawIdentifier;
+    if (!rawIdentifier.includes("@")) {
+      const { createClient } = await import("@supabase/supabase-js");
+      const adminSb = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+      const { data: userRow } = await adminSb
+        .from("users")
+        .select("email")
+        .eq("username", rawIdentifier)
+        .limit(1)
+        .maybeSingle();
+
+      if (!userRow?.email) {
+        return NextResponse.json({ error: "Username non trovato" }, { status: 401 });
+      }
+      email = userRow.email;
+    }
 
     // Direct fetch to Supabase auth with 15s timeout
     const controller = new AbortController();

@@ -58,13 +58,13 @@ function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Email"
-          type="email"
-          placeholder="nome@email.com"
+          label="Username o Email"
+          type="text"
+          placeholder="username o nome@email.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          autoComplete="email"
+          autoComplete="username"
         />
 
         <Input

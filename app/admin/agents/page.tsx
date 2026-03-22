@@ -23,7 +23,7 @@ export default function AgentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     name: "", code: "", level: 1, parent_id: "", wallet_model: "postpaid",
-    commission_rate: 0, email: "", password: "",
+    commission_rate: 0, email: "", password: "", username: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -54,7 +54,7 @@ export default function AgentsPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
       setShowForm(false);
-      setFormData({ name: "", code: "", level: 1, parent_id: "", wallet_model: "postpaid", commission_rate: 0, email: "", password: "" });
+      setFormData({ name: "", code: "", level: 1, parent_id: "", wallet_model: "postpaid", commission_rate: 0, email: "", password: "", username: "" });
       loadAgents();
     } catch (e: any) {
       setError(e.message);
@@ -138,12 +138,17 @@ export default function AgentsPage() {
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Email</label>
-              <input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
-                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }} />
+              <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Username *</label>
+              <input value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }} placeholder="agent01" />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Password</label>
+              <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Email (facoltativa)</label>
+              <input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }} placeholder="opzionale" />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Password *</label>
               <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })}
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #1e3a5f", background: "#0a0914", color: "#e2e8f0", fontSize: 13 }} />
             </div>

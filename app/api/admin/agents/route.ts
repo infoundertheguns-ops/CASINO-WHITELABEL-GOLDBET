@@ -76,11 +76,14 @@ export async function POST(req: NextRequest) {
   const supabase = getAdminSupabase();
   const body = await req.json();
 
-  const { name, code, level, parent_id, wallet_model, commission_rate, email, password, permissions } = body;
+  const { name, code, level, parent_id, wallet_model, commission_rate, email: rawEmail, password, permissions, username } = body;
 
-  if (!name || !code || !level || !email || !password) {
-    return NextResponse.json({ error: "Campi obbligatori: name, code, level, email, password" }, { status: 400 });
+  if (!name || !code || !level || !password) {
+    return NextResponse.json({ error: "Campi obbligatori: name, code, level, password" }, { status: 400 });
   }
+
+  // Email is optional — generate a placeholder if not provided
+  const email = rawEmail || `${code.toLowerCase()}@agents.vincitu.local`;
 
   if (level < 1 || level > 3) {
     return NextResponse.json({ error: "Level deve essere 1, 2 o 3" }, { status: 400 });
@@ -156,12 +159,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Create user profile
+  const agentUsername = username || code.toLowerCase();
   await supabase.from("users").upsert({
     id: authUser.user.id,
     email,
-    username: code.toLowerCase(),
+    username: agentUsername,
     display_name: name,
     is_active: true,
+    agent_id: agent.id,
   }, { onConflict: "id" });
 
   // If prepaid, create agent wallet
