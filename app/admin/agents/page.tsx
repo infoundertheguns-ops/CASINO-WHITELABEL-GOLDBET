@@ -175,7 +175,7 @@ export default function AgentsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--admin-border, #1e3a5f)" }}>
-              {["Codice", "Nome", "Livello", "Parent", "Wallet", "Comm. %", "Giocatori", "Sub-Agent", "Status", ""].map(h => (
+              {["Codice", "Nome", "Livello", "Parent", "Wallet", "Comm. %", "Giocatori", "Turnover", "GGR", "Status", ""].map(h => (
                 <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#64748b" }}>{h}</th>
               ))}
             </tr>
@@ -205,7 +205,8 @@ export default function AgentsPage() {
                   </td>
                   <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "var(--admin-text, #e2e8f0)" }}>{a.commission_rate}%</td>
                   <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#60a5fa" }}>{a.player_count}</td>
-                  <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#a78bfa" }}>{a.sub_agent_count}</td>
+                  <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#94a3b8" }}>€{(a.turnover || 0).toLocaleString("it-IT", { minimumFractionDigits: 0 })}</td>
+                  <td style={{ padding: "10px 12px", fontFamily: "monospace", fontWeight: 700, color: (a.ggr || 0) >= 0 ? "#10b981" : "#ef4444" }}>€{(a.ggr || 0).toLocaleString("it-IT", { minimumFractionDigits: 0 })}</td>
                   <td style={{ padding: "10px 12px" }}>
                     <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: sc.bg, color: sc.text }}>
                       {a.status.toUpperCase()}

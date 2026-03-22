@@ -59,12 +59,38 @@ export async function GET() {
       parentName = parent?.name;
     }
 
+    // Calculate GGR from agent's players' bets
+    const playerIds: string[] = [];
+    if (playerCount && playerCount > 0) {
+      const { data: players } = await supabase
+        .from("users").select("id").eq("agent_id", agent.id);
+      if (players) playerIds.push(...players.map((p: any) => p.id));
+    }
+
+    let ggr = 0;
+    let turnover = 0;
+    if (playerIds.length > 0) {
+      const { data: bets } = await supabase
+        .from("bets")
+        .select("stake, potential_win, status")
+        .in("user_id", playerIds.slice(0, 200))
+        .not("status", "eq", "rejected");
+
+      if (bets) {
+        turnover = bets.reduce((s, b) => s + (b.stake || 0), 0);
+        const winnings = bets.filter(b => b.status === "won").reduce((s, b) => s + (b.potential_win || 0), 0);
+        ggr = turnover - winnings;
+      }
+    }
+
     return {
       ...agent,
       player_count: playerCount || 0,
       sub_agent_count: subAgentCount || 0,
       wallet_balance: walletBalance,
       parent_name: parentName,
+      ggr: Math.round(ggr * 100) / 100,
+      turnover: Math.round(turnover * 100) / 100,
     };
   }));
 
