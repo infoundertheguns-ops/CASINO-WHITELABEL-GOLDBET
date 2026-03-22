@@ -125,6 +125,16 @@ export default function AdminLayout({
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
+  // Login page: render without sidebar/topbar
+  if (pathname === "/admin/login") {
+    return (
+      <div className={`admin-theme ${isLight ? "admin-light" : ""} min-h-screen font-sans`}
+        style={{ background: "var(--admin-bg)", color: "var(--admin-text)" }}>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div
       className={`admin-theme ${isLight ? "admin-light" : ""} flex min-h-screen font-sans`}
