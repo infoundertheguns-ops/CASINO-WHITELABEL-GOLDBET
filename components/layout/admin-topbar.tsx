@@ -80,7 +80,7 @@ export function AdminTopBar({ title, theme = "dark", onToggleTheme, onMenuClick 
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
-            window.location.href = "/login";
+            window.location.href = "/admin/login";
           }}
           className="px-2 py-1 rounded text-[11px] font-semibold transition-colors"
           style={{ color: "var(--admin-text4)", border: "1px solid var(--admin-border)" }}
