@@ -95,17 +95,18 @@ export async function POST(request: NextRequest) {
       const { createClient: createSb } = await import("@supabase/supabase-js");
       const adminSb = createSb(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-      // Check if super admin
-      const { data: userRow } = await adminSb
-        .from("users")
-        .select("is_super_admin, username, agent_id")
-        .eq("id", userId)
+      // Check if super admin (via admin_users table)
+      const { data: adminRow } = await adminSb
+        .from("admin_users")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("is_active", true)
         .maybeSingle();
 
-      if (userRow?.is_super_admin) {
+      if (adminRow) {
         role = "super_admin";
-      } else if (userRow?.agent_id) {
-        // Check if this user IS an agent (not just assigned to one)
+      } else {
+        // Check if this user is an agent
         const { data: agentRow } = await adminSb
           .from("agents")
           .select("id, name, code, level, permissions, status")
