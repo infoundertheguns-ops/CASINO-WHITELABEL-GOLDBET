@@ -6,6 +6,8 @@ import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminTopBar } from "@/components/layout/admin-topbar";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useAdminTheme } from "@/lib/hooks/use-admin-theme";
+import { buildAgentNavigation } from "@/lib/agent-permissions";
+import type { AgentPermissions } from "@/lib/types/agent";
 import type { AdminNavGroup } from "@/lib/types";
 
 // ═══ NAVIGATION STRUCTURE — Betting Only ═══
@@ -77,6 +79,9 @@ export default function AdminLayout({
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userRole, setUserRole] = useState<"super_admin" | "agent" | "loading">("loading");
+  const [agentPermissions, setAgentPermissions] = useState<AgentPermissions | null>(null);
+  const [agentName, setAgentName] = useState("");
 
   const activeId = useMemo(() => {
     const parts = pathname.split("/").filter(Boolean);
@@ -94,8 +99,58 @@ export default function AdminLayout({
     initialize();
   }, [initialize]);
 
+  // Detect user role (super_admin vs agent)
+  useEffect(() => {
+    async function detectRole() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) { setUserRole("super_admin"); return; }
+        const data = await res.json();
+        const userId = data.user?.id;
+        if (!userId) { setUserRole("super_admin"); return; }
+
+        // Check admin_users
+        const adminRes = await fetch(`/api/admin/agents?_check_role=${userId}`);
+        const adminData = await adminRes.json();
+
+        // Find if current user is an agent
+        const agents = adminData.agents || [];
+        const myAgent = agents.find((a: any) => a.user_id === userId);
+
+        if (myAgent) {
+          setUserRole("agent");
+          setAgentPermissions(myAgent.permissions);
+          setAgentName(myAgent.name);
+        } else {
+          setUserRole("super_admin");
+        }
+      } catch {
+        setUserRole("super_admin");
+      }
+    }
+    if (pathname !== "/admin/login") detectRole();
+  }, [pathname]);
+
+  // Build navigation based on role
+  const effectiveNavigation = useMemo(() => {
+    if (userRole === "agent" && agentPermissions) {
+      return buildAgentNavigation(agentPermissions) as AdminNavGroup[];
+    }
+    return NAVIGATION;
+  }, [userRole, agentPermissions]);
+
   const handleNavigate = (id: string) => {
     const routeMap: Record<string, string> = {
+      // Agent routes
+      "agent-dashboard": "/admin/dashboard",
+      "agent-players": "/admin/agents",
+      "agent-subagents": "/admin/agents",
+      "agent-credit": "/admin/agents",
+      "agent-bets": "/admin/sportsbook",
+      "agent-reports": "/admin/financial",
+      "agent-commissions": "/admin/financial",
+      "agent-risk": "/admin/risk",
+      // Super admin routes
       dashboard: "/admin/dashboard",
       bets: "/admin/sportsbook",
       settlement: "/admin/sportsbook",
@@ -141,7 +196,7 @@ export default function AdminLayout({
       style={{ background: "var(--admin-bg)", color: "var(--admin-text)" }}
     >
       <AdminSidebar
-        navigation={NAVIGATION}
+        navigation={effectiveNavigation}
         activeId={activeId}
         onNavigate={handleNavigate}
         collapsed={collapsed}
@@ -152,7 +207,7 @@ export default function AdminLayout({
 
       <div className="flex-1 flex flex-col min-w-0">
         <AdminTopBar
-          title={TITLES[activeId] || "Back Office"}
+          title={userRole === "agent" ? `${agentName || "Agente"}` : (TITLES[activeId] || "Back Office")}
           notificationCount={notifCount}
           theme={theme}
           onToggleTheme={toggle}
