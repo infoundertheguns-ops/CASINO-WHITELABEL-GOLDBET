@@ -69,10 +69,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       stake,
-      selections, // [{ eventId, marketId, outcomeId, odds }]
+      selections, // [{ eventId, marketId, outcomeId, odds }] or ippica format
       fingerprint,
       systemType, // e.g. "2/3", "3/5" — optional, triggers sistema bet
     } = body;
+    const isIppica = body.source === "ippica";
 
     if (!stake || !selections || selections.length === 0) {
       return NextResponse.json({ error: "Dati mancanti", code: "INVALID_REQUEST" }, { status: 400 });
@@ -129,6 +130,56 @@ export async function POST(req: NextRequest) {
     }[] = [];
     let totalOdds = 1;
     let hasLive = false;
+
+    // ── IPPICA PATH — validate against ippica tables ──
+    if (isIppica) {
+      for (const sel of selections) {
+        const { data: odds } = await supabase
+          .from("ippica_odds")
+          .select("id, odds, status, market_id, selection_name, ippica_markets!inner(race_id, market_type, is_active, ippica_races!inner(status, scheduled_at, title))")
+          .eq("id", sel.oddsId)
+          .single();
+
+        if (!odds) {
+          return NextResponse.json({ error: `Quota ippica non trovata: ${sel.oddsId}`, code: "OUTCOME_NOT_FOUND" }, { status: 400 });
+        }
+
+        const market = (odds as any).ippica_markets;
+        const race = market?.ippica_races;
+
+        if (odds.status !== "active") {
+          return NextResponse.json({ error: `Quota sospesa: ${odds.selection_name}`, code: "OUTCOME_SUSPENDED" }, { status: 400 });
+        }
+        if (!market?.is_active) {
+          return NextResponse.json({ error: `Mercato chiuso`, code: "MARKET_SUSPENDED" }, { status: 400 });
+        }
+        if (race?.status === "finished" || race?.status === "abandoned" || race?.status === "running") {
+          return NextResponse.json({ error: `Corsa non accetta scommesse (${race.status})`, code: "EVENT_ENDED" }, { status: 400 });
+        }
+
+        const currentOdds = parseFloat(odds.odds);
+        const clientOdds = parseFloat(sel.odds);
+        if (Math.abs(currentOdds - clientOdds) > tolerance) {
+          return NextResponse.json({ error: "Le quote sono cambiate", code: "ODDS_CHANGED" }, { status: 409 });
+        }
+
+        let timeToKickoff: number | null = null;
+        if (race?.scheduled_at) {
+          timeToKickoff = Math.round((new Date(race.scheduled_at).getTime() - Date.now()) / 60000);
+        }
+
+        totalOdds *= currentOdds;
+        validatedSelections.push({
+          outcome_id: odds.id,
+          market_id: odds.market_id,
+          event_id: market.race_id,
+          odds: currentOdds,
+          outcome_name: odds.selection_name,
+          time_to_kickoff: timeToKickoff,
+        });
+      }
+    } else {
+    // ── SPORT PATH — existing validation ──
 
     for (const sel of selections) {
       const { data: outcome } = await supabase
@@ -195,6 +246,7 @@ export async function POST(req: NextRequest) {
         time_to_kickoff: timeToKickoff,
       });
     }
+    } // end else (sport path)
 
     totalOdds = parseFloat(totalOdds.toFixed(4));
     const potentialWin = parseFloat((stake * totalOdds).toFixed(2));
@@ -521,10 +573,14 @@ export async function POST(req: NextRequest) {
     // ── 10. Insert bet selections ──
     const legs = validatedSelections.map(s => ({
       bet_id: bet.id,
-      event_id: s.event_id,
-      market_id: s.market_id,
-      outcome_id: s.outcome_id,
+      event_id: isIppica ? null : s.event_id,
+      market_id: isIppica ? null : s.market_id,
+      outcome_id: isIppica ? null : s.outcome_id,
       odds_at_placement: s.odds,
+      source: isIppica ? "ippica" : "sport",
+      ippica_race_id: isIppica ? s.event_id : null,
+      ippica_market_id: isIppica ? s.market_id : null,
+      ippica_odds_id: isIppica ? s.outcome_id : null,
     }));
 
     const { error: legsError } = await supabase.from("bet_selections").insert(legs);
