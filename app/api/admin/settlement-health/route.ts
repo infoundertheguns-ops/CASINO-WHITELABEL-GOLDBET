@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
+function formatAge(minutes: number | null): string {
+  if (minutes === null) return "N/A";
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)}h`;
+  return `${Math.round(minutes / 1440)}d`;
+}
+
 export async function GET() {
   const supabase = createAdminClient();
 
@@ -177,13 +185,67 @@ export async function GET() {
       },
     };
 
-    // Overall health
+    // ── Health Score 0-100 ──
+    const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
+    const stuckCount = (stuckEvents || []).length;
+
+    // Subsystem 1: Flashscore Scraper (weight 25)
+    let flashscoreScore = 100;
+    if (flashscoreAge === null) flashscoreScore = 0;
+    else if (flashscoreAge <= 30) flashscoreScore = 100;
+    else if (flashscoreAge >= 360) flashscoreScore = 0;
+    else flashscoreScore = 100 - ((flashscoreAge - 30) / 330) * 100;
+    flashscoreScore = clamp(flashscoreScore);
+
+    // Subsystem 2: Verify Results (weight 30)
+    let verifyScore = 100;
+    if (lastEndedAge === null) verifyScore = 0;
+    else if (lastEndedAge <= 10) verifyScore = 100;
+    else if (lastEndedAge >= 60) verifyScore = 0;
+    else verifyScore = 100 - ((lastEndedAge - 10) / 50) * 100;
+    // Bonus/penalty based on rate
+    const rate1h = settled1h || 0;
+    if (rate1h === 0 && lastEndedAge !== null && lastEndedAge > 30) verifyScore = clamp(verifyScore - 30);
+    verifyScore = clamp(verifyScore);
+
+    // Subsystem 3: Backlog (weight 30)
+    const bl = backlog || 0;
+    let backlogScore = 100;
+    if (bl <= 20) backlogScore = 100;
+    else if (bl >= 500) backlogScore = 0;
+    else backlogScore = 100 - ((bl - 20) / 480) * 100;
+    backlogScore = clamp(backlogScore);
+
+    // Subsystem 4: Stuck Events (weight 15)
+    let stuckScore = 100;
+    if (stuckCount === 0) stuckScore = 100;
+    else if (stuckCount >= 20) stuckScore = 0;
+    else stuckScore = 100 - (stuckCount / 20) * 100;
+    stuckScore = clamp(stuckScore);
+
+    const subsystems = {
+      flashscore: { score: flashscoreScore, weight: 25, label: "Flashscore Scraper", details: `Età: ${formatAge(flashscoreAge)}` },
+      verify_results: { score: verifyScore, weight: 30, label: "Verify Results", details: `Età: ${formatAge(lastEndedAge)}, ${rate1h} settlati/1h` },
+      backlog: { score: backlogScore, weight: 30, label: "Backlog", details: `${bl} eventi in attesa` },
+      stuck: { score: stuckScore, weight: 15, label: "Stuck Events", details: `${stuckCount} stuck > 30 min` },
+    };
+
+    const totalWeight = Object.values(subsystems).reduce((s, sub) => s + sub.weight, 0);
+    const overallScore = clamp(
+      Object.values(subsystems).reduce((s, sub) => s + sub.score * sub.weight, 0) / totalWeight
+    );
+    const overallLevel = overallScore >= 80 ? "healthy" : overallScore >= 50 ? "degraded" : "critical";
+
+    // Overall health (legacy field)
     const statuses = [actors.flashscore.status, actors.verify_results.status, actors.cleanup.status];
     const overallHealth = statuses.includes("critical") ? "critical"
       : statuses.includes("warning") ? "warning" : "healthy";
 
     return NextResponse.json({
       overall: overallHealth,
+      health_score: overallScore,
+      health_level: overallLevel,
+      subsystems,
       backlog: backlog || 0,
       stuck_events: (stuckEvents || []).map((e: any) => ({
         id: e.id,

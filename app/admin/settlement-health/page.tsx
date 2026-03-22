@@ -29,8 +29,18 @@ interface SettlementEntry {
   bets_settled: number;
 }
 
+interface Subsystem {
+  score: number;
+  weight: number;
+  label: string;
+  details: string;
+}
+
 interface HealthData {
   overall: "healthy" | "warning" | "critical";
+  health_score: number;
+  health_level: "healthy" | "degraded" | "critical";
+  subsystems: Record<string, Subsystem>;
   backlog: number;
   stuck_events: StuckEvent[];
   rates: { last_1h: number; last_6h: number; last_24h: number };
@@ -196,15 +206,21 @@ export default function SettlementHealthPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Header */}
+      {/* Header with Score */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{
-            width: 12, height: 12, borderRadius: "50%",
-            background: STATUS_COLOR[data.overall],
-            boxShadow: `0 0 8px ${STATUS_COLOR[data.overall]}80`,
-            display: "inline-block",
-          }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          {/* Big Score Circle */}
+          <div style={{
+            width: 72, height: 72, borderRadius: "50%",
+            border: `3px solid ${data.health_score >= 80 ? "#10b981" : data.health_score >= 50 ? "#f59e0b" : "#ef4444"}`,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            background: `${data.health_score >= 80 ? "#10b981" : data.health_score >= 50 ? "#f59e0b" : "#ef4444"}10`,
+          }}>
+            <span style={{ fontSize: 24, fontWeight: 800, fontFamily: "monospace", color: data.health_score >= 80 ? "#10b981" : data.health_score >= 50 ? "#f59e0b" : "#ef4444" }}>
+              {data.health_score}
+            </span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "var(--admin-text-muted, #94a3b8)", marginTop: -2 }}>/ 100</span>
+          </div>
           <div>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
               Settlement Health
@@ -250,6 +266,47 @@ export default function SettlementHealthPage() {
           subtitle="da inizio evento a settlement"
         />
       </div>
+
+      {/* Subsystem Score Bars */}
+      {data.subsystems && (
+        <div style={{
+          background: "var(--admin-card, #0f172a)",
+          border: "1px solid var(--admin-border, #1e3a5f)",
+          borderRadius: 12, padding: 16,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--admin-text-muted, #94a3b8)", marginBottom: 12 }}>
+            Subsystem Scores
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {Object.entries(data.subsystems).map(([key, sub]) => {
+              const barColor = sub.score >= 80 ? "#10b981" : sub.score >= 50 ? "#f59e0b" : "#ef4444";
+              return (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ width: 140, fontSize: 13, fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>
+                    {sub.label}
+                  </span>
+                  <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{
+                      width: `${sub.score}%`, height: "100%", borderRadius: 4,
+                      background: barColor,
+                      transition: "width 0.5s ease",
+                    }} />
+                  </div>
+                  <span style={{ width: 45, textAlign: "right", fontSize: 14, fontWeight: 800, fontFamily: "monospace", color: barColor }}>
+                    {sub.score}
+                  </span>
+                  <span style={{ width: 30, fontSize: 10, color: "var(--admin-text-muted, #94a3b8)" }}>
+                    /{sub.weight}
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--admin-text-muted, #94a3b8)", minWidth: 180 }}>
+                    {sub.details}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Actors */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
