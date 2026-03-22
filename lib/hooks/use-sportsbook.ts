@@ -451,7 +451,7 @@ export function useSportsbook() {
       const { data, error: fetchErr } = await query
         .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
         .order("starts_at", { ascending: true })
-        .limit(200);
+        .limit(2000);
 
       if (fetchErr) throw fetchErr;
 

@@ -20,13 +20,13 @@ export function useIppica() {
     try {
       const supabase = createClient();
       const today = new Date().toISOString().slice(0, 10);
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
       const { data, error: mErr } = await supabase
         .from("ippica_meetings")
         .select("*")
         .gte("meeting_date", today)
-        .lte("meeting_date", tomorrow)
+        .lte("meeting_date", weekAhead)
         .order("country")
         .order("name");
 
