@@ -79,7 +79,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Dati mancanti", code: "INVALID_REQUEST" }, { status: 400 });
     }
     if (stake < 1) return NextResponse.json({ error: "Puntata minima: $1", code: "MIN_STAKE" }, { status: 400 });
-    if (stake > 10000) return NextResponse.json({ error: "Puntata massima: $10,000", code: "MAX_STAKE" }, { status: 400 });
+
+    // ── 2b. Ticket Limits (from system_config) ──
+    const { data: ticketLimitsRow } = await supabase
+      .from("system_config").select("value").eq("key", "ticket_limits").maybeSingle();
+    if (ticketLimitsRow) {
+      try {
+        const tl = JSON.parse(ticketLimitsRow.value);
+        const betType = isIppica ? "single" : (systemType ? "system" : selections.length === 1 ? "single" : "multi");
+        const maxStake = betType === "single" ? tl.max_stake_single
+          : betType === "multi" ? tl.max_stake_multi : tl.max_stake_system;
+        if (maxStake && stake > maxStake) {
+          return NextResponse.json({ error: `Puntata massima ${betType}: €${maxStake}`, code: "TICKET_LIMIT" }, { status: 400 });
+        }
+        // Day/night limits
+        const now = new Date();
+        const hours = now.getUTCHours() + 1; // CET rough
+        const dayStart = parseInt(tl.day_hours_start || "8");
+        const dayEnd = parseInt(tl.day_hours_end || "22");
+        const isDay = hours >= dayStart && hours < dayEnd;
+        const maxTimeStake = isDay ? tl.max_stake_day : tl.max_stake_night;
+        if (maxTimeStake && stake > maxTimeStake) {
+          return NextResponse.json({ error: `Puntata massima ${isDay ? "diurna" : "notturna"}: €${maxTimeStake}`, code: "TICKET_LIMIT" }, { status: 400 });
+        }
+        // Max potential win
+        // (checked after odds validation below)
+        // Max daily bets
+        if (tl.max_daily_bets) {
+          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+          const { count: todayBetCount } = await supabase
+            .from("bets").select("id", { count: "exact", head: true })
+            .eq("user_id", authUser.id)
+            .gte("created_at", todayStart.toISOString())
+            .not("status", "eq", "rejected");
+          if ((todayBetCount || 0) >= tl.max_daily_bets) {
+            return NextResponse.json({ error: `Limite giornaliero raggiunto (${tl.max_daily_bets} scommesse)`, code: "DAILY_LIMIT" }, { status: 400 });
+          }
+        }
+      } catch { /* invalid config, skip */ }
+    }
 
     // ── 3. Check user_limits ──
     const { data: limits } = await supabase
