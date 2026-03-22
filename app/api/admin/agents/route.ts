@@ -133,6 +133,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Errore creazione account: " + (authError?.message || "") }, { status: 500 });
   }
 
+  // Create user profile FIRST (agents FK references public.users)
+  const agentUsername = username || code.toLowerCase();
+  await supabase.from("users").upsert({
+    id: authUser.user.id,
+    email,
+    username: agentUsername,
+    display_name: name,
+    is_active: true,
+  }, { onConflict: "id" });
+
   // Create agent record
   const { data: agent, error: agentError } = await supabase
     .from("agents")
@@ -158,16 +168,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Errore creazione agente: " + agentError.message }, { status: 500 });
   }
 
-  // Create user profile
-  const agentUsername = username || code.toLowerCase();
-  await supabase.from("users").upsert({
-    id: authUser.user.id,
-    email,
-    username: agentUsername,
-    display_name: name,
-    is_active: true,
-    agent_id: agent.id,
-  }, { onConflict: "id" });
+  // Link user to agent
+  await supabase.from("users").update({ agent_id: agent.id }).eq("id", authUser.user.id);
 
   // If prepaid, create agent wallet
   if (wallet_model === "prepaid") {
