@@ -27,6 +27,7 @@ const NAVIGATION: AdminNavGroup[] = [
     group: "SISTEMA",
     items: [
       { id: "agents", icon: "🏢", label: "Agenti" },
+      { id: "agent-tickets", icon: "🎫", label: "Ticket" },
       { id: "scraper", icon: "🔄", label: "Scraper Monitor" },
       { id: "settlement-health", icon: "💚", label: "Settlement Health" },
       { id: "market-coverage", icon: "📈", label: "Market Coverage" },
@@ -51,6 +52,7 @@ const TITLES: Record<string, string> = {
   risk: "Risk & Trading Desk",
   liability: "Liability Management",
   agents: "Gestione Agenti",
+  "agent-tickets": "Ticket",
   scraper: "Scraper Monitor",
   "settlement-health": "Settlement Health",
   "market-coverage": "Market Coverage",
@@ -80,6 +82,7 @@ export default function AdminLayout({
     if (parts[1] === "market-translations") return "market-translations";
     if (parts[1] === "settlement-health") return "settlement-health";
     if (parts[1] === "agents") return "agents";
+    if (parts[1] === "agent-tickets") return "agent-tickets";
     if (parts[1] === "risk") return "risk";
     return parts[parts.length - 1] || "dashboard";
   }, [pathname]);
@@ -96,6 +99,7 @@ export default function AdminLayout({
       risk: "/admin/risk",
       liability: "/admin/risk",
       agents: "/admin/agents",
+      "agent-tickets": "/admin/agent-tickets",
       scraper: "/admin/scraper",
       "settlement-health": "/admin/settlement-health",
       "market-coverage": "/admin/market-coverage",
