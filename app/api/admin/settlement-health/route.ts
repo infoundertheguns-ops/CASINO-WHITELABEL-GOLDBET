@@ -118,10 +118,20 @@ export async function GET() {
       .limit(1)
       .single();
 
-    // ── 9. Verify-results cron — check latest settlement_log ──
-    const latestSettlement = recentSettlement?.[0];
-    const lastSettlementAge = latestSettlement
-      ? Math.round((now.getTime() - new Date(latestSettlement.created_at).getTime()) / 60000)
+    // ── 9. Verify-results cron — use latest ended event as proxy ──
+    // (settlement_log is not actively written by current flow)
+    const { data: latestEnded } = await supabase
+      .from("events")
+      .select("updated_at")
+      .eq("source", "kambi")
+      .eq("status", "ended")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    const lastEndedAt = latestEnded?.updated_at || null;
+    const lastEndedAge = lastEndedAt
+      ? Math.round((now.getTime() - new Date(lastEndedAt).getTime()) / 60000)
       : null;
 
     // ── 10. Ippica settlement health ──
@@ -155,12 +165,13 @@ export async function GET() {
         matched_24h: fsMatched24h || 0,
       },
       verify_results: {
-        status: lastSettlementAge !== null && lastSettlementAge < 15 ? "healthy" : lastSettlementAge !== null && lastSettlementAge < 30 ? "warning" : "critical",
-        last_settlement: latestSettlement?.created_at || null,
-        age_minutes: lastSettlementAge,
+        status: lastEndedAge !== null && lastEndedAge < 15 ? "healthy" : lastEndedAge !== null && lastEndedAge < 60 ? "warning" : "critical",
+        last_settlement: lastEndedAt,
+        age_minutes: lastEndedAge,
+        settled_1h: settled1h || 0,
       },
       cleanup: {
-        status: healthLogAge !== null && healthLogAge < 300 ? "healthy" : "warning",
+        status: healthLogAge !== null && healthLogAge < 300 ? "healthy" : healthLogAge !== null && healthLogAge < 480 ? "warning" : "critical",
         last_run: healthLog?.created_at || null,
         age_minutes: healthLogAge,
       },

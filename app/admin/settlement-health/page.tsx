@@ -138,6 +138,12 @@ function ActorCard({ name, icon, actor, description }: { name: string; icon: str
             {formatAge(age)}
           </span>
         </div>
+        {(actor as any).settled_1h !== undefined && (
+          <div>
+            <span style={{ color: "var(--admin-text-muted, #94a3b8)" }}>Settlati 1h: </span>
+            <span style={{ color: "var(--admin-text, #e2e8f0)", fontWeight: 600 }}>{(actor as any).settled_1h}</span>
+          </div>
+        )}
         {actor.matched_24h !== undefined && (
           <div>
             <span style={{ color: "var(--admin-text-muted, #94a3b8)" }}>Matchati 24h: </span>
