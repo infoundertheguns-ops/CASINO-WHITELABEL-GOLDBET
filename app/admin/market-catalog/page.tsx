@@ -2,8 +2,11 @@
 
 // E4 — Market Explorer (previously "Market Catalog").
 // Two tabs:
-//   - Explorer: sport → event → cross-source odds table (Kambi | 22bet | Betfair)
-//   - Dictionary 22bet: the legacy 22bet group/outcome dictionary (moved to secondary tab).
+//   - Explorer: sport → event → cross-source odds table (legacy column layout
+//     preserved; columns currently bound to legacy source keys for backward
+//     compatibility — to be repointed to flashscore/odds-api in a future pass).
+//   - Dictionary: legacy source group/outcome dictionary (preserved as
+//     read-only secondary tab; underlying DB tables still exist).
 
 export const dynamic = "force-dynamic";
 
@@ -51,14 +54,14 @@ function MarketExplorerContent() {
           Market Explorer
         </h1>
         <p style={{ fontSize: 13, color: "var(--admin-text-muted)", marginTop: 4, marginBottom: 0 }}>
-          Esplora mercati e quote cross-source (Kambi · 22bet · Betfair) per evento; seconda scheda è il dizionario 22bet.
+          Esplora mercati e quote cross-source per evento; seconda scheda è il dizionario legacy.
         </p>
       </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--admin-border)" }}>
         <TabButton label="Explorer" active={tab === "explorer"} onClick={() => updateFilter("tab", "explorer")} />
-        <TabButton label="Dizionario 22bet" active={tab === "dictionary"} onClick={() => updateFilter("tab", "dictionary")} />
+        <TabButton label="Dizionario (legacy)" active={tab === "dictionary"} onClick={() => updateFilter("tab", "dictionary")} />
       </div>
 
       {tab === "explorer" ? <ExplorerTab /> : <DictionaryTab />}
@@ -231,7 +234,7 @@ function ExplorerTab() {
   );
 }
 
-// ═══ DICTIONARY TAB (preserved 22bet dictionary) ═══
+// ═══ DICTIONARY TAB (preserved legacy source dictionary) ═══
 
 function DictionaryTab() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -310,7 +313,7 @@ function DictionaryTab() {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* KPIs — E9 shared primitive */}
       <KpiRow minWidth={180}>
-        <SharedKpi label="Gruppi 22bet" value={stats?.groups ?? "—"} accent="#f97316" sub="template del dizionario" />
+        <SharedKpi label="Gruppi (legacy)" value={stats?.groups ?? "—"} accent="#f97316" sub="template del dizionario" />
         <SharedKpi label="Outcomes" value={stats?.outcomes ?? "—"} accent="#f97316" sub="template del dizionario" />
         <SharedKpi
           label="Righe normalizzazione"
@@ -346,7 +349,7 @@ function DictionaryTab() {
           <option value="500">500 per pagina</option>
         </select>
         <button onClick={triggerSync} disabled={syncing} style={btnStyle("#f97316")}>
-          {syncing ? "Sync…" : "Aggiorna dizionario 22bet"}
+          {syncing ? "Sync…" : "Aggiorna dizionario (legacy)"}
         </button>
       </div>
 
@@ -371,7 +374,7 @@ function DictionaryTab() {
               <GroupRowView key={g.twobet_g} row={g} outcomes={expanded[g.twobet_g]} onToggle={() => toggleGroup(g.twobet_g)} />
             ))}
             {!loading && groups.length === 0 && (
-              <tr><td colSpan={3} style={{ padding: 32, textAlign: "center", color: "var(--admin-text-muted)" }}>Nessun gruppo. {stats?.groups === 0 && 'Clicca "Aggiorna dizionario 22bet".'}</td></tr>
+              <tr><td colSpan={3} style={{ padding: 32, textAlign: "center", color: "var(--admin-text-muted)" }}>Nessun gruppo. {stats?.groups === 0 && 'Clicca "Aggiorna dizionario (legacy)".'}</td></tr>
             )}
           </tbody>
         </table>

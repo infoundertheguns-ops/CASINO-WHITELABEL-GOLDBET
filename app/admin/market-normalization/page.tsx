@@ -6,7 +6,7 @@
 //  - notes editable inline — UX H
 //  - shared Pagination primitive — UX I
 //  - canonical_key validation hint vs canonical_keys list — UX K
-//  - link to Market Catalog for 22bet rows — UX M
+//  - link to Market Catalog for source dictionary rows — UX M
 //  - bulk-clear + bulk-assign buttons — spec L
 //  - lang filter scope hint — UX G
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ import {
 import { GlossaryTerm, Pagination } from "@/components/admin/ui";
 
 interface Row {
-  source: "kambi" | "22bet" | "betfair";
+  source: "flashscore" | "odds-api";
   source_market_type: string;
   event_count: number;
   market_count: number;
@@ -55,10 +55,9 @@ interface CanonicalKey { canonical_key: string; canonical_name_it: string; count
 interface EngineSummary { processed: number; matched: { regex: number; dictionary: number; propagation: number }; unmatched: number; remaining: number; took_ms: number; }
 
 const SOURCE_OPTS = [
-  { value: "all",     label: "Tutti" },
-  { value: "kambi",   label: "Kambi" },
-  { value: "22bet",   label: "22bet" },
-  { value: "betfair", label: "Betfair" },
+  { value: "all",        label: "Tutti" },
+  { value: "flashscore", label: "Flashscore" },
+  { value: "odds-api",   label: "Odds-API" },
 ];
 
 const CONF_OPTS = [
@@ -92,7 +91,7 @@ export default function MarketNormalizationPage() {
 
 function MarketNormalizationContent() {
   const { filters, updateFilter, setFilters } = useAdminFilters({
-    source: "all" as "all" | "kambi" | "22bet" | "betfair",
+    source: "all" as "all" | "flashscore" | "odds-api",
     q: "",
     only_unmapped: false as boolean,
     only_unverified: false as boolean,
@@ -111,7 +110,7 @@ function MarketNormalizationContent() {
   const lang           = filters.lang as string;
   const canonicalFilter = filters.canonical as string;
   const page           = Number(filters.page) || 1;
-  const setSource         = (v: "all" | "kambi" | "22bet" | "betfair") => setFilters({ source: v, page: 1 });
+  const setSource         = (v: "all" | "flashscore" | "odds-api") => setFilters({ source: v, page: 1 });
   const setQ              = (v: string)  => setFilters({ q: v, page: 1 });
   const setOnlyUnmapped   = (v: boolean) => setFilters({ only_unmapped: v, page: 1 });
   const setOnlyUnverified = (v: boolean) => setFilters({ only_unverified: v, page: 1 });
@@ -431,14 +430,6 @@ function MarketNormalizationContent() {
                   <td style={tdStyle}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontWeight: 500, color: "var(--admin-text)" }}>{r.source_market_type}</span>
-                      {r.source === "22bet" && (
-                        <a
-                          href={`/admin/market-catalog?q=${encodeURIComponent(r.source_market_type)}`}
-                          title="Apri voce dizionario 22bet"
-                          style={{ fontSize: 10, color: "#f97316", textDecoration: "none" }}
-                          onClick={(e) => e.stopPropagation()}
-                        >📖</a>
-                      )}
                     </div>
                     {r.last_mapped_at && <div style={{ fontSize: 10, color: "var(--admin-text-muted)", marginTop: 2 }}>aggiornato {timeAgo(r.last_mapped_at)}</div>}
                   </td>

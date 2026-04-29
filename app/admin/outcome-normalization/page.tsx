@@ -24,7 +24,7 @@ import { Pagination } from "@/components/admin/ui";
 
 interface Row {
   id: number;
-  source: "kambi" | "22bet" | "betfair";
+  source: "flashscore" | "odds-api";
   source_market_type: string;
   source_outcome_name: string;
   canonical_key: string | null;
@@ -42,10 +42,9 @@ interface Kpis {
 interface CanonicalMarket { canonical_key: string; canonical_name_it: string; count: number; }
 
 const SOURCES = [
-  { value: "all",     label: "Tutti",    color: "#64748b" },
-  { value: "kambi",   label: "Kambi",    color: "#8b5cf6" },
-  { value: "22bet",   label: "22bet",    color: "#f97316" },
-  { value: "betfair", label: "Betfair",  color: "#eab308" },
+  { value: "all",        label: "Tutti",      color: "#64748b" },
+  { value: "flashscore", label: "Flashscore", color: "#8b5cf6" },
+  { value: "odds-api",   label: "Odds-API",   color: "#22c55e" },
 ] as const;
 
 export default function OutcomeNormalizationPage() {
@@ -275,7 +274,7 @@ function OutcomeNormalizationContent() {
           Outcome Normalization
         </h1>
         <p style={{ fontSize: 13, color: "var(--admin-text-muted)", marginTop: 4, marginBottom: 0 }}>
-          Mappatura source_outcome_name → canonical_outcome_key per kambi / 22bet / betfair. Guida shade-to-min su canonicali verified.
+          Mappatura source_outcome_name → canonical_outcome_key per flashscore / odds-api. Guida shade-to-min su canonicali verified.
         </p>
       </div>
 

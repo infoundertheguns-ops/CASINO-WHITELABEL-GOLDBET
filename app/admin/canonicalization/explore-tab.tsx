@@ -25,12 +25,11 @@ function GroupTypeBadge({ type }: { type: TGroup['group_type'] }) {
 }
 
 // Country grouping helper.
-// IMPORTANT: country strings come from heterogeneous sources — Kambi uses
-// Italian labels ("Italia", "Francia"), 22bet uses English ("Italy", "France"),
-// and country_code is also inconsistent (Kambi: "italia"; 22bet: "it"). We
-// normalize via an explicit ISO/alias → canonical-Italian-label map; if a
-// country isn't in the map, fall back to lower-case country string + Title
-// Case display. This collapses Italy↔Italia into one bucket.
+// IMPORTANT: country strings come from heterogeneous sources with mixed
+// Italian/English labels and inconsistent country_code values. We normalize
+// via an explicit ISO/alias → canonical-Italian-label map; if a country
+// isn't in the map, fall back to lower-case country string + Title Case
+// display. This collapses Italy↔Italia into one bucket.
 interface CountryBucket {
   country: string;
   leagues: BrowseLeague[];
@@ -303,7 +302,7 @@ export function ExploreTab() {
           download
           className="px-3 py-2 border rounded text-xs hover:bg-black/5"
           style={{ borderColor: 'var(--admin-border)' }}
-          title="Scarica un CSV con tutti i gruppi (kambi/22bet/betfair) su una riga"
+          title="Scarica un CSV con tutti i gruppi (una riga per cluster cross-source)"
         >
           📥 Esporta CSV (tutti i gruppi)
         </a>

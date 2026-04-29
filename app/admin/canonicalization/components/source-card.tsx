@@ -4,9 +4,8 @@ import type { SourceEventCard } from '@/lib/admin/canonicalization-types';
 import { StatusIcon } from './status-icon';
 
 const SOURCE_LABELS: Record<string, string> = {
-  kambi: 'KAMBI',
-  '22bet': '22BET',
-  betfair: 'BETFAIR',
+  flashscore: 'FLASHSCORE',
+  'odds-api': 'ODDS-API',
   unknown: '?',
 };
 

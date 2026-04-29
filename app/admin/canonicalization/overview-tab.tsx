@@ -59,7 +59,9 @@ export function OverviewTab() {
         }
         perSource={
           <>
-            kambi: {data.level_2_leagues.per_source.kambi.unknown} unknown · 22bet: {data.level_2_leagues.per_source['22bet'].unknown} unknown · betfair: {data.level_2_leagues.per_source.betfair.unknown} unknown
+            {Object.entries(data.level_2_leagues.per_source)
+              .map(([src, v]) => `${src}: ${v.unknown} unknown`)
+              .join(' · ')}
           </>
         }
       />
@@ -85,11 +87,9 @@ export function OverviewTab() {
         }
         perSource={
           <>
-            kambi: {data.level_3_events.per_source.kambi.mapped}/{data.level_3_events.per_source.kambi.total} ({formatPct(data.level_3_events.per_source.kambi.pct)})
-            {' · '}
-            22bet: {data.level_3_events.per_source['22bet'].mapped}/{data.level_3_events.per_source['22bet'].total} ({formatPct(data.level_3_events.per_source['22bet'].pct)})
-            {' · '}
-            betfair: {data.level_3_events.per_source.betfair.mapped}/{data.level_3_events.per_source.betfair.total} ({formatPct(data.level_3_events.per_source.betfair.pct)})
+            {Object.entries(data.level_3_events.per_source)
+              .map(([src, v]) => `${src}: ${v.mapped}/${v.total} (${formatPct(v.pct)})`)
+              .join(' · ')}
           </>
         }
         drillDownHref="/admin/event-normalization"
