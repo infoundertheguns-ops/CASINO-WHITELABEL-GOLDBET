@@ -43,7 +43,7 @@ Before starting Phase 1, confirm:
 |---|---|---|
 | `lib/settlement/market-classification.ts` | TS dict `MARKET_CATEGORIES` + helpers `classify()`, `isScoreOnly()`, `requiresStats()`, `requiresPlayer()` | ~150 |
 | `lib/settlement/market-categories-seed.json` | Generated artifact — JSON dump of `MARKET_CATEGORIES`, committed to git for reproducibility | ~auto |
-| `lib/settlement/odds-api-result.ts` | `buildResultFromOddsApi(events_v2.scores)` returning the same `Result` shape `buildResult()` produces today | ~100 |
+| `lib/settlement/odds-api-result.ts` | `buildResultFromOddsApi(score_home, score_away, period_scores, sport_slug)` returning the same `Result` shape `buildResult()` produces today | ~100 |
 | `lib/settlement/stats-settlers.ts` | `STATS_SETTLERS` dispatch (corners, cards, shots, tackles), reading from `events.live_data.stats` | ~250 |
 | `lib/settlement/player-settlers.ts` | `PLAYER_SETTLERS` dispatch (anytime/multi/team goalscorer, player props), reading from `events.live_data.scorers` | ~200 |
 | `app/api/cron/odds-api-settle/route.ts` | New cron endpoint, every 1 min via systemd timer | ~250 |
@@ -134,13 +134,45 @@ FROM events
 WHERE updated_at > NOW() - INTERVAL '24 hours'
   AND live_data ? 'stats';
 
--- Query 4: % events_v2 with mapped_event_id (predicts Trigger A coverage)
-SELECT 
-  count(*) FILTER (WHERE mapped_event_id IS NOT NULL) AS mapped,
+-- Query 4: % events_v2 mapped to legacy events via 'odds-api:' external_id (Trigger A coverage)
+-- NOTE: there is NO `mapped_event_id` column on events_v2. Mapping is implicit by string concat:
+--   events.external_id = 'odds-api:' || events_v2.odds_api_id::text
+SELECT
+  count(*) FILTER (WHERE EXISTS(
+    SELECT 1 FROM events e WHERE e.external_id = 'odds-api:' || e2.odds_api_id::text
+  )) AS mapped,
   count(*) AS total,
-  round(100.0 * count(*) FILTER (WHERE mapped_event_id IS NOT NULL) / count(*), 1) AS pct_mapped
-FROM events_v2
-WHERE date_iso > NOW() - INTERVAL '30 days';
+  round(100.0 * count(*) FILTER (WHERE EXISTS(
+    SELECT 1 FROM events e WHERE e.external_id = 'odds-api:' || e2.odds_api_id::text
+  )) / NULLIF(count(*), 0), 1) AS pct_mapped
+FROM events_v2 e2
+WHERE e2.starts_at > NOW() - INTERVAL '30 days';
+
+-- Query 5 (NEW): catalog shrinkage prediction using legacy events.flashscore_id
+WITH catalog AS (
+  SELECT
+    m.market_type,
+    e.flashscore_id IS NOT NULL AS has_fs,
+    CASE
+      WHEN m.market_type ~* '(corner|cartellin|card|tiri|shot|tackle|fall|foul|salvataggi)' THEN 'stats'
+      WHEN m.market_type ~* '(marcator|player|scorer|assist|giocatore)' THEN 'player'
+      WHEN m.market_type ~* '(method|metodo|first 10|primi 10|specials?)' THEN 'special'
+      ELSE 'score'
+    END AS category
+  FROM markets m
+  JOIN events e ON e.id = m.event_id
+  WHERE e.external_id LIKE 'odds-api:%' AND m.is_active = true
+)
+SELECT category, has_fs, count(*) AS markets,
+  CASE
+    WHEN category = 'score' THEN 'KEEP'
+    WHEN category IN ('stats','player') AND has_fs THEN 'KEEP'
+    WHEN category IN ('stats','player') THEN 'FILTER (no-fs)'
+    ELSE 'FILTER (special)'
+  END AS filter_decision
+FROM catalog
+GROUP BY category, has_fs
+ORDER BY category, has_fs DESC;
 ```
 
 - [ ] **Step 2: Run on prod via apply-mig.mjs read-only mode (or psql)**
@@ -291,7 +323,7 @@ export type Category = 'score' | 'stats' | 'player' | 'special';
  *   3. include the regenerated JSON + a migration row insert in the same PR
  */
 export const MARKET_CATEGORIES: Readonly<Record<string, Category>> = Object.freeze({
-  // ========== 🟢 SCORE-ONLY (settable from events_v2.scores + periods) ==========
+  // ========== 🟢 SCORE-ONLY (settable from events_v2.score_home/away + period_scores) ==========
   '1X2': 'score',
   '1X2 1T': 'score',
   '1X2 2T': 'score',
@@ -507,7 +539,7 @@ ALTER TABLE events_v2
   ADD COLUMN IF NOT EXISTS last_settled_at TIMESTAMPTZ NULL;
 
 CREATE INDEX IF NOT EXISTS idx_events_v2_settled_pending
-  ON events_v2 (date_iso ASC)
+  ON events_v2 (starts_at ASC)
   WHERE status = 'settled' AND last_settled_at IS NULL;
 
 COMMENT ON COLUMN events_v2.last_settled_at IS
@@ -1328,6 +1360,10 @@ GRANT EXECUTE ON FUNCTION is_market_exposable(TEXT, BOOLEAN) TO anon, authentica
 -- ========== Part B: dry-run sibling RPC ==========
 -- Returns the diff: markets that the live derive_legacy_from_v2() currently produces but the new
 -- filter would remove. Used during 24h Phase 1.5 dry-run observation.
+--
+-- IMPORTANT: filter source is `events.flashscore_id` (legacy table, populated by FS matcher),
+-- NOT `events_v2.flashscore_id` (which is 100% NULL on prod — the column exists but no writer
+-- ever populates it). See R10 in spec §12.
 
 DROP FUNCTION IF EXISTS derive_legacy_from_v2_filter_diff();
 CREATE FUNCTION derive_legacy_from_v2_filter_diff()
@@ -1353,7 +1389,8 @@ AS $$
     END AS reason
   FROM markets m
   JOIN events e ON e.id = m.event_id
-  WHERE m.is_active = true;
+  WHERE m.is_active = true
+    AND e.external_id LIKE 'odds-api:%';  -- only odds-api-derived events; legacy kambi/etc unaffected
 $$;
 
 GRANT EXECUTE ON FUNCTION derive_legacy_from_v2_filter_diff() TO anon, authenticated, service_role;
@@ -1439,15 +1476,41 @@ If observation green → proceed to Step 6 (cutover). If red → root-cause and 
 
 Author `supabase/migrations/154b_derive_legacy_cutover.sql` AND its rollback `supabase/migrations/154b_derive_legacy_cutover_rollback.sql` IN THE SAME COMMIT.
 
+**CRITICAL**: the filter must read `e_legacy.flashscore_id` (legacy events table, populated by FS matcher), NOT `e2.flashscore_id` (v2 column is always NULL on prod). The captured derive body (Step 1) already joins legacy events as `e_legacy ON e_legacy.external_id = 'odds-api:' || e2.odds_api_id::text` inside the `legacy_markets_src` CTE — this is the join point where the filter belongs.
+
 Procedure:
 1. Open `supabase/migrations/_captured/derive_legacy_from_v2_pre_v2_filter.sql` (from Step 1).
 2. Copy its full body into both files.
-3. In `154b_derive_legacy_cutover.sql`: locate the `INSERT INTO markets ... SELECT ... FROM markets_v2 m_v2 JOIN events_v2 e_v2 ...` (or the equivalent merge/upsert) and add the filter to its WHERE clause:
+3. In `154b_derive_legacy_cutover.sql`: locate the `legacy_markets_src` CTE. It already computes `_oddsapi_translate_market(ml.market_name, sp.slug)` and concatenates the line. Add the filter clause to the CTE's WHERE so non-exposable rows are excluded BEFORE deduplication and INSERT:
    ```sql
-   WHERE is_market_exposable(m_v2.market_type_translated, e_v2.flashscore_id IS NOT NULL)
-     AND <other existing conditions>
+   legacy_markets_src AS (
+     SELECT
+       e_legacy.id AS legacy_event_id,
+       sp.slug AS sport_slug,
+       ml.v2_market_id,
+       ml.bookmaker,
+       ml.market_name AS raw_name,
+       _oddsapi_translate_market(ml.market_name, sp.slug) AS translated_name,
+       ml.line,
+       CASE WHEN ml.line IS NULL
+            THEN _oddsapi_translate_market(ml.market_name, sp.slug)
+            ELSE _oddsapi_translate_market(ml.market_name, sp.slug) || ' ' || ml.line::text
+       END AS market_type_label
+     FROM market_lines ml
+     JOIN events_v2 e2 ON e2.id = ml.v2_event_id
+     JOIN sports sp ON sp.slug = _sport_slug_en_to_it(e2.sport_slug)
+     JOIN events e_legacy ON e_legacy.external_id = 'odds-api:' || e2.odds_api_id::text
+     -- NEW v2 filter:
+     WHERE is_market_exposable(
+       CASE WHEN ml.line IS NULL
+            THEN _oddsapi_translate_market(ml.market_name, sp.slug)
+            ELSE _oddsapi_translate_market(ml.market_name, sp.slug) || ' ' || ml.line::text
+       END,
+       e_legacy.flashscore_id IS NOT NULL
+     )
+   ),
    ```
-   If outcomes are derived in a separate INSERT inside the same function (or in `derive_legacy_from_v2_outcomes()` etc), apply the same filter at the outcome→market join.
+   The same filter applies implicitly to `out_src` (outcomes) because outcomes JOIN on `markets m_legacy` which is already filtered (no row in `markets` → no matching outcome row).
 4. In `154b_derive_legacy_cutover_rollback.sql`: paste the captured body verbatim (no filter clause). This restores pre-cutover behavior in a single transaction if Step 7 monitoring fails.
 
 Apply staging:
@@ -2135,14 +2198,15 @@ export async function POST(req: NextRequest) {
     errors: [] as string[],
   };
 
-  // 1. Pull settled events_v2 with no last_settled_at
+  // 1. Pull settled events_v2 with no last_settled_at.
+  // NOTE: there is NO `mapped_event_id` column. Mapping to legacy events is implicit via
+  // `events.external_id = 'odds-api:' || events_v2.odds_api_id::text`. We resolve per-row below.
   const { data: evs, error: evsErr } = await supa
     .from('events_v2')
-    .select('id, scores, sport_slug, mapped_event_id, date_iso')
+    .select('id, odds_api_id, score_home, score_away, period_scores, sport_slug, starts_at')
     .eq('status', 'settled')
     .is('last_settled_at', null)
-    .not('mapped_event_id', 'is', null)
-    .order('date_iso', { ascending: true })
+    .order('starts_at', { ascending: true })
     .limit(50);
 
   if (evsErr) {
@@ -2154,13 +2218,31 @@ export async function POST(req: NextRequest) {
 
   for (const ev of evs) {
     try {
-      const result = buildResultFromOddsApi(ev.scores, ev.sport_slug);
+      const result = buildResultFromOddsApi(
+        ev.score_home, ev.score_away, ev.period_scores, ev.sport_slug
+      );
       if (!result) {
         stats.errors.push(`event ${ev.id}: scores unparseable`);
         continue;
       }
 
-      // Fetch all pending legs for the legacy mapped event
+      // Resolve legacy event via implicit external_id mapping (no FK column)
+      const externalId = `odds-api:${ev.odds_api_id}`;
+      const { data: legacyEv, error: legacyErr } = await supa
+        .from('events')
+        .select('id')
+        .eq('external_id', externalId)
+        .maybeSingle();
+
+      if (legacyErr || !legacyEv) {
+        // derive_legacy_from_v2() hasn't created the legacy row yet (event outside the 2d-back/14d-forward
+        // derive window, or derive cron lag). Mark settled — Trigger B (verify-results) will catch it via FS.
+        await supa.from('events_v2').update({ last_settled_at: new Date().toISOString() }).eq('id', ev.id);
+        stats.unmapped_legacy = (stats.unmapped_legacy ?? 0) + 1;
+        continue;
+      }
+
+      // Fetch all pending legs on the legacy event
       const { data: legs } = await supa
         .from('bet_selections')
         .select(`
@@ -2168,7 +2250,8 @@ export async function POST(req: NextRequest) {
           markets!inner(market_type, line),
           outcomes!inner(name)
         `)
-        .eq('event_id', ev.mapped_event_id);
+        .eq('event_id', legacyEv.id)
+        .is('result', null);
 
       const scoreLegs = (legs ?? []).filter(l => classify((l.markets as any).market_type) === 'score');
       const otherLegs = (legs ?? []).filter(l => classify((l.markets as any).market_type) !== 'score');
@@ -2196,7 +2279,11 @@ export async function POST(req: NextRequest) {
             real_verdict: leg.result,  // current state — may be NULL if not yet settled by FS
             shadow_verdict: verdict,
             shadow_source: 'odds-api',
-            shadow_payload: { scores: ev.scores },
+            shadow_payload: {
+              score_home: ev.score_home,
+              score_away: ev.score_away,
+              period_scores: ev.period_scores,
+            },
           });
           stats.score_legs_logged++;
         } else {

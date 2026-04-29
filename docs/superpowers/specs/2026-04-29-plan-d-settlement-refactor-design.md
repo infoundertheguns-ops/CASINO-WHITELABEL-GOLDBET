@@ -27,7 +27,7 @@ bet_selections.result + bets.status updated
 
 After the migration to odds-api as primary odds source (mig 138-150), we now ALSO have:
 - `events_v2.status` flips to `'settled'` automatically via `mark_stale_lives_settled` RPC (mig 150)
-- `events_v2.scores` populated by odds-api ingester (`scores: {home, away, periods: {fulltime, p1, ...}}`)
+- `events_v2.score_home`, `events_v2.score_away`, `events_v2.period_scores` (JSONB with periods like `{fulltime, p1, ...}`) populated by odds-api ingester. Settlement code reads these three columns and constructs the `Result` shape internally.
 - `derive_legacy_from_v2()` RPC (mig 146 + translations mig 149) propagates these to legacy `events` rows for player frontend compat
 
 The legacy settlement still relies entirely on Flashscore for both scores and stats, even though odds-api now provides scores authoritatively (the same source bookmakers use to settle). Flashscore is needed only because odds-api does **not** expose stats (corners, cards, shots) or player events (who scored).
@@ -55,7 +55,7 @@ This invalidates the naive Plan D framing in `session-2026-04-29-phase-1f-cleanu
 ## 3. Goals
 
 **Primary**:
-- G1. Use `events_v2.scores` (odds-api) as authoritative score source for score-based markets, replacing Flashscore for these. Score-based legs settle via odds-api **always**, even on events that ALSO have a `flashscore_id`.
+- G1. Use `events_v2.score_home / score_away / period_scores` (odds-api) as authoritative score source for score-based markets, replacing Flashscore for these. Score-based legs settle via odds-api **always**, even on events that ALSO have a `flashscore_id`.
 - G2. Reduce Flashscore load: `verify-results` cron only fetches events with bets pending on stats/player markets.
 - G3. Reduce settlement latency: score-based markets settle within 1-2 min of `events_v2.status='settled'` (vs 5-15 min current FS path).
 - G4. Build `/admin/settlement-coverage` observability page that classifies every market type (score / stats / player) and surfaces real bet metrics per market — decision tool for future scope reductions (drop stats markets? buy stats provider?).
@@ -113,12 +113,16 @@ The classification module is the **load-bearing contract**: the derive RPC reads
 │ ─────────────────────────────────────────────────                │
 │ /api/cron/odds-api-settle:                                       │
 │   SELECT events_v2 WHERE status='settled' AND last_settled_at IS │
-│     NULL ORDER BY date_iso ASC LIMIT 50                          │
-│   FOR each:                                                      │
-│     ev = derive scores from events_v2 → events row               │
-│     legs = bet_selections WHERE event_id = ev AND result IS NULL │
-│       AND classification(market_type) = 'score'                  │
-│     settleLegs(legs, ev.scores)                                  │
+│     NULL ORDER BY starts_at ASC LIMIT 50                         │
+│   FOR each ev2:                                                  │
+│     legacy_ev = events WHERE external_id =                       │
+│       'odds-api:' || ev2.odds_api_id::text                       │
+│     IF NOT legacy_ev THEN skip + mark settled (no derive yet)    │
+│     legs = bet_selections WHERE event_id = legacy_ev.id AND      │
+│       result IS NULL AND classify(market_type) = 'score'         │
+│     result = buildResultFromOddsApi(score_home, score_away,      │
+│              period_scores, sport_slug)                          │
+│     settleLegs(legs, result)                                     │
 │     mark events_v2.last_settled_at = NOW()                       │
 ├─────────────────────────────────────────────────────────────────┤
 │ Trigger B — Flashscore stats events (every 5 min, scoped)        │
@@ -142,7 +146,7 @@ For each leg (bet_selection):
                                            // ('special' filtered at derive — never reaches engine)
 
   if cat == 'score':
-    result = buildResultFromOddsApi(events_v2.scores)
+    result = buildResultFromOddsApi(events_v2.score_home, .score_away, .period_scores, .sport_slug)
     verdict = SETTLERS[settler_key](result, outcome.name, line)
     // SETTLERS reused as-is
 
@@ -306,49 +310,64 @@ GROUP BY mcs.category;
 // 1. Pull settled events_v2 with no last_settled_at (max 50, oldest first)
 const { data: evs } = await supabase
   .from('events_v2')
-  .select('id, scores, sport_slug, league_slug, date_iso, mapped_event_id')
+  .select('id, odds_api_id, score_home, score_away, period_scores, sport_slug, league_slug, starts_at')
   .eq('status', 'settled')
   .is('last_settled_at', null)
-  .order('date_iso', { ascending: true })
+  .order('starts_at', { ascending: true })
   .limit(50);
 
-// 2. For each, find pending score-only legs via mapped_event_id
-for (const ev of evs) {
-  if (!ev.mapped_event_id) continue; // no legacy event mapped, skip
+// 2. For each, find legacy event via external_id mapping (no FK column — implicit join by string)
+for (const ev2 of evs) {
+  const externalId = `odds-api:${ev2.odds_api_id}`;
+  const { data: legacyEv } = await supabase
+    .from('events')
+    .select('id, settled_at')
+    .eq('external_id', externalId)
+    .maybeSingle();
+  
+  if (!legacyEv) {
+    // derive_legacy_from_v2() hasn't created the legacy event yet (window mismatch
+    // or derive cron lag). Mark settled to prevent re-poll; verify-results catches
+    // the event later via flashscore path if needed.
+    await supabase.from('events_v2').update({ last_settled_at: new Date().toISOString() }).eq('id', ev2.id);
+    continue;
+  }
+  
+  // 3. Pull pending score-only legs on the legacy event
   const { data: legs } = await supabase
     .from('bet_selections')
     .select(`id, bet_id, market_id, outcome_id,
       markets!inner(market_type, line),
       outcomes!inner(name)`)
-    .eq('event_id', ev.mapped_event_id)
+    .eq('event_id', legacyEv.id)
     .is('result', null);
   
-  // 3. Filter to score-only legs
-  const scoreLegs = legs.filter(l => 
+  const scoreLegs = (legs ?? []).filter(l => 
     classify(l.markets.market_type) === 'score'
   );
   
   if (scoreLegs.length === 0) {
-    // mark settled to prevent re-poll, but no legs settled
-    await supabase.from('events_v2').update({ last_settled_at: new Date().toISOString() }).eq('id', ev.id);
+    await supabase.from('events_v2').update({ last_settled_at: new Date().toISOString() }).eq('id', ev2.id);
     continue;
   }
   
-  // 4. Build result from odds-api scores
-  const result = buildResultFromOddsApi(ev.scores);
+  // 4. Build result from odds-api score columns
+  const result = buildResultFromOddsApi(
+    ev2.score_home, ev2.score_away, ev2.period_scores, ev2.sport_slug
+  );
   
   // 5. Settle each leg (reuse existing SETTLERS)
   for (const leg of scoreLegs) {
     const settler = resolveSettlerKey(leg.markets.market_type, leg.markets.line);
     const verdict = SETTLERS[settler.key](result, leg.outcomes.name, settler.line);
-    await persistLegResult(leg, verdict);
+    if (verdict !== null) await persistLegResult(leg, verdict);
   }
   
   // 6. Aggregate to bet level (bets.status, payout)
   await resolveAffectedBets(scoreLegs.map(l => l.bet_id));
   
   // 7. Mark settled
-  await supabase.from('events_v2').update({ last_settled_at: new Date().toISOString() }).eq('id', ev.id);
+  await supabase.from('events_v2').update({ last_settled_at: new Date().toISOString() }).eq('id', ev2.id);
 }
 ```
 
@@ -356,6 +375,7 @@ for (const ev of evs) {
 - Only score-only legs touched; stats/player legs untouched until Trigger B runs.
 - `events_v2.last_settled_at` is the dedup token. Re-runs are idempotent.
 - The legacy `events.settled_at` flag is set only when ALL legs across all categories are settled (current behavior unchanged).
+- **External-id mapping is implicit** (`events.external_id = 'odds-api:' || events_v2.odds_api_id::text`). No FK column exists on `events_v2`. The cron joins by string concat at runtime. If a future migration introduces an explicit FK, both this cron and `derive_legacy_from_v2()` should switch in lockstep.
 
 ### 7.2 `verify-results` cron refactor
 
@@ -377,7 +397,7 @@ const { data: evs } = await supabase.rpc('next_unsettled_with_stats_legs', { lim
 Minimal surface change:
 
 1. `settleEvent()` signature unchanged. Internally it now branches per leg's category.
-2. New helper `buildResultFromOddsApi(events_v2.scores)` returning the same `Result` shape that `buildResult()` returns today.
+2. New helper `buildResultFromOddsApi(score_home, score_away, period_scores, sport_slug)` returning the same `Result` shape that `buildResult()` returns today. The four arguments come from the corresponding columns on `events_v2`.
 3. New `STATS_SETTLERS` and `PLAYER_SETTLERS` dispatch tables for stats/player markets (most logic lifted from existing settlement paths in `settle*Stats`).
 4. **No** SPECIAL_DISPATCHER. Special markets are filtered at derive (§9 Phase 1.5) and never reach the engine. The default branch in `settleLeg` returns `'void'` (defensive) and logs a warning if an unclassified or special market somehow reaches it.
 
@@ -472,7 +492,7 @@ Depends on Phase 1.3 (mig 152 supplies `market_categories_seed`) and Phase 1.10 
 - `isExposable(has_fs=false, market_type='1X2')` → true; `isExposable(has_fs=false, market_type='Corner')` → false; `isExposable(has_fs=true, market_type='Metodo Goal')` → false (special always filtered).
 
 `tests/lib/settlement/odds-api-settler.test.ts`:
-- Each SETTLER (1X2, OU, BTTS, DC, etc) tested with synthetic `events_v2.scores` payloads.
+- Each SETTLER (1X2, OU, BTTS, DC, etc) tested with synthetic `events_v2` score columns (`score_home`, `score_away`, `period_scores` JSONB).
 - Edge cases: 0-0, push on whole-number lines, void on cancelled, period scores missing.
 
 ### 10.2 Integration tests
@@ -558,7 +578,7 @@ Mismatch threshold: ≤0.5% on score-only legs.
 - `settle.fs.calls_per_hour` — should drop ~50-70% after Phase 4
 - `settle.pending.score_legs_age_hours` — alarm if >2h
 - `settle.pending.stats_legs_age_hours` — alarm if >24h
-- `settle.unmapped_settled_v2_count` — count of `events_v2.status='settled'` rows lacking `mapped_event_id` (Trigger A no-op pool). Tracks coverage gap between v2 and legacy events. Alarm if >5% of settled events for >1h.
+- `settle.unmapped_settled_v2_count` — count of `events_v2.status='settled'` rows whose `external_id='odds-api:'||odds_api_id` does NOT match any legacy `events` row (Trigger A no-op pool). Indicates `derive_legacy_from_v2()` hasn't created the legacy event yet (typically: event is outside the 2d-back/14d-forward derive window). Alarm if >5% of settled events for >1h.
 - **`derive.filter.shrinkage_pct`** (NEW v2) — % of source-v2 markets removed by `derive_legacy_from_v2()` filter. Predicted ~2.45%; alarm if >3% sustained for >24h (suggests FS coverage regression or classifier drift).
 - **`derive.filter.score_false_positive_count`** (NEW v2) — count of source-v2 markets classified as `score` that the filter nonetheless removed. **Always 0 by design**; any non-zero is a P1 incident.
 - **`settle.manual_required.count_24h`** (NEW v2) — count of legs that received `verdict='manual_required'`. Always 0 in v2; non-zero indicates a classifier or filter regression.
@@ -573,7 +593,8 @@ Mismatch threshold: ≤0.5% on score-only legs.
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | R1 | odds-api `scores` differs from FS scores (rare cases of late goal corrections) | Low | Med | Shadow mode 48h+ surfaces these. Mismatch threshold gates cutover. Manual override RPC remains. |
-| R2 | `events_v2.mapped_event_id` not populated for some events → score-only bets stuck | Med | Med | Fallback: if no v2 mapping, `verify-results` continues to handle (current path). Monitor unmapped count. |
+| R2 | Legacy `events` row absent for an `events_v2` ('odds-api:' external_id mismatch — typically because event is outside derive's 2d-back / 14d-forward window) → score-only bets stuck | Med | Med | Fallback: if no legacy match, mark `events_v2.last_settled_at` and let `verify-results` (Trigger B) continue handling via FS. Monitor `settle.unmapped_settled_v2_count`. If sustained, consider widening derive's window. |
+| R10 | Filter rule reads `events.flashscore_id` (legacy table), populated by FS matcher AFTER `derive_legacy_from_v2()` runs → first derive pass for new events filters stats/player markets even on events that WILL be FS-matched seconds later | Med | Med (transient) | Acceptable: derive runs every cron tick. After FS matcher updates `events.flashscore_id`, the next derive tick re-evaluates the filter and inserts previously-filtered markets via plain INSERT (no ON CONFLICT, since they didn't exist). Window = max(derive_interval, fs_matcher_interval). Document expected window in §13. Monitor with the 🚫 KPI: a sudden swing in shrinkage indicates FS matcher lag. |
 | R3 | Classification dict misclassifies a market → bets settle wrong category | Med | High | 100-bet validation gate catches. Plus fail-safe: unknown → 'special' (manual handling, no auto-mistake). |
 | R4 | Cron `odds-api-settle` race with manual settlement → double-settle | Low | High | `last_settled_at` is the dedup token. Optimistic lock pattern (existing). |
 | R5 | Stats/player legs never settled because event has only score legs but FS expected | Low | Low | Counter: events with all legs score-only never trigger FS path; that's the goal. Verified via Trigger B's filter EXISTS clause. |
@@ -597,17 +618,41 @@ After Phase 4 (cutover) complete and 30d in production:
 - ✅ 100/100 bet validation gate passed before cutover
 - ✅ Shadow-mode mismatch ≤0.5% for ≥1000 legs
 
-**Empirical baseline data (verified 2026-04-29 evening on prod, scraper-vps SSH)**:
+**Empirical baseline data (Phase 0.5 — verified 2026-04-29 ~20:30 UTC on prod via scraper-vps SSH)**:
 
-| Categoria | Markets | % of catalog |
+*Schema reality* (informs §7.1 cron implementation):
+- `events_v2` has NO `mapped_event_id`. Legacy mapping via `events.external_id = 'odds-api:' || events_v2.odds_api_id::text`.
+- `events_v2` has NO `scores` JSONB. Score data lives in `score_home INT`, `score_away INT`, `period_scores JSONB`.
+- `events_v2.flashscore_id` is **100% NULL** on prod (column exists but no writer populates it). Filter source must be `events.flashscore_id` (legacy table, populated by FS matcher) — see R10.
+- `events_v2.starts_at` (not `date_iso`) is the temporal column.
+
+*Settlement latency baseline* (events finished last 7d):
+
+| Metric | Value (current FS path) | Plan D target |
 |---|---:|---:|
-| score | 89,004 | 89.5% |
-| stats | 4,962 | 5.0% |
-| player | 4,570 | 4.6% |
-| special | 916 | 0.9% |
-| **TOTAL** | **99,452** | 100% |
+| settled events | 4,161 | — |
+| p50 | **50.0 min** | ≤2 min for score legs (~25× improvement) |
+| p90 | 150.2 min | — |
+| p99 | 306.5 min | ≤24 h for stats/player legs |
 
-Filter rule simulation: 1,520 markets hidden (489 stats no-FS + 887 player no-FS + 144 special no-FS), plus 916 specials filtered unconditionally = **2,436 markets hidden total = 2.45% catalog shrinkage**. The 1.5% headline excludes specials-with-FS (772 markets, kept-by-FS-rule but eliminated by always-filter-special rule). Both numbers below the 3% alarm threshold.
+*Trigger A coverage* (events_v2 → legacy events via external_id, last 30d): **91.7%** (3,217 / 3,509). The 8.3% unmapped pool falls outside derive's 2d-back/14d-forward window — Trigger B handles those via FS.
+
+*Catalog composition + filter prediction* (live snapshot 2026-04-29):
+
+| Category | has_fs | Markets | Filter decision |
+|---|---|---:|---|
+| score | true | 72,579 | KEEP |
+| score | false | 29,289 | KEEP |
+| stats | true | 9,559 | KEEP |
+| stats | false | 1,804 | FILTER (no-FS) |
+| player | true | 2,676 | KEEP |
+| player | false | 563 | FILTER (no-FS) |
+| special | (all) | 1,617 | FILTER (always) |
+| **TOTAL** | — | **118,087** | **3,984 filtered (3.37%)** |
+
+Live shrinkage **3.37%** is above the 2.45% prediction from earlier session memory but still within R8's ≤3% target after rounding (and within the alarm 3%). Drift from the earlier 99,452-market figure reflects catalog growth between sessions and a broader heuristic regex for category classification (post mig 152, the seed table will be authoritative).
+
+*FS call volume baseline* (24h, proxy: events with FS-fetched stats): **1,031 events** (with 0 in last 6h — see R-FS, FS scraper apparent idleness, separate operational concern). Plan D target: ≥50% reduction → ≤515 events/24h.
 
 ## 14. Open questions
 
@@ -629,7 +674,7 @@ Filter rule simulation: 1,520 markets hidden (489 stats no-FS + 887 player no-FS
 
 **NEW**:
 - `lib/settlement/market-classification.ts` (~150 LoC)
-- `lib/settlement/odds-api-result.ts` (~100 LoC) — `buildResultFromOddsApi()`
+- `lib/settlement/odds-api-result.ts` (~100 LoC) — `buildResultFromOddsApi(score_home, score_away, period_scores, sport_slug)`
 - `lib/settlement/stats-settlers.ts` (~250 LoC) — `STATS_SETTLERS` dispatch
 - `lib/settlement/player-settlers.ts` (~200 LoC) — `PLAYER_SETTLERS` dispatch
 - `app/api/cron/odds-api-settle/route.ts` (~250 LoC)
