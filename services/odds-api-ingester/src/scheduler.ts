@@ -72,7 +72,7 @@ const tierConfigs: TierConfig[] = [
   {
     name: 'discovery',
     intervalMs: 3_600_000,
-    options: { label: 'disc', status: 'pending', minHours: 168, maxHours: 14 * 24 },
+    options: { label: 'disc', status: 'pending', minHours: 168, maxHours: 21 * 24 },
     triggerDerive: false,
   },
 ];

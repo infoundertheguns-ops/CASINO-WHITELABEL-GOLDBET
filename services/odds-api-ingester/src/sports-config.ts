@@ -39,6 +39,11 @@ export const ENABLED_SPORTS: SportConfig[] = [
   { slug: 'handball',          name: 'Handball' },
   { slug: 'rugby',             name: 'Rugby' },
   { slug: 'cricket',           name: 'Cricket' },
+  { slug: 'esports',            name: 'Esports' },
+  { slug: 'darts',              name: 'Darts' },
+  { slug: 'mixed-martial-arts', name: 'MMA' },
+  { slug: 'boxing',             name: 'Boxing' },
+  { slug: 'snooker',            name: 'Snooker' },
 ];
 
 /**
