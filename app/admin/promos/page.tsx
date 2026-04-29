@@ -42,7 +42,7 @@ export default function AdminPromos() {
         </div>
         <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">BONUS EROGATI</div>
-          <div className="text-lg font-black font-mono text-brand">${totalBonusIssued.toFixed(2)}</div>
+          <div className="text-lg font-black font-mono text-brand">€{totalBonusIssued.toFixed(2)}</div>
         </div>
       </div>
 
@@ -69,8 +69,8 @@ export default function AdminPromos() {
                 <tr key={p.id} className="border-b border-gray-800/50">
                   <td className="px-4 py-2 text-white">{p.users?.username || "—"}</td>
                   <td className="px-4 py-2 text-gray-300">{p.promo_name || "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono text-purple-400">${(p.bonus_amount || 0).toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right font-mono text-gray-400">${(p.wagered_amount || 0).toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-purple-400">€{(p.bonus_amount || 0).toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-gray-400">€{(p.wagered_amount || 0).toFixed(2)}</td>
                   <td className="px-4 py-2 text-center">
                     <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",
                       p.status === "active" ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-500/20 text-gray-400"

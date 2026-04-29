@@ -1929,7 +1929,7 @@ git commit -m "feat(ippica): extend place-bet API and DB for ippica betting"
 - [ ] **Step 1: Run local build to check for TypeScript errors**
 
 ```bash
-cd C:\Users\philp\Downloads\vincitu-project\vincitu && npx next build
+cd C:\Users\philp\Downloads\betssolution-project\betssolution && npx next build
 ```
 
 Fix any TypeScript/import errors that come up.
@@ -1937,7 +1937,7 @@ Fix any TypeScript/import errors that come up.
 - [ ] **Step 2: Test locally**
 
 ```bash
-cd C:\Users\philp\Downloads\vincitu-project\vincitu && npm run dev
+cd C:\Users\philp\Downloads\betssolution-project\betssolution && npm run dev
 ```
 
 Open http://localhost:3000/ippica — verify:
@@ -1953,12 +1953,12 @@ Open http://localhost:3000/ippica — verify:
 
 Use the standard deploy command from memory:
 ```bash
-cd C:\Users\philp\Downloads\vincitu-project\vincitu
+cd C:\Users\philp\Downloads\betssolution-project\betssolution
 npx next build
 tar czf /tmp/next-build.tar.gz .next
 tar czf /tmp/x.tar.gz --exclude=node_modules --exclude=.next --exclude=.git .
 scp /tmp/next-build.tar.gz /tmp/x.tar.gz scraper-vps:/tmp/
-ssh scraper-vps "systemctl stop vincitu && cd /root/vincitu && cp .env.local /tmp/vincitu-env-backup && rm -rf .next && tar xzf /tmp/x.tar.gz && cp /tmp/vincitu-env-backup .env.local && tar xzf /tmp/next-build.tar.gz && systemctl start vincitu"
+ssh scraper-vps "systemctl stop betssolution && cd /root/betssolution && cp .env.local /tmp/betssolution-env-backup && rm -rf .next && tar xzf /tmp/x.tar.gz && cp /tmp/betssolution-env-backup .env.local && tar xzf /tmp/next-build.tar.gz && systemctl start betssolution"
 ```
 
 - [ ] **Step 4: Verify on production**

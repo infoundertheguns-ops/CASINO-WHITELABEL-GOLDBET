@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
@@ -70,8 +71,9 @@ export async function POST(request: NextRequest) {
     const accessToken = authData.access_token;
     const refreshToken = authData.refresh_token;
 
+    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
     if (accessToken) {
-      cookieStore.set("sb-xgnyqkmugnfzhdveeqom-auth-token.0", JSON.stringify({
+      cookieStore.set(`sb-${projectRef}-auth-token.0`, JSON.stringify({
         access_token: accessToken,
         refresh_token: refreshToken,
         token_type: "bearer",

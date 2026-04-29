@@ -9,7 +9,7 @@ interface SecondaryScrapersProps {
 
 export function SecondaryScrapers({ flashscoreServer }: SecondaryScrapersProps) {
   const flashOffline = !flashscoreServer || !flashscoreServer.latest;
-  const flashGb = flashscoreServer?.latest?.goldbet;
+  const flashGb = flashscoreServer?.latest?.kambi;
 
   const dotColor = flashOffline ? "#6b7280" : "#10b981";
 
@@ -28,10 +28,18 @@ export function SecondaryScrapers({ flashscoreServer }: SecondaryScrapersProps) 
           boxShadow: flashOffline ? "none" : `0 0 6px ${dotColor}`,
         }} />
         <span style={{ fontWeight: 700, color: "#06b6d4", fontSize: 15 }}>Flashscore</span>
-        <span style={{
-          fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
-          background: "#06b6d415", color: "#06b6d4", textTransform: "uppercase",
-        }}>Settlement</span>
+        {/* Review #5 P2-D: Settlement pill becomes a real link to /admin/settlement-health
+            (Flashscore is the single source of truth for settlement coverage). */}
+        <a
+          href="/admin/settlement-health"
+          title="Apri Settlement Health"
+          style={{
+            fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+            background: "#06b6d418", color: "#06b6d4", textTransform: "uppercase",
+            border: "1px solid #06b6d444", textDecoration: "none",
+            letterSpacing: 0.5,
+          }}
+        >Settlement →</a>
         {flashOffline && (
           <span style={{ fontSize: 13, color: "var(--admin-text4)", marginLeft: "auto" }}>Offline</span>
         )}

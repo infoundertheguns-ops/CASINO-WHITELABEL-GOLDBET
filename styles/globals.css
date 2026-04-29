@@ -24,14 +24,35 @@
 
   /* ═══ Admin font size overrides — bump tiny text ═══ */
   .admin-theme {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   /* ═══ Global font size bumps — override tiny text ═══ */
-  .text-\[7px\], .text-\[8px\] { font-size: 12px !important; }
-  .text-\[9px\] { font-size: 13px !important; }
+  .text-\[7px\], .text-\[8px\] { font-size: 13px !important; }
+  .text-\[9px\] { font-size: 14px !important; }
   .text-\[10px\] { font-size: 14px !important; }
-  .text-\[11px\] { font-size: 14px !important; }
+  .text-\[11px\] { font-size: 15px !important; }
+
+  /* Scale up the admin content area for larger text */
+  .admin-theme .admin-content {
+    zoom: 1.1;
+  }
+
+  /* ═══ Light theme: fix Tailwind dark-hardcoded classes ═══ */
+  .admin-theme.admin-light .text-white { color: #0f1419 !important; }
+  .admin-theme.admin-light .text-gray-300 { color: #374151 !important; }
+  .admin-theme.admin-light .text-gray-400 { color: #4b5563 !important; }
+  .admin-theme.admin-light .text-gray-500 { color: #4a5568 !important; }
+  .admin-theme.admin-light .text-gray-600 { color: #374151 !important; }
+  .admin-theme.admin-light .placeholder-gray-600::placeholder { color: #9ca3af !important; }
+  .admin-theme.admin-light .border-gray-800 { border-color: #d0d5dd !important; }
+  .admin-theme.admin-light .border-gray-800\/50 { border-color: #e5e7eb !important; }
+  .admin-theme.admin-light .border-gray-700 { border-color: #d0d5dd !important; }
+  .admin-theme.admin-light .hover\:bg-white\/5:hover { background: rgba(0,0,0,0.04) !important; }
+  .admin-theme.admin-light .bg-white\/5 { background: rgba(0,0,0,0.02) !important; }
+  .admin-theme.admin-light .text-xs { font-size: 14px !important; }
+  .admin-theme.admin-light .text-sm { font-size: 15px !important; }
+  .admin-theme.admin-light .text-\[9px\] { font-size: 13px !important; }
 
   /* ═══ Admin Theme Variables ═══ */
   .admin-theme {
@@ -54,22 +75,53 @@
   }
 
   .admin-theme.admin-light {
-    --admin-bg: #f3f4f6;
+    --admin-bg: #f0f2f5;
     --admin-surface: #ffffff;
-    --admin-surface2: #f9fafb;
-    --admin-surface3: #f3f4f6;
+    --admin-surface2: #f7f8fa;
+    --admin-surface3: #eef0f4;
     --admin-card: #ffffff;
-    --admin-card-hover: rgba(0,0,0,0.02);
-    --admin-sidebar: #ffffff;
-    --admin-sidebar-active: #f0f0ff;
-    --admin-border: #e5e7eb;
-    --admin-border2: #d1d5db;
-    --admin-text: #111827;
-    --admin-text2: #374151;
-    --admin-text3: #6b7280;
-    --admin-text4: #9ca3af;
-    --admin-scroll: #d1d5db;
-    --admin-input: #f9fafb;
+    --admin-card-hover: rgba(0,0,0,0.03);
+    --admin-sidebar: #1e1b2e;
+    --admin-sidebar-active: #2d2844;
+    --admin-border: #d0d5dd;
+    --admin-border2: #b0b8c4;
+    --admin-text: #0f1419;
+    --admin-text2: #2c3e50;
+    --admin-text3: #4a5568;
+    --admin-text4: #718096;
+    --admin-scroll: #b0b8c4;
+    --admin-input: #f5f6f8;
+  }
+
+  /* Light theme: force dark text on hardcoded dark-theme colors */
+  .admin-theme.admin-light [style*="color: #e2e8f0"],
+  .admin-theme.admin-light [style*="color: rgb(226, 232, 240)"] {
+    color: #0f1419 !important;
+  }
+  .admin-theme.admin-light [style*="color: #94a3b8"],
+  .admin-theme.admin-light [style*="color: rgb(148, 163, 184)"] {
+    color: #4a5568 !important;
+  }
+  .admin-theme.admin-light [style*="color: #64748b"],
+  .admin-theme.admin-light [style*="color: rgb(100, 116, 139)"] {
+    color: #4a5568 !important;
+  }
+  /* Light theme: fix hardcoded dark backgrounds */
+  .admin-theme.admin-light [style*="background: #0f172a"],
+  .admin-theme.admin-light [style*="background: rgb(15, 23, 42)"],
+  .admin-theme.admin-light [style*="background-color: #0f172a"] {
+    background: #ffffff !important;
+    border-color: #d0d5dd !important;
+  }
+  .admin-theme.admin-light [style*="background: #0a0914"],
+  .admin-theme.admin-light [style*="background: rgb(10, 9, 20)"],
+  .admin-theme.admin-light [style*="background-color: #0a0914"] {
+    background: #f5f6f8 !important;
+  }
+  /* Light theme: fix border colors */
+  .admin-theme.admin-light [style*="border-color: #1e3a5f"],
+  .admin-theme.admin-light [style*="border: 1px solid #1e3a5f"] {
+    border-color: #d0d5dd !important;
   }
 
   /* Admin scrollbar */

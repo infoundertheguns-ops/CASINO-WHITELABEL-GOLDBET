@@ -1,0 +1,17 @@
+const fs = require('fs');
+const path = require('path');
+const d = JSON.parse(fs.readFileSync(path.join(__dirname, 'mt-result.json'), 'utf8'));
+console.log('Source:', d.source);
+console.log('Total types:', d.total_types);
+console.log('Italian:', d.italian_types);
+console.log('English:', d.english_types);
+console.log('Total markets:', d.total_markets);
+console.log('Italian markets:', d.italian_markets);
+console.log('Coverage:', d.coverage_pct + '%');
+console.log('---');
+const en = d.markets.filter(m => !m.is_italian).sort((a, b) => b.count - a.count);
+console.log('EN types totali:', en.length);
+console.log('EN markets totali:', en.reduce((s, m) => s + m.count, 0));
+console.log('');
+console.log('Top 50 EN (per volume):');
+en.slice(0, 50).forEach(m => console.log('  ' + m.count + 'x  ' + m.market_type));

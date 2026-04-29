@@ -1,7 +1,7 @@
-﻿# VinciTu - Project Context
+﻿# BetsSolution - Project Context
 
 ## Overview
-VinciTu is an iGaming platform targeting the Italian market with ADM-licensed bookmakers. The platform combines casino games, sports betting odds comparison, and promotional content.
+BetsSolution is an iGaming platform targeting the Italian market with ADM-licensed bookmakers. The platform combines casino games, sports betting odds comparison, and promotional content.
 
 ## Tech Stack
 - **Frontend**: Next.js with React
@@ -52,7 +52,7 @@ VinciTu is an iGaming platform targeting the Italian market with ADM-licensed bo
 
 ## File Structure
 ```
-vincitu/
+betssolution/
 ├── app/                          # Next.js App Router
 │   ├── layout.tsx                # Root layout
 │   ├── page.tsx                  # Landing/redirect page
@@ -222,7 +222,7 @@ ANTHROPIC_API_KEY=                # Claude API key for /api/risk-agent analysis
 
 # ═══ APP ═══
 NEXT_PUBLIC_APP_URL=              # App base URL (default: http://localhost:3000)
-NEXT_PUBLIC_APP_NAME=             # App display name (default: VinciTu)
+NEXT_PUBLIC_APP_NAME=             # App display name (default: BetsSolution)
 
 # ═══ SCRAPER (Apify webhook auth) ═══
 SCRAPER_API_KEY=                  # Shared secret for x-scraper-key header auth on /api/scraper/* routes

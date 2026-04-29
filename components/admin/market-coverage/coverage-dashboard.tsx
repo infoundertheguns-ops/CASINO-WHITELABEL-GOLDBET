@@ -33,7 +33,7 @@ interface GapEvent {
   league_name: string;
   status: string;
   source_count: number;
-  vincitu_count: number;
+  betssolution_count: number;
   gap: number;
   coverage_pct: number;
   starts_at: string;
@@ -75,10 +75,9 @@ interface LiveCoverageData {
 
 // ═══ MAIN COMPONENT ═══
 
-export default function CoverageDashboard() {
+export default function CoverageDashboard({ source = "kambi" }: { source?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const source = "kambi";
   const [stats, setStats] = useState<StatsData | null>(null);
   const [liveData, setLiveData] = useState<LiveCoverageData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +94,7 @@ export default function CoverageDashboard() {
   const refreshRef = useRef<NodeJS.Timeout | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string>("");
 
-  const sourceLabel = "Kambi";
+  const sourceLabel = source === "22bet" ? "22bet" : "Kambi";
 
   // ─── Load stats ───
   const loadStats = useCallback(async () => {
@@ -157,7 +156,7 @@ export default function CoverageDashboard() {
     const headers = ["Evento", "Sport", "Lega", sourceLabel, "DB", "Gap", "Coverage %", "Data"];
     const rows = (stats?.gap_events || []).map(ev => [
       `${ev.home_team} vs ${ev.away_team}`, ev.sport_name, ev.league_name,
-      ev.source_count, ev.vincitu_count, ev.gap, ev.coverage_pct,
+      ev.source_count, ev.betssolution_count, ev.gap, ev.coverage_pct,
       new Date(ev.starts_at).toLocaleString("it-IT"),
     ]);
     exportCsv(`${source}-coverage-gap-events.csv`, headers, rows);
@@ -579,7 +578,7 @@ export default function CoverageDashboard() {
                     {ev.source_count}
                   </div>
                   <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 600, color: "#60a5fa" }}>
-                    {ev.vincitu_count}
+                    {ev.betssolution_count}
                   </div>
                   <div style={{ textAlign: "center", fontFamily: "monospace", fontWeight: 700, color: "#ef4444" }}>
                     &minus;{ev.gap}

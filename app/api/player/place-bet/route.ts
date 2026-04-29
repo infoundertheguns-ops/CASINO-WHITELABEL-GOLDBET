@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
@@ -63,6 +64,13 @@ export async function POST(req: NextRequest) {
     }
     if (user.is_blocked || user.is_banned) {
       return NextResponse.json({ error: "Account sospeso", code: "ACCOUNT_BLOCKED" }, { status: 403 });
+    }
+
+    // ── Blacklist check ──
+    const { isBlacklisted } = await import("@/lib/risk/limits");
+    const blacklistCheck = await isBlacklisted(supabase, authUser.id);
+    if (blacklistCheck.blocked) {
+      return NextResponse.json({ error: "Account sospeso", code: "BLACKLISTED" }, { status: 403 });
     }
 
     // ── 2. Parse request ──
@@ -288,6 +296,39 @@ export async function POST(req: NextRequest) {
 
     totalOdds = parseFloat(totalOdds.toFixed(4));
     const potentialWin = parseFloat((stake * totalOdds).toFixed(2));
+
+    // ── Betting limits check ──
+    const { resolveLimit } = await import("@/lib/risk/limits");
+    const { data: playerProfile } = await supabase
+      .from("users").select("agent_id").eq("id", authUser.id).single();
+    // Get sport from first validated selection
+    let betSport: string | null = null;
+    if (!isIppica && validatedSelections.length > 0) {
+      const { data: evData } = await supabase
+        .from("events").select("sport").eq("id", validatedSelections[0].event_id).single();
+      betSport = evData?.sport || null;
+    }
+    const bettingLimit = await resolveLimit(supabase, authUser.id, playerProfile?.agent_id || null, betSport);
+    if (bettingLimit) {
+      if (bettingLimit.max_stake && stake > bettingLimit.max_stake) {
+        return NextResponse.json({ error: `Importo massimo: €${bettingLimit.max_stake}`, code: "LIMIT_EXCEEDED" }, { status: 400 });
+      }
+      if (bettingLimit.max_win && potentialWin > bettingLimit.max_win) {
+        return NextResponse.json({ error: `Vincita massima: €${bettingLimit.max_win}`, code: "LIMIT_EXCEEDED" }, { status: 400 });
+      }
+      if (bettingLimit.max_daily_turnover) {
+        const todayForLimit = new Date(); todayForLimit.setHours(0, 0, 0, 0);
+        const { data: dailyBets } = await supabase
+          .from("bets").select("stake")
+          .eq("user_id", authUser.id)
+          .gte("created_at", todayForLimit.toISOString())
+          .not("status", "eq", "rejected");
+        const dailyTotal = (dailyBets || []).reduce((s: number, b: any) => s + (b.stake || 0), 0);
+        if (dailyTotal + stake > bettingLimit.max_daily_turnover) {
+          return NextResponse.json({ error: `Limite giornaliero: €${bettingLimit.max_daily_turnover}`, code: "DAILY_LIMIT" }, { status: 400 });
+        }
+      }
+    }
 
     // ── Validate systemType if provided ──
     const isSystem = !!systemType;
@@ -706,6 +747,65 @@ export async function POST(req: NextRequest) {
     sendTelegramMessage(
       `\ud83c\udfb0 <b>NUOVA SCOMMESSA</b>${highStake}\n\ud83d\udc64 @${user.username || user.id} \u2022 \u20ac${finalStake} \u2022 ${betType}\n\ud83d\udccb ${selNames}\n\ud83d\udcca Quota: ${totalOdds.toFixed(2)} \u2192 Vincita: \u20ac${finalPotentialWin.toFixed(2)}`
     ).catch(() => {});
+
+    // ── Post-accept risk alerts (non-blocking) ──
+    try {
+      const { data: riskConfig } = await supabase
+        .from("system_config").select("value").eq("key", "risk_alert_config").maybeSingle();
+      if (riskConfig) {
+        const rc = typeof riskConfig.value === "string" ? JSON.parse(riskConfig.value) : riskConfig.value;
+        if (rc.enabled) {
+          // 1. Check total exposure
+          const { data: openBets } = await supabase
+            .from("bets").select("potential_win")
+            .eq("user_id", authUser.id).eq("status", "open");
+          const exposure = (openBets || []).reduce((s: number, b: any) => s + (b.potential_win || 0), 0);
+          if (exposure > rc.max_exposure) {
+            await supabase.from("risk_alerts").insert({
+              alert_type: "exposure",
+              player_id: authUser.id,
+              details: { exposure, threshold: rc.max_exposure },
+            });
+            await sendTelegramMessage(`⚠️ RISK: Esposizione €${exposure.toFixed(0)} > soglia €${rc.max_exposure} — Player ${authUser.id}`);
+          }
+
+          // 2. Check daily wins
+          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+          const { data: dayWins } = await supabase
+            .from("bets").select("actual_win")
+            .eq("user_id", authUser.id).eq("status", "won")
+            .gte("created_at", todayStart.toISOString());
+          const dailyWin = (dayWins || []).reduce((s: number, b: any) => s + (b.actual_win || 0), 0);
+          if (dailyWin > rc.max_daily_win) {
+            await supabase.from("risk_alerts").insert({
+              alert_type: "daily_win",
+              player_id: authUser.id,
+              details: { daily_win: dailyWin, threshold: rc.max_daily_win },
+            });
+            await sendTelegramMessage(`⚠️ RISK: Vincite giornaliere €${dailyWin.toFixed(0)} > soglia €${rc.max_daily_win} — Player ${authUser.id}`);
+          }
+
+          // 3. Check consecutive wins
+          if (rc.consecutive_wins_alert) {
+            const { data: recentBets } = await supabase
+              .from("bets").select("status")
+              .eq("user_id", authUser.id)
+              .in("status", ["won", "lost"])
+              .order("created_at", { ascending: false })
+              .limit(rc.consecutive_wins_alert);
+            const recent = recentBets || [];
+            if (recent.length >= rc.consecutive_wins_alert && recent.every((b: any) => b.status === "won")) {
+              await supabase.from("risk_alerts").insert({
+                alert_type: "consecutive_wins",
+                player_id: authUser.id,
+                details: { consecutive: rc.consecutive_wins_alert },
+              });
+              await sendTelegramMessage(`⚠️ RISK: ${rc.consecutive_wins_alert} vincite consecutive — Player ${authUser.id}`);
+            }
+          }
+        }
+      }
+    } catch { /* non-blocking — don't fail the bet */ }
 
     return NextResponse.json({
       success: true,

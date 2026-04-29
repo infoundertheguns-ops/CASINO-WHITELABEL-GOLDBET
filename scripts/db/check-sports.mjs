@@ -1,0 +1,10 @@
+import pg from "pg";
+const c = new pg.Client({ host: "aws-1-eu-central-1.pooler.supabase.com", port: 5432, user: "postgres.xgnyqkmugnfzhdveeqom", password: "2MQhskawT3I6XVKW", database: "postgres", ssl: { rejectUnauthorized: false }});
+await c.connect();
+const r = await c.query("SELECT sport, COUNT(*) FROM be_fixtures GROUP BY sport ORDER BY count DESC");
+console.log("be_fixtures sports:");
+for (const row of r.rows) console.log(`  ${row.sport}: ${row.count}`);
+const r2 = await c.query("SELECT name, COUNT(e.id) FROM sports s LEFT JOIN events e ON e.sport_id = s.id WHERE e.status IN ('prematch','live') GROUP BY s.name ORDER BY count DESC");
+console.log("\nsports table active events:");
+for (const row of r2.rows) console.log(`  ${row.name}: ${row.count}`);
+await c.end();

@@ -11,7 +11,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const BASE_URL = process.env.VINCITU_URL || "http://localhost:3000";
+const BASE_URL = process.env.BETSSOLUTION_URL || "http://localhost:3000";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -763,7 +763,7 @@ async function setup() {
     } else {
       // Last resort: create via auth
       const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
-        email: `settlement-test-${Date.now()}@vincitu.test`,
+        email: `settlement-test-${Date.now()}@betssolution.test`,
         password: "TestPassword123!",
         email_confirm: true,
       });

@@ -14,8 +14,10 @@ import { SLABadge } from "@/components/admin/risk/sla-badge";
 import { AssignmentDropdown } from "@/components/admin/risk/assignment-dropdown";
 import { AlertsPerDayChart } from "@/components/admin/risk/alerts-per-day-chart";
 import { LiveBetTicker } from "@/components/admin/risk/live-bet-ticker";
+import { LimitsTab } from "@/components/admin/risk/limits-tab";
+import { BlacklistTab } from "@/components/admin/risk/blacklist-tab";
 
-type Tab = "dashboard" | "alerts" | "users" | "ai" | "trading" | "liability";
+type Tab = "dashboard" | "alerts" | "users" | "ai" | "trading" | "liability" | "limits" | "blacklist";
 
 export default function AdminRiskAgent() {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -221,6 +223,8 @@ export default function AdminRiskAgent() {
     { id: "liability", label: "Liability" },
     { id: "users", label: "Utenti" },
     { id: "ai", label: "AI" },
+    { id: "limits", label: "Limiti" },
+    { id: "blacklist", label: "Blacklist" },
   ];
 
   if (loading && !overview) {
@@ -448,9 +452,9 @@ export default function AdminRiskAgent() {
                         ))}
                       </div>
                       <div className="flex gap-4 text-[10px]" style={{ color: "var(--admin-text4)" }}>
-                        <span>Stake: <b style={{ color: "var(--admin-text)" }}>${bet.requested_stake || bet.stake}</b></span>
+                        <span>Stake: <b style={{ color: "var(--admin-text)" }}>€{bet.requested_stake || bet.stake}</b></span>
                         <span>Quote: <b>{bet.total_odds?.toFixed(2)}</b></span>
-                        <span>Vincita pot.: <b>${bet.potential_win?.toFixed(2)}</b></span>
+                        <span>Vincita pot.: <b>€{bet.potential_win?.toFixed(2)}</b></span>
                         <span>Risk: <b className={bet.risk_score > 50 ? "text-red-400" : ""}>{bet.risk_score || "—"}</b></span>
                         {bet.acceptance_note && <span className="italic">{bet.acceptance_note}</span>}
                       </div>
@@ -520,9 +524,9 @@ export default function AdminRiskAgent() {
                       <tr key={l.outcome_id} className="border-b border-gray-800/50">
                         <td className="px-4 py-2" style={{ color: "var(--admin-text)" }}>{l.outcome_name}</td>
                         <td className="px-4 py-2 text-right font-mono" style={{ color: l.pct_used > 80 ? "#ef4444" : l.pct_used > 50 ? "#f59e0b" : "var(--admin-text)" }}>
-                          ${l.current_liability?.toFixed(2)}
+                          €${l.current_liability?.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text3)" }}>${l.max_liability?.toFixed(0)}</td>
+                        <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text3)" }}>€{l.max_liability?.toFixed(0)}</td>
                         <td className="px-4 py-2 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <div className="w-16 h-1.5 rounded-full bg-gray-700 overflow-hidden">
@@ -534,7 +538,7 @@ export default function AdminRiskAgent() {
                             <span className="text-[10px] font-mono" style={{ color: "var(--admin-text3)" }}>{l.pct_used?.toFixed(0)}%</span>
                           </div>
                         </td>
-                        <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text3)" }}>${l.total_stake?.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text3)" }}>€{l.total_stake?.toFixed(2)}</td>
                         <td className="px-4 py-2 text-right" style={{ color: "var(--admin-text3)" }}>{l.bet_count || 0}</td>
                         <td className="px-4 py-2 text-center">
                           {l.pct_used > 50 && (
@@ -584,7 +588,7 @@ export default function AdminRiskAgent() {
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
                     <div className="text-[10px] uppercase font-bold" style={{ color: "var(--admin-text4)" }}>Liability Totale</div>
-                    <div className="text-xl font-black mt-1" style={{ color: "var(--admin-text)" }}>${(liabilityData.global.total_liability || 0).toLocaleString()}</div>
+                    <div className="text-xl font-black mt-1" style={{ color: "var(--admin-text)" }}>€{(liabilityData.global.total_liability || 0).toLocaleString()}</div>
                   </div>
                   <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
                     <div className="text-[10px] uppercase font-bold" style={{ color: "var(--admin-text4)" }}>Eventi Critici</div>
@@ -620,7 +624,7 @@ export default function AdminRiskAgent() {
                         </td>
                         <td className="px-4 py-2" style={{ color: "var(--admin-text3)" }}>{e.sport?.name}</td>
                         <td className="px-4 py-2 text-right font-mono" style={{ color: e.max_pct > 80 ? "#ef4444" : "var(--admin-text)" }}>
-                          ${e.max_liability?.toFixed(0)}
+                          €${e.max_liability?.toFixed(0)}
                         </td>
                         <td className="px-4 py-2 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -674,6 +678,12 @@ export default function AdminRiskAgent() {
 
       {/* ═══ AI ═══ */}
       {tab === "ai" && <AIAnalysisPanel onAnalyze={handleAIAnalyze} />}
+
+      {/* ═══ Limits ═══ */}
+      {tab === "limits" && <LimitsTab />}
+
+      {/* ═══ Blacklist ═══ */}
+      {tab === "blacklist" && <BlacklistTab />}
 
       {/* Resolve Modal */}
       <ResolveModal

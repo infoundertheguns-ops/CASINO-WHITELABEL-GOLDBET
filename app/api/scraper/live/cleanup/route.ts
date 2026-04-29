@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { deactivateEvent } from "@/lib/settlement";
@@ -8,7 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { current_live_ids?: string[] };
+  let body: { current_live_ids?: string[]; source_prefix?: string };
   try {
     body = await req.json();
   } catch {
@@ -20,16 +21,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "current_live_ids array required" }, { status: 400 });
   }
 
+  // Multi-source safety: when a single scraper calls cleanup, its currentIds
+  // only cover its own source (e.g. "kambi:*"). Without a prefix filter the
+  // diff would falsely mark every other source's live events as stale.
+  const sourcePrefix = typeof body.source_prefix === "string" ? body.source_prefix : null;
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
   // Find events that are is_live=true but NOT in the current live feed
-  const { data: staleEvents, error: fetchErr } = await supabase
-    .from("events")
-    .select("id, external_id")
-    .eq("is_live", true);
+  let staleQuery = supabase.from("events").select("id, external_id").eq("is_live", true);
+  if (sourcePrefix) {
+    staleQuery = staleQuery.like("external_id", `${sourcePrefix}%`);
+  }
+  const { data: staleEvents, error: fetchErr } = await staleQuery;
 
   if (fetchErr || !staleEvents) {
     return NextResponse.json({ finished: 0, error: fetchErr?.message });

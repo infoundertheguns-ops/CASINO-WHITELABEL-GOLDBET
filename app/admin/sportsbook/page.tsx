@@ -11,6 +11,9 @@ type ActiveTab = "bets" | "events" | "settlement";
 type DateRange = "today" | "7d" | "30d" | "all";
 type BetStatusFilter = "all" | "open" | "won" | "lost" | "void";
 type EventStatusFilter = "all" | "prematch" | "live" | "ended" | "cancelled";
+type SettlementStatusFilter = "all" | "won" | "lost" | "void";
+
+const SETTLEMENT_PAGE_SIZE = 50;
 
 interface BetRow {
   id: string;
@@ -170,6 +173,15 @@ export default function AdminSportsbook() {
   // ── Settlement log state ──
   const [settledBets, setSettledBets] = useState<SettledBetRow[]>([]);
   const [settledLoading, setSettledLoading] = useState(true);
+  const [settledTotal, setSettledTotal] = useState(0);
+  const [settledPage, setSettledPage] = useState(1);
+  const [settledStatus, setSettledStatus] = useState<SettlementStatusFilter>("all");
+  const [settledDateRange, setSettledDateRange] = useState<DateRange>("all");
+  const [settledSearch, setSettledSearch] = useState("");
+  const [settledSearchInput, setSettledSearchInput] = useState("");
+
+  // ── Global KPI state (server-aggregated, not limited by bets list) ──
+  const [globalKpis, setGlobalKpis] = useState<{ staked: number; liability: number; openBets: number; margin: number; openEventsCount: number } | null>(null);
 
   // ════════════════════════════════════════════
   // FETCH: Bets (via admin API — bypasses RLS)
@@ -295,47 +307,64 @@ export default function AdminSportsbook() {
   const fetchSettledBets = useCallback(async () => {
     setSettledLoading(true);
     try {
-      const res = await fetch("/api/admin/sportsbook?tab=settlement");
+      const params = new URLSearchParams({
+        tab: "settlement",
+        status: settledStatus,
+        page: String(settledPage),
+        pageSize: String(SETTLEMENT_PAGE_SIZE),
+      });
+      const cutoff = getDateCutoff(settledDateRange);
+      if (cutoff) params.set("cutoff", cutoff);
+      if (settledSearch) params.set("search", settledSearch);
+
+      const res = await fetch(`/api/admin/sportsbook?${params}`);
       const json = await res.json();
 
-      if (json.settledBets && json.settledBets.length > 0) {
-        setSettledBets(
-          json.settledBets.map((b: Record<string, unknown>) => {
-            const sels =
-              (b.bet_selections as Record<string, unknown>[] | null) || [];
-            const names = sels
-              .map((s: Record<string, unknown>) => {
-                const ev = s.event as Record<string, string> | null;
-                return ev
-                  ? `${ev.home_team} vs ${ev.away_team}`
-                  : "—";
-              })
-              .filter(
-                (v: string, i: number, a: string[]) => a.indexOf(v) === i
-              )
-              .join(", ");
+      const list = (json.settledBets || []) as Record<string, unknown>[];
+      setSettledBets(
+        list.map((b) => {
+          const sels = (b.bet_selections as Record<string, unknown>[] | null) || [];
+          const names = sels
+            .map((s) => {
+              const ev = s.event as Record<string, string> | null;
+              return ev ? `${ev.home_team} vs ${ev.away_team}` : "—";
+            })
+            .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+            .join(", ");
 
-            return {
-              id: b.id as string,
-              user_id: b.user_id as string,
-              bet_type: b.bet_type as string,
-              stake: b.stake as number,
-              potential_win: b.potential_win as number,
-              status: b.status as string,
-              settled_at: b.settled_at as string | null,
-              username: (b.username as string) || "—",
-              event_names: names || "—",
-            };
-          })
-        );
-      } else {
-        setSettledBets([]);
-      }
+          return {
+            id: b.id as string,
+            user_id: b.user_id as string,
+            bet_type: b.bet_type as string,
+            stake: b.stake as number,
+            potential_win: b.potential_win as number,
+            status: b.status as string,
+            settled_at: b.settled_at as string | null,
+            username: (b.username as string) || "—",
+            event_names: names || "—",
+          };
+        })
+      );
+      setSettledTotal(Number(json.total) || 0);
     } catch (err) {
       console.error("fetchSettledBets error:", err);
     }
     setSettledLoading(false);
-  }, []);
+  }, [settledStatus, settledDateRange, settledSearch, settledPage]);
+
+  // Global KPIs (server-aggregated, not limited by bets list)
+  const fetchGlobalKpis = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ tab: "stats" });
+      const cutoff = getDateCutoff(betDateRange);
+      if (cutoff) params.set("cutoff", cutoff);
+      const res = await fetch(`/api/admin/sportsbook?${params}`);
+      const json = await res.json();
+      if (!json.error) setGlobalKpis(json);
+    } catch (err) {
+      console.error("fetchGlobalKpis error:", err);
+    }
+  }, [betDateRange]);
 
   // ════════════════════════════════════════════
   // EFFECTS
@@ -350,27 +379,34 @@ export default function AdminSportsbook() {
     if (activeTab === "settlement") fetchSettledBets();
   }, [activeTab, fetchEvents, fetchSettledBets]);
 
+  // Global KPIs: refetch on date range change (shown in header regardless of active tab)
+  useEffect(() => {
+    fetchGlobalKpis();
+  }, [fetchGlobalKpis]);
+
+  // Reset settlement page when filters change
+  useEffect(() => {
+    setSettledPage(1);
+  }, [settledStatus, settledDateRange, settledSearch]);
+
   // ════════════════════════════════════════════
   // COMPUTED
   // ════════════════════════════════════════════
 
-  // KPIs
+  // KPIs: prefer server-aggregated globals; fallback to local sample (only during first load)
   const kpis = useMemo(() => {
+    if (globalKpis) return globalKpis;
     const staked = bets.reduce((s, b) => s + (b.stake || 0), 0);
     const liability = bets
       .filter((b) => b.status === "open")
       .reduce((s, b) => s + (b.potential_win || 0), 0);
     const openBets = bets.filter((b) => b.status === "open").length;
     const payouts =
-      bets
-        .filter((b) => b.status === "won")
-        .reduce((s, b) => s + (b.potential_win || 0), 0) +
-      bets
-        .filter((b) => b.status === "void")
-        .reduce((s, b) => s + (b.stake || 0), 0);
+      bets.filter((b) => b.status === "won").reduce((s, b) => s + (b.potential_win || 0), 0) +
+      bets.filter((b) => b.status === "void").reduce((s, b) => s + (b.stake || 0), 0);
     const margin = staked > 0 ? ((staked - payouts) / staked) * 100 : 0;
     return { staked, liability, openBets, margin, openEventsCount };
-  }, [bets, openEventsCount]);
+  }, [bets, openEventsCount, globalKpis]);
 
   // Filtered bets (client-side search)
   const filteredBets = useMemo(() => {
@@ -518,7 +554,7 @@ export default function AdminSportsbook() {
             TOT. SCOMMESSO
           </div>
           <div className="text-lg font-black font-mono" style={{ color: "var(--admin-text)" }}>
-            ${kpis.staked.toFixed(2)}
+            €{kpis.staked.toFixed(2)}
           </div>
         </div>
         <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
@@ -526,7 +562,7 @@ export default function AdminSportsbook() {
             LIABILITY APERTA
           </div>
           <div className="text-lg font-black font-mono text-red-400">
-            ${kpis.liability.toFixed(2)}
+            €{kpis.liability.toFixed(2)}
           </div>
         </div>
         <div className="rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
@@ -720,9 +756,9 @@ export default function AdminSportsbook() {
                         <td className="px-3 py-3 font-bold truncate" style={{ color: "var(--admin-text, #111827)" }}>{bet.username || "—"}</td>
                         <td className={cn("px-3 py-3 text-[10px] font-semibold truncate", isSistema ? "text-purple-500" : "")} style={!isSistema ? { color: "var(--admin-text3)" } : undefined}>{typeLabel}</td>
                         <td className="px-3 py-3 text-[10px] truncate max-w-0" style={{ color: "var(--admin-text2)" }}>{legSummary}</td>
-                        <td className="px-3 py-3 text-right font-mono font-bold whitespace-nowrap" style={{ color: "var(--admin-text, #111827)" }}>${bet.stake != null ? bet.stake.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-3 text-right font-mono font-bold whitespace-nowrap" style={{ color: "var(--admin-text, #111827)" }}>€{bet.stake != null ? bet.stake.toFixed(2) : "—"}</td>
                         <td className="px-3 py-3 text-right font-mono font-semibold whitespace-nowrap" style={{ color: "var(--admin-text2)" }}>{bet.total_odds?.toFixed(2)}</td>
-                        <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold whitespace-nowrap">${bet.potential_win?.toFixed(2)}</td>
+                        <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold whitespace-nowrap">€{bet.potential_win?.toFixed(2)}</td>
                         <td className="px-3 py-3 text-center whitespace-nowrap overflow-hidden"><StatusBadge status={bet.status} /></td>
                         <td className="px-3 py-3 text-right whitespace-nowrap" style={{ color: "var(--admin-text4)" }}>{fmtDate(bet.created_at)}</td>
                         <td className="px-1 py-3 text-center" style={{ color: "var(--admin-text4)" }}>
@@ -747,8 +783,8 @@ export default function AdminSportsbook() {
                                   <div className="flex items-center justify-between py-1 text-[10px]">
                                     <span className="font-semibold" style={{ color: "var(--admin-text3)" }}>Combo {ci + 1}</span>
                                     <div className="flex items-center gap-3">
-                                      <span className="font-mono" style={{ color: "var(--admin-text4)" }}>${child.stake?.toFixed(2)} @ {child.total_odds?.toFixed(2)}</span>
-                                      <span className="text-emerald-600 font-mono font-bold">${child.potential_win?.toFixed(2)}</span>
+                                      <span className="font-mono" style={{ color: "var(--admin-text4)" }}>€{child.stake?.toFixed(2)} @ {child.total_odds?.toFixed(2)}</span>
+                                      <span className="text-emerald-600 font-mono font-bold">€{child.potential_win?.toFixed(2)}</span>
                                       <StatusBadge status={child.status} />
                                     </div>
                                   </div>
@@ -961,6 +997,81 @@ export default function AdminSportsbook() {
       {/* ═══════════════════════════════════════════ */}
       {activeTab === "settlement" && (
         <div>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            {/* Status */}
+            <div className="flex gap-1">
+              {([
+                { id: "all", label: "Tutti" },
+                { id: "won", label: "Vinti" },
+                { id: "lost", label: "Persi" },
+                { id: "void", label: "Void" },
+              ] as { id: SettlementStatusFilter; label: string }[]).map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setSettledStatus(s.id)}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
+                    settledStatus === s.id ? "bg-brand text-white" : "hover:opacity-80"
+                  )}
+                  style={settledStatus !== s.id ? { background: "var(--admin-surface3)", color: "var(--admin-text3)" } : undefined}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date range */}
+            <div className="flex gap-1">
+              {DATE_OPTIONS.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setSettledDateRange(d.id)}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
+                    settledDateRange === d.id ? "bg-brand text-white" : "hover:opacity-80"
+                  )}
+                  style={settledDateRange !== d.id ? { background: "var(--admin-surface3)", color: "var(--admin-text3)" } : undefined}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search (username / kiosk code / bet-id) */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSettledSearch(settledSearchInput.trim());
+              }}
+              className="flex gap-1"
+            >
+              <input
+                type="text"
+                value={settledSearchInput}
+                onChange={(e) => setSettledSearchInput(e.target.value)}
+                placeholder="Cerca utente / kiosk / bet-id"
+                className="px-3 py-1 rounded-lg text-xs focus:outline-none focus:border-brand min-w-[220px]"
+                style={{ background: "var(--admin-input)", border: "1px solid var(--admin-border)", color: "var(--admin-text)" }}
+              />
+              {settledSearch && (
+                <button
+                  type="button"
+                  onClick={() => { setSettledSearchInput(""); setSettledSearch(""); }}
+                  className="px-2 py-1 rounded text-[10px] font-semibold"
+                  style={{ background: "var(--admin-surface3)", color: "var(--admin-text3)" }}
+                >
+                  ✕
+                </button>
+              )}
+            </form>
+
+            {/* Result count */}
+            <div className="ml-auto text-[11px] font-mono" style={{ color: "var(--admin-text4)" }}>
+              {settledTotal.toLocaleString("it-IT")} risultati
+            </div>
+          </div>
+
           <div className="rounded-xl overflow-hidden" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
             {settledLoading ? (
               <div className="p-8 text-center text-sm" style={{ color: "var(--admin-text4)" }}>
@@ -1004,17 +1115,26 @@ export default function AdminSportsbook() {
                       style={{ borderBottom: "1px solid var(--admin-border)" }}
                       className="hover:opacity-80"
                     >
-                      <td className="px-4 py-3 font-mono" style={{ color: "var(--admin-text3)" }}>
+                      <td
+                        className="px-4 py-3 font-mono cursor-pointer"
+                        style={{ color: "var(--admin-text3)" }}
+                        title={`${bet.id}\nClicca per copiare`}
+                        onClick={() => { navigator.clipboard?.writeText(bet.id); toast.success("Bet ID copiato"); }}
+                      >
                         {bet.id.slice(0, 8)}...
                       </td>
                       <td className="px-4 py-3 font-bold" style={{ color: "var(--admin-text)" }}>
                         {bet.username}
                       </td>
-                      <td className="px-4 py-3 max-w-[200px] truncate" style={{ color: "var(--admin-text2)" }}>
+                      <td
+                        className="px-4 py-3 max-w-[260px] truncate"
+                        style={{ color: "var(--admin-text2)" }}
+                        title={bet.event_names}
+                      >
                         {bet.event_names}
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-bold" style={{ color: "var(--admin-text)" }}>
-                        ${bet.stake?.toFixed(2)}
+                        €{bet.stake?.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={bet.status} />
@@ -1028,7 +1148,7 @@ export default function AdminSportsbook() {
                         )}
                         style={getPayout(bet) <= 0 ? { color: "var(--admin-text4)" } : undefined}
                       >
-                        ${getPayout(bet).toFixed(2)}
+                        €{getPayout(bet).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-right" style={{ color: "var(--admin-text4)" }}>
                         {bet.settled_at ? fmtDate(bet.settled_at) : "—"}
@@ -1039,6 +1159,47 @@ export default function AdminSportsbook() {
               </table>
             )}
           </div>
+
+          {/* Pagination footer */}
+          {!settledLoading && settledTotal > 0 && (() => {
+            const totalPages = Math.max(1, Math.ceil(settledTotal / SETTLEMENT_PAGE_SIZE));
+            const canPrev = settledPage > 1;
+            const canNext = settledPage < totalPages;
+            return (
+              <div className="flex items-center justify-between mt-4 text-xs" style={{ color: "var(--admin-text4)" }}>
+                <div>
+                  Pagina <span className="font-bold" style={{ color: "var(--admin-text)" }}>{settledPage}</span> / {totalPages}
+                  <span className="ml-3">
+                    {(settledPage - 1) * SETTLEMENT_PAGE_SIZE + 1}–{Math.min(settledPage * SETTLEMENT_PAGE_SIZE, settledTotal)} di {settledTotal.toLocaleString("it-IT")}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => canPrev && setSettledPage((p) => p - 1)}
+                    disabled={!canPrev}
+                    className={cn(
+                      "px-3 py-1.5 rounded text-[10px] font-bold transition-all",
+                      canPrev ? "hover:opacity-80" : "opacity-40 cursor-not-allowed"
+                    )}
+                    style={{ background: "var(--admin-surface3)", color: "var(--admin-text3)" }}
+                  >
+                    ← Precedente
+                  </button>
+                  <button
+                    onClick={() => canNext && setSettledPage((p) => p + 1)}
+                    disabled={!canNext}
+                    className={cn(
+                      "px-3 py-1.5 rounded text-[10px] font-bold transition-all",
+                      canNext ? "hover:opacity-80" : "opacity-40 cursor-not-allowed"
+                    )}
+                    style={{ background: "var(--admin-surface3)", color: "var(--admin-text3)" }}
+                  >
+                    Successiva →
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -6,6 +6,16 @@ export interface SportBreakdown {
   outcomes: number;
 }
 
+export interface PrematchCycleStats {
+  last_end_ts: number;  // ms epoch, 0 if never completed
+  cycle_ms: number;     // duration of last cycle in ms
+  events: number;
+  markets: number;
+  outcomes: number;
+  running: boolean;
+  interval_ms: number;  // configured interval between cycles
+}
+
 export interface ScraperStats {
   live_events: number;
   prematch_events: number;
@@ -27,6 +37,8 @@ export interface ScraperStats {
   prematch_cycle_duration_ms?: number;
   cycle_ms?: number;
   sports?: Record<string, any>;
+  slow_prematch?: PrematchCycleStats;
+  fast_prematch?: PrematchCycleStats;
   [key: string]: any;
 }
 
@@ -40,8 +52,8 @@ export interface DbCounts {
 }
 
 export interface SportData {
-  goldbet: { live: SportBreakdown; prematch: SportBreakdown };
-  vincitu: {
+  kambi: { live: SportBreakdown; prematch: SportBreakdown };
+  betssolution: {
     live_events: number;
     prematch_events: number;
     active_markets: number;
@@ -51,8 +63,8 @@ export interface SportData {
 
 export interface Snapshot {
   timestamp: string;
-  goldbet: ScraperStats;
-  vincitu: DbCounts;
+  kambi: ScraperStats;
+  betssolution: DbCounts;
   diffs: {
     live_events_pct: number;
     prematch_events_pct: number;
@@ -72,7 +84,7 @@ export interface StatsResponse {
   latest: Snapshot | null;
   history: Snapshot[];
   servers: Record<string, ServerData>;
-  vincitu_only?: {
+  betssolution_only?: {
     live_events: number;
     prematch_events: number;
     finished_events: number;
@@ -118,12 +130,16 @@ export interface SubsystemScore {
   details?: string;
 }
 
+export interface HealthScores {
+  overall: number;
+  level: "healthy" | "degraded" | "critical";
+  subsystems: Record<string, SubsystemScore>;
+}
+
 export interface HealthData {
-  scores: {
-    overall: number;
-    level: "healthy" | "degraded" | "critical";
-    subsystems: Record<string, SubsystemScore>;
-  };
+  scores: HealthScores;
+  twobet_scores?: HealthScores | null;
+  betfair_scores?: HealthScores | null;
   metrics: {
     event_freshness: {
       live: Record<string, FreshnessBuckets> | null;

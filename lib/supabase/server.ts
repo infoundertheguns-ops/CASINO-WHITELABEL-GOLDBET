@@ -26,7 +26,9 @@ export async function createClient() {
   );
 }
 
-// Admin client with service role (server-only, bypasses RLS)
+// Admin client with service role (server-only, bypasses RLS).
+// The global.fetch() in Next.js caches GET responses by default, which
+// makes RPC calls return stale snapshots. Force no-store on every hop.
 export function createAdminClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,6 +36,10 @@ export function createAdminClient() {
     {
       cookies: { getAll: () => [], setAll: () => {} },
       auth: { persistSession: false },
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+          fetch(input, { ...init, cache: "no-store" }),
+      },
     }
   );
 }

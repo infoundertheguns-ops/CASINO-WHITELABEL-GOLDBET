@@ -59,7 +59,11 @@ export function FreshnessSection({ health }: { health: HealthData }) {
 
   const liveKambi = of.live?.kambi || null;
   const preKambi = of.prematch?.kambi || null;
-  if (!liveKambi && !preKambi) return null;
+  const liveTwobet = of.live?.["22bet"] || null;
+  const preTwobet = of.prematch?.["22bet"] || null;
+  const liveBetfair = of.live?.betfair || null;
+  const preBetfair = of.prematch?.betfair || null;
+  if (!liveKambi && !preKambi && !liveTwobet && !preTwobet && !liveBetfair && !preBetfair) return null;
 
   return (
     <>
@@ -74,6 +78,10 @@ export function FreshnessSection({ health }: { health: HealthData }) {
       </div>
       <FreshnessBar label="Kambi Live" buckets={liveKambi} />
       <FreshnessBar label="Kambi Prematch" buckets={preKambi} />
+      <FreshnessBar label="22bet Live" buckets={liveTwobet} />
+      <FreshnessBar label="22bet Prematch" buckets={preTwobet} />
+      <FreshnessBar label="Betfair Live" buckets={liveBetfair} />
+      <FreshnessBar label="Betfair Prematch" buckets={preBetfair} />
     </>
   );
 }

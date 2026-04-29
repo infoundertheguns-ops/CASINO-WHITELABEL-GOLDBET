@@ -5,7 +5,7 @@ export type PermissionLevel = "none" | "viewer" | "editor";
 
 export const PERMISSION_KEYS = [
   "dashboard", "players", "sub_agents", "credit",
-  "tickets", "reports", "commissions", "bets", "risk",
+  "tickets", "reports", "commissions", "bets", "risk", "kiosks",
 ] as const;
 
 export type PermissionKey = typeof PERMISSION_KEYS[number];
@@ -27,6 +27,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   commissions: "Commissioni",
   bets: "Scommesse",
   risk: "Rischio",
+  kiosks: "Kiosk",
 };
 
 export interface Agent {
@@ -40,6 +41,7 @@ export interface Agent {
   commission_type: string;
   commission_rate: number;
   status: AgentStatus;
+  settlement_period: "weekly" | "monthly";
   permissions: AgentPermissions;
   is_active: boolean;
   total_players: number;
@@ -77,6 +79,11 @@ export interface AgentSettlement {
   commission_pct: number;
   commission_amount: number;
   status: string;
+  approved_at: string | null;
+  approved_by: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  notes: string | null;
   created_at: string;
 }
 
@@ -112,4 +119,5 @@ export const DEFAULT_PERMISSIONS: AgentPermissions = {
   commissions: "viewer",
   bets: "viewer",
   risk: "none",
+  kiosks: "none",
 };

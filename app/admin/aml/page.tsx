@@ -70,13 +70,13 @@ export default function AdminAML() {
           )}
         </div>
         <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800"><span className="text-sm font-bold text-white">💸 TX &gt; $500</span></div>
+          <div className="px-4 py-3 border-b border-gray-800"><span className="text-sm font-bold text-white">💸 TX &gt; €500</span></div>
           {bigTx.length === 0 ? <div className="p-8 text-center text-gray-500 text-sm">Nessuna</div> : (
             <div className="max-h-[500px] overflow-y-auto">
               {bigTx.map(tx => (
                 <div key={tx.id} className="px-4 py-2 border-b border-gray-800/50 flex justify-between items-center">
                   <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded capitalize", tx.type === "deposit" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400")}>{tx.type}</span>
-                  <span className={cn("text-xs font-mono font-bold", tx.amount >= 0 ? "text-emerald-400" : "text-red-400")}>${Math.abs(tx.amount || 0).toFixed(2)}</span>
+                  <span className={cn("text-xs font-mono font-bold", tx.amount >= 0 ? "text-emerald-400" : "text-red-400")}>€{Math.abs(tx.amount || 0).toFixed(2)}</span>
                 </div>
               ))}
             </div>

@@ -1,19 +1,28 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent } from "@/lib/settlement";
 import {
   matchEvents,
-  buildHalfScores,
   SPORT_MAP,
   getSportGroup,
+  fetchMatchDetail as fsFetchMatchDetail,
+  delay,
 } from "@/lib/flashscore";
-import type { FlashscoreResult } from "@/lib/flashscore";
+import type { FlashscoreResult, FlashscoreStat } from "@/lib/flashscore";
+import { buildUpdatedLiveData } from "./_lib";
 
 // ═══════════════════════════════════════════════════
 // Flashscore Results Endpoint
 // Receives results from standalone flashscore-scraper
 // Matches with DB events, verifies scores, settles
 // ═══════════════════════════════════════════════════
+
+
+// Record last successful run timestamp
+async function stampLastRun(sb: any, key: string) {
+  await sb.from("system_config").upsert({ key, value: JSON.stringify(new Date().toISOString()) }, { onConflict: "key" });
+}
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-scraper-key");
@@ -42,6 +51,9 @@ export async function POST(req: NextRequest) {
     verified: 0,
     settled: 0,
     direct_lookups: 0,
+    stats_fetched: 0,
+    stats_empty: 0,
+    stats_fetch_failed: 0,
     errors: [] as string[],
   };
 
@@ -126,6 +138,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  await stampLastRun(supabase, "last_run_flashscore_results");
+
   return NextResponse.json({
     ...stats,
     errors: stats.errors.length > 0 ? stats.errors.slice(0, 15) : undefined,
@@ -137,10 +151,15 @@ async function verifyAndSettle(
   ev: any,
   fsResult: FlashscoreResult,
   sport: string,
-  stats: { verified: number; settled: number; errors: string[] }
+  stats: {
+    verified: number;
+    settled: number;
+    stats_fetched: number;
+    stats_empty: number;
+    stats_fetch_failed: number;
+    errors: string[];
+  }
 ) {
-  const halfScores = buildHalfScores(sport, fsResult.periods);
-
   const existingLiveData =
     (
       await supabase
@@ -150,17 +169,32 @@ async function verifyAndSettle(
         .single()
     ).data?.live_data as Record<string, unknown> | null;
 
-  const updatedLiveData: Record<string, unknown> = {
-    ...(existingLiveData || {}),
-    verified_by: "flashscore",
-    verified_at: new Date().toISOString(),
-    flashscore_id: fsResult.matchId,
-  };
-
-  if (halfScores) {
-    updatedLiveData.halfScoreHome = halfScores.home;
-    updatedLiveData.halfScoreAway = halfScores.away;
+  // Fetch match detail to persist stats (corners/cards/shots) for settlement.
+  // Best-effort: if FS doesn't return stats (stale fsid, rate limit, etc.)
+  // we leave existing stats untouched via buildUpdatedLiveData idempotency.
+  // NOTE: Do NOT gate on detail.status === 'finished' — that's the bug
+  //       in verify-results that makes it miss live-state events.
+  let matchStats: FlashscoreStat[] = [];
+  try {
+    const detail = await fsFetchMatchDetail(fsResult.matchId);
+    if (detail && detail.stats.length > 0) {
+      matchStats = detail.stats;
+      stats.stats_fetched++;
+    } else {
+      stats.stats_empty++;
+    }
+    await delay(500);
+  } catch {
+    stats.stats_fetch_failed++;
+    // best-effort — preserve existing stats
   }
+
+  const updatedLiveData = buildUpdatedLiveData({
+    existingLiveData,
+    sport,
+    fsResult,
+    matchStats,
+  });
 
   const { error: updateErr } = await supabase
     .from("events")

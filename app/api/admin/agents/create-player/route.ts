@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Generate placeholder email
-  const email = `${username}@players.vincitu.local`;
+  const email = `${username}@players.betssolution.local`;
 
   // Create auth user
   const { data: authUser, error: authError } = await supabase.auth.admin.createUser({

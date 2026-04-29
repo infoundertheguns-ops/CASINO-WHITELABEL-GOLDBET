@@ -12,6 +12,8 @@ interface AdminSidebarProps {
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  userRole?: "super_admin" | "agent" | "loading";
+  agentCode?: string;
 }
 
 export function AdminSidebar({
@@ -22,6 +24,8 @@ export function AdminSidebar({
   onToggleCollapse,
   mobileOpen,
   onCloseMobile,
+  userRole,
+  agentCode,
 }: AdminSidebarProps) {
   // Close mobile drawer on route change
   useEffect(() => {
@@ -106,7 +110,13 @@ export function AdminSidebar({
         >
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>admin · super_admin</span>
+            <span>
+              {userRole === "agent"
+                ? `${agentCode ? agentCode.toLowerCase() : "agente"} · agent`
+                : userRole === "loading"
+                ? "—"
+                : "admin · super_admin"}
+            </span>
           </div>
         </div>
       )}

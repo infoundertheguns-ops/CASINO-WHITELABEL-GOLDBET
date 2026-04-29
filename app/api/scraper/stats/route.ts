@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 // Telegram alerts now handled by dedicated /api/cron/alerts route
@@ -47,8 +48,8 @@ interface DbSportCounts {
 
 interface Snapshot {
   timestamp: string;
-  goldbet: ScraperStats;
-  vincitu: DbCounts;
+  kambi: ScraperStats;
+  betssolution: DbCounts;
   diffs: {
     live_events_pct: number;
     prematch_events_pct: number;
@@ -56,8 +57,8 @@ interface Snapshot {
     outcomes_pct: number;
   };
   by_sport?: Record<string, {
-    goldbet: { live: SportBreakdown; prematch: SportBreakdown };
-    vincitu: { live_events: number; prematch_events: number; active_markets: number; active_outcomes: number };
+    kambi: { live: SportBreakdown; prematch: SportBreakdown };
+    betssolution: { live_events: number; prematch_events: number; active_markets: number; active_outcomes: number };
   }>;
 }
 
@@ -84,9 +85,9 @@ function addSnapshot(snap: Snapshot, source: string) {
   }
 }
 
-function calcDiffPct(goldbet: number, vincitu: number): number {
-  if (goldbet === 0) return vincitu === 0 ? 0 : 100;
-  return Math.round(((vincitu - goldbet) / goldbet) * 1000) / 10; // 1 decimal
+function calcDiffPct(kambi: number, betssolution: number): number {
+  if (kambi === 0) return betssolution === 0 ? 0 : 100;
+  return Math.round(((betssolution - kambi) / kambi) * 1000) / 10; // 1 decimal
 }
 
 // ═══ POST — Receive stats from scraper ═══
@@ -97,9 +98,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let goldbet: ScraperStats;
+  let kambi: ScraperStats;
   try {
-    goldbet = await req.json();
+    kambi = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
     data: { active_markets: number; active_outcomes: number } | null;
   };
 
-  const vincitu: DbCounts = {
+  const betssolution: DbCounts = {
     live_events: liveEv.count || 0,
     prematch_events: prematchEv.count || 0,
     active_markets: activeCounts?.active_markets || 0,
@@ -148,26 +149,26 @@ export async function POST(req: NextRequest) {
     ended_events: endedEv.count || 0,
   };
 
-  const gbTotalMarkets = goldbet.live_markets + goldbet.prematch_markets;
-  const gbTotalOutcomes = goldbet.live_outcomes + goldbet.prematch_outcomes;
+  const gbTotalMarkets = kambi.live_markets + kambi.prematch_markets;
+  const gbTotalOutcomes = kambi.live_outcomes + kambi.prematch_outcomes;
 
   // Use current cycle count for live (scrapes ALL events every 30s, so cycle = real count)
   // Use cumulative for prematch (scrapes subsets per cycle, cumulative = real count)
-  const gbLiveForDiff = goldbet.live_events_current_cycle ?? goldbet.live_events;
+  const gbLiveForDiff = kambi.live_events_current_cycle ?? kambi.live_events;
 
   const diffs = {
-    live_events_pct: calcDiffPct(gbLiveForDiff, vincitu.live_events),
+    live_events_pct: calcDiffPct(gbLiveForDiff, betssolution.live_events),
     prematch_events_pct: calcDiffPct(
-      goldbet.prematch_events,
-      vincitu.prematch_events
+      kambi.prematch_events,
+      betssolution.prematch_events
     ),
-    markets_pct: calcDiffPct(gbTotalMarkets, vincitu.active_markets),
-    outcomes_pct: calcDiffPct(gbTotalOutcomes, vincitu.active_outcomes),
+    markets_pct: calcDiffPct(gbTotalMarkets, betssolution.active_markets),
+    outcomes_pct: calcDiffPct(gbTotalOutcomes, betssolution.active_outcomes),
   };
 
   // Query DB counts per sport (events with sport join)
   let bySportData: Snapshot["by_sport"] | undefined;
-  if (goldbet.by_sport && Object.keys(goldbet.by_sport).length > 0) {
+  if (kambi.by_sport && Object.keys(kambi.by_sport).length > 0) {
     // Step 1: Fetch active events with sport name — paginate (Supabase returns max 1000 per request)
     const dbEvents: any[] = [];
     let evOffset = 0;
@@ -233,34 +234,34 @@ export async function POST(req: NextRequest) {
       if (batch.length < PAGE_SIZE) hasMore = false;
     }
 
-    // Merge goldbet by_sport with DB by_sport
+    // Merge kambi by_sport with DB by_sport
     const allSports = new Set([
-      ...Object.keys(goldbet.by_sport),
+      ...Object.keys(kambi.by_sport),
       ...Object.keys(dbBySport),
     ]);
 
     bySportData = {};
     for (const sport of allSports) {
-      const gb = goldbet.by_sport[sport] || {
+      const gb = kambi.by_sport[sport] || {
         live: { events: 0, markets: 0, outcomes: 0 },
         prematch: { events: 0, markets: 0, outcomes: 0 },
       };
       const db = dbBySport[sport] || {
         live_events: 0, prematch_events: 0, active_markets: 0, active_outcomes: 0,
       };
-      bySportData[sport] = { goldbet: gb, vincitu: db };
+      bySportData[sport] = { kambi: gb, betssolution: db };
     }
   }
 
   const snap: Snapshot = {
     timestamp: new Date().toISOString(),
-    goldbet,
-    vincitu,
+    kambi,
+    betssolution,
     diffs,
     by_sport: bySportData,
   };
 
-  const source = goldbet.source || 'main';
+  const source = kambi.source || 'main';
   addSnapshot(snap, source);
 
   // Persist latest snapshot to Redis (TTL 5min) for resilience across Vincitu restarts
@@ -314,7 +315,7 @@ export async function GET(req: NextRequest) {
       latest: null,
       history: [],
       servers: {},
-      vincitu_only: {
+      betssolution_only: {
         live_events: liveEv.count || 0,
         prematch_events: prematchEv.count || 0,
         finished_events: finishedEv.count || 0,

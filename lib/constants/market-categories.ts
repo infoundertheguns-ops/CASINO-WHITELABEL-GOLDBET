@@ -1,7 +1,7 @@
 import type { Market } from "@/lib/hooks/use-sportsbook";
 
 // ═══ MARKET CATEGORY SYSTEM ═══
-// Replaces the old 6-group system with Goldbet-style category tabs.
+// Replaces the old 6-group system with Kambi-style category tabs.
 
 export interface MarketCategory {
   id: string;
@@ -68,10 +68,10 @@ export function getMarketCategoryId(market: Market): string {
   if (name.includes("marc +") || name.includes("pros marc +") || name.includes("metodo prossimo gol")) return "combo";
   if (name.includes("gg o over") || name.includes("gg e over") || name.includes("gg + over")) return "combo";
 
-  // Handicap — Goldbet + Kambi: "Handicap", "1x2 con Handicap", "Handicap Asiatico", "Testa a Testa Handicap"
+  // Handicap — Kambi + Kambi: "Handicap", "1x2 con Handicap", "Handicap Asiatico", "Testa a Testa Handicap"
   if (name.includes("handicap") || name.includes("1x2 hand") || type === "handicap") return "handicap";
 
-  // Under/Over — Goldbet: "U/O", "Under/Over" | Kambi: "Totale gol", "Totale Asiatico"
+  // Under/Over — Kambi: "U/O", "Under/Over" | Kambi: "Totale gol", "Totale Asiatico"
   if (name.includes("under/over") || name.startsWith("o/u") || name.startsWith("u/o")) return "uo";
   if (name.startsWith("totale gol") || name.startsWith("totale asiatico")) return "uo";
 

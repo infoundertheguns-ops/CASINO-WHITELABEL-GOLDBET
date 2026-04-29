@@ -601,7 +601,7 @@ git commit -m "feat(agents): add betting permissions and ticket limits admin UI"
 - [ ] **Step 1: Run build**
 
 ```bash
-cd C:\Users\philp\Downloads\vincitu-project\vincitu && npx next build
+cd C:\Users\philp\Downloads\betssolution-project\betssolution && npx next build
 ```
 
 - [ ] **Step 2: Test locally**

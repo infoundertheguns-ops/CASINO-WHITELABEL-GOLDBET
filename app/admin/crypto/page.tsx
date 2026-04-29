@@ -63,7 +63,7 @@ export default function AdminCrypto() {
               {withdrawals.map(w => (
                 <tr key={w.id} className="border-b border-gray-800/50 hover:bg-white/5">
                   <td className="px-4 py-2 text-white">{w.users?.username || "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono text-red-400">${w.amount_usdt?.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-red-400">€{w.amount_usdt?.toFixed(2)}</td>
                   <td className="px-4 py-2 text-gray-400 font-mono text-[10px] truncate max-w-[200px]">{w.to_address}</td>
                   <td className="px-4 py-2 text-center">
                     <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",
@@ -108,7 +108,7 @@ export default function AdminCrypto() {
               {deposits.map(d => (
                 <tr key={d.id} className="border-b border-gray-800/50">
                   <td className="px-4 py-2 text-white">{d.users?.username || "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono text-emerald-400">${d.amount_usdt?.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-emerald-400">€{d.amount_usdt?.toFixed(2)}</td>
                   <td className="px-4 py-2 text-gray-400 font-mono text-[10px] truncate max-w-[200px]">{d.tx_hash || "—"}</td>
                   <td className="px-4 py-2 text-center">
                     <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",

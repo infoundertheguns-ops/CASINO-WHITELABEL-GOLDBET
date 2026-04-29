@@ -16,7 +16,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 // Test user to use
 const TEST_USER = "rec_player_1";
-const TEST_EMAIL = "rec_player_1@test.vincitu.local";
+const TEST_EMAIL = "rec_player_1@test.betssolution.local";
 const TEST_PASSWORD = "TestPass123!rec1";
 
 // Target events per sport (will be filled dynamically)

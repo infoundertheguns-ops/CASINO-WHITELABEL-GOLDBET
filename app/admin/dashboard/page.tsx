@@ -44,10 +44,10 @@ export default function AdminDashboard() {
       setKpis([
         { label: "UTENTI", value: String(k.total_users || 0), color: "text-blue-400" },
         { label: "SCOMMESSE", value: String(k.total_bets || 0), trend: trend(k.total_bets, pk.total_bets), color: "text-brand" },
-        { label: "VOLUME", value: `$${(k.total_stake || 0).toFixed(0)}`, trend: trend(k.total_stake, pk.total_stake), color: "text-emerald-400" },
-        { label: "GGR", value: `$${(k.ggr || 0).toFixed(0)}`, trend: trend(k.ggr, pk.ggr), color: (k.ggr || 0) >= 0 ? "text-emerald-500" : "text-red-400" },
+        { label: "VOLUME", value: `€${(k.total_stake || 0).toFixed(0)}`, trend: trend(k.total_stake, pk.total_stake), color: "text-emerald-400" },
+        { label: "GGR", value: `€${(k.ggr || 0).toFixed(0)}`, trend: trend(k.ggr, pk.ggr), color: (k.ggr || 0) >= 0 ? "text-emerald-500" : "text-red-400" },
         { label: "BET APERTE", value: String(k.open_bets || 0), color: "text-yellow-400" },
-        { label: "DEPOSITI", value: `$${(k.deposits || 0).toFixed(0)}`, color: "text-teal-400" },
+        { label: "DEPOSITI", value: `€${(k.deposits || 0).toFixed(0)}`, color: "text-teal-400" },
         { label: "ALERT RISCHIO", value: String(k.risk_alerts || 0), color: "text-red-400" },
         { label: "MARGIN %", value: `${(k.margin_pct || 0).toFixed(1)}%`, color: "text-purple-400" },
       ]);
@@ -161,9 +161,9 @@ export default function AdminDashboard() {
                     <tr key={bet.id} className="border-b border-gray-800/50 hover:bg-white/5">
                       <td className="px-4 py-2 font-medium" style={{ color: "var(--admin-text)" }}>{bet.username}</td>
                       <td className="px-4 py-2 capitalize" style={{ color: "var(--admin-text3)" }}>{bet.bet_type}</td>
-                      <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text)" }}>${bet.stake?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text)" }}>€{bet.stake?.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text2)" }}>{bet.total_odds?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right font-mono text-emerald-400">${bet.potential_win?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-emerald-400">€{bet.potential_win?.toFixed(2)}</td>
                       <td className="px-4 py-2 text-center">
                         <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",
                           bet.status === "open" ? "bg-yellow-500/20 text-yellow-400" :

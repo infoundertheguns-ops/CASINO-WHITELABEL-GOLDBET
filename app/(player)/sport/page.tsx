@@ -104,7 +104,7 @@ export default function SportPage() {
     if (ev) toggleBet(ev, b.marketName, { label: b.selection, odds: b.odds });
   };
 
-  // Market lookup by name — supports Italian aliases from Goldbet scraper
+  // Market lookup by name — supports Italian aliases from Kambi scraper
   const MARKET_ALIASES: Record<string, string[]> = {
     "1X2": [
       "1X2", "T/T Risultato", "Testa A Testa",

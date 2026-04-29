@@ -12,8 +12,8 @@
 3. [Quick Prematch (ogni 5 min)](#3-quick-prematch-ogni-5-min)
 4. [Full Prematch (ogni 30 min)](#4-full-prematch-ogni-30-min)
 5. [Prematch API — Logica di Scraping](#5-prematch-api--logica-di-scraping)
-6. [Push verso Vincitu (HTTP)](#6-push-verso-vincitu-http)
-7. [Ingestion Prematch (Vincitu API)](#7-ingestion-prematch-vincitu-api)
+6. [Push verso Vincitu (HTTP)](#6-push-verso-betssolution-http)
+7. [Ingestion Prematch (Vincitu API)](#7-ingestion-prematch-betssolution-api)
 8. [Pipeline Redis Real-Time](#8-pipeline-redis-real-time)
 9. [SSE Endpoint e Frontend Hook](#9-sse-endpoint-e-frontend-hook)
 10. [Gestione Memoria e Recovery](#10-gestione-memoria-e-recovery)
@@ -73,7 +73,7 @@ All'avvio, il processo:
 1. **Carica stato persistente** — `loadKnownEvents()` legge `~/.known-events.json` (mappa cumulativa di tutti gli eventi visti, sopravvive ai restart)
 2. **Connette Redis** — `initRedis()` crea 2 client (uno per read/write, uno per PUBLISH). Se fallisce, si usa HTTP diretto come fallback
 3. **Lancia browser** — Camoufox (Firefox modificato per anti-fingerprint)
-4. **Naviga alla live hub** — Stabilisce la sessione Goldbet (cookies, headers)
+4. **Naviga alla live hub** — Stabilisce la sessione Kambi (cookies, headers)
 5. **Primo ciclo live** — Eseguito immediatamente
 6. **Schedula loop** — Tutti i timer:
 
@@ -147,7 +147,7 @@ async function scrapeOverviewSingleTab(page, tournament) {
   // 1. Registra listener per intercettare la response
   page.on('response', handler);
 
-  // 2. Naviga alla pagina del torneo su Goldbet
+  // 2. Naviga alla pagina del torneo su Kambi
   await page.goto(tournament.listingUrl, {
     waitUntil: 'domcontentloaded',
     timeout: 10_000,
@@ -322,7 +322,7 @@ const result = await page.evaluate(async (params) => {
 }, { tid, pageNum, headers });
 ```
 
-**IMPORTANTE**: usa URL relativi (`/api/...`). Funziona solo se la pagina è su un dominio Goldbet. Se la pagina è su `about:blank`, fallisce con "is not a valid URL".
+**IMPORTANTE**: usa URL relativi (`/api/...`). Funziona solo se la pagina è su un dominio Kambi. Se la pagina è su `about:blank`, fallisce con "is not a valid URL".
 
 ### Detail API: `scrapeEventDetail()`
 
@@ -347,7 +347,7 @@ Recupera tutti i mercati di un singolo evento:
 
 ### Rate Limiting: `AdaptiveRateLimiter`
 
-Protegge dal WAF Akamai di Goldbet:
+Protegge dal WAF Akamai di Kambi:
 
 - **Budget**: numero massimo di chiamate API per batch
 - **Backoff adattivo**: su 429/403, ritardo esponenziale (1s → 2s → 4s... max 30s)
@@ -358,7 +358,7 @@ Protegge dal WAF Akamai di Goldbet:
 
 ## 6. Push verso Vincitu (HTTP)
 
-File: `src/push-to-vincitu.ts`
+File: `src/push-to-betssolution.ts`
 
 ### Prematch Push: `pushPrematchBatch()`
 
@@ -370,7 +370,7 @@ function pushPrematchBatch(results, baseUrl, apiKey) {
     league: r.league || 'Sconosciuto',
     home_team: r.homeTeam,
     away_team: r.awayTeam,
-    starts_at: parseGoldbetDate(r.startsAt),  // "DD-MM-YYYY HH:mm" → ISO 8601
+    starts_at: parseKambiDate(r.startsAt),  // "DD-MM-YYYY HH:mm" → ISO 8601
     markets: transformMarkets(r.markets),       // Filtra odds > 1
   }));
 
@@ -402,7 +402,7 @@ function pushLiveBatch(results, baseUrl, apiKey) {
     away_team: r.awayTeam,
     sport: r.sport,
     league: r.tournament,
-    starts_at: parseGoldbetDate(r.startsAt),
+    starts_at: parseKambiDate(r.startsAt),
   }));
 
   return postBatch(`${baseUrl}/api/scraper/live`, apiKey, events);
@@ -428,7 +428,7 @@ File: `app/api/scraper/prematch/route.ts`
 3. Aggiorna evento (starts_at, status=prematch)
    ↓
 4. Se markets=[] → deattiva TUTTI i mercati attivi dell'evento
-   (Goldbet ha rimosso l'evento dal feed prematch)
+   (Kambi ha rimosso l'evento dal feed prematch)
    ↓
 5. Upsert mercati (dedup per market_type)
    - Estrai line da market name: extractLine("OVER_UNDER_2.5") → 2.5
@@ -662,7 +662,7 @@ useEffect(() => {
 
 ### Problem: Firefox SPA Memory Leak
 
-Ogni `page.goto()` su una pagina SPA (Angular di Goldbet) alloca un content process Firefox da ~50-100MB. Navigare a `about:blank` NON libera questa memoria. Solo `context.close()` termina il processo e libera tutto.
+Ogni `page.goto()` su una pagina SPA (Angular di Kambi) alloca un content process Firefox da ~50-100MB. Navigare a `about:blank` NON libera questa memoria. Solo `context.close()` termina il processo e libera tutto.
 
 ### Soluzioni Implementate
 
@@ -683,7 +683,7 @@ Ogni `page.goto()` su una pagina SPA (Angular di Goldbet) alloca un content proc
 | Browser crash | `browser.isConnected() = false` | Backoff esponenziale + relaunch |
 | Session stale | >90s senza dati | Ri-navigazione alla live hub |
 | Redis down | `isRedisConnected() = false` | Fallback a HTTP diretto |
-| Goldbet WAF 403 | Status 403 | Proxy rotation + backoff |
+| Kambi WAF 403 | Status 403 | Proxy rotation + backoff |
 | API-Football limit | Error response | Skip stats fetch (non-fatal) |
 | Vincitu unreachable | HTTP timeout | Skip batch, retry next cycle |
 
@@ -778,7 +778,7 @@ Inviati automaticamente quando diff > 25% su eventi, mercati, o outcomes.
 | `CACHE_TTL` | 3600s (1h) | TTL cache odds:cache |
 | `maxItems` (drain) | 200 | Max items per drain cycle |
 
-### Push HTTP (`push-to-vincitu.ts`)
+### Push HTTP (`push-to-betssolution.ts`)
 
 | Costante | Valore | Descrizione |
 |---------|--------|-------------|
@@ -801,7 +801,7 @@ Inviati automaticamente quando diff > 25% su eventi, mercati, o outcomes.
 
 **Problema**: Con Redis drain, ~210/282 eventi arrivano senza mercati (overview-only dalla rotation). La live route deattivava TUTTI i mercati di questi eventi → -48% mercati.
 
-**Sintomo**: Goldbet 14,705 mercati vs Vincitu 7,654 dopo 30 min di drain.
+**Sintomo**: Kambi 14,705 mercati vs Vincitu 7,654 dopo 30 min di drain.
 
 **Fix**: Skip market logic quando `markets=[]` — l'evento non è stato fetchato dalla detail API questo ciclo, i mercati sono ancora validi. Commit `0767417`.
 

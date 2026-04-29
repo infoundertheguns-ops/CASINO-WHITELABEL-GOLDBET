@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -48,12 +49,12 @@ export async function GET(req: NextRequest) {
     // ── 1. Bets in period ──
     let betsQuery = supabase
       .from("bets")
-      .select("id, user_id, bet_type, stake, total_odds, potential_win, status, is_live, created_at")
+      .select("id, user_id, kiosk_id, bet_type, stake, total_odds, potential_win, status, is_live, created_at")
       .gte("created_at", fromISO)
       .lte("created_at", toISO)
       .not("status", "eq", "rejected");
 
-    // Agent scoping
+    // Agent scoping (includes kiosk bets)
     let scopedPlayerIds: string[] | null = null;
     if (agentId) {
       // Get agent's players
@@ -62,10 +63,20 @@ export async function GET(req: NextRequest) {
         .select("id")
         .eq("agent_id", agentId);
       scopedPlayerIds = (players || []).map((p: any) => p.id);
-      if (scopedPlayerIds.length > 0) {
-        betsQuery = betsQuery.in("user_id", scopedPlayerIds);
+      // Get agent's kiosks
+      const { data: kiosks } = await supabase
+        .from("kiosks")
+        .select("id")
+        .eq("agent_id", agentId);
+      const kioskIds = (kiosks || []).map((k: any) => k.id);
+
+      const conditions: string[] = [];
+      if (scopedPlayerIds.length > 0) conditions.push(`user_id.in.(${scopedPlayerIds.join(",")})`);
+      if (kioskIds.length > 0) conditions.push(`kiosk_id.in.(${kioskIds.join(",")})`);
+
+      if (conditions.length > 0) {
+        betsQuery = betsQuery.or(conditions.join(","));
       } else {
-        // No players = empty report
         return NextResponse.json(emptyReport(fromISO, toISO, period));
       }
     }
@@ -160,11 +171,16 @@ export async function GET(req: NextRequest) {
           .from("users")
           .select("id")
           .eq("agent_id", agent.id);
+        const { data: agentKiosks } = await supabase
+          .from("kiosks")
+          .select("id")
+          .eq("agent_id", agent.id);
 
         const pIds = (agentPlayers || []).map((p: any) => p.id);
-        if (pIds.length === 0) continue;
+        const kIds = new Set((agentKiosks || []).map((k: any) => k.id));
+        if (pIds.length === 0 && kIds.size === 0) continue;
 
-        const agentBets = allBets.filter(b => pIds.includes(b.user_id));
+        const agentBets = allBets.filter(b => pIds.includes(b.user_id) || kIds.has(b.kiosk_id));
         if (agentBets.length === 0) continue;
 
         const agTurnover = agentBets.reduce((s, b) => s + (b.stake || 0), 0);

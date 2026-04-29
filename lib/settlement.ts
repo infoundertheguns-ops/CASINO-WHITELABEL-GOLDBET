@@ -1,5 +1,16 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendTelegramMessage } from "@/lib/telegram";
+import {
+  extractStat,
+  type FlashscoreStat,
+} from "@/lib/settlement/stats-extractor";
+import {
+  canonicalizeOutcome,
+  makeEmptyLookups,
+  resolveCanonicalSettler,
+  type CanonicalLookups,
+} from "@/lib/settlement/canonical-dispatcher";
+import { loadCanonicalLookups } from "@/lib/settlement/canonical-loader";
 
 // ═══ TYPES ═══
 
@@ -28,11 +39,35 @@ interface SettlementResult {
   corners_total?: number;
   ht_corners_home?: number;
   ht_corners_away?: number;
+  ht_corners_total?: number;
   cards_home?: number;
   cards_away?: number;
   cards_total?: number;
   shots_on_target_home?: number;
   shots_on_target_away?: number;
+  // Second-half corners
+  sh_corners_home?: number;
+  sh_corners_away?: number;
+  sh_corners_total?: number;
+  // Half-time yellow+red totals (Phase 2 consumers)
+  ht_cards_home?: number;
+  ht_cards_away?: number;
+  ht_cards_total?: number;
+  sh_cards_home?: number;
+  sh_cards_away?: number;
+  sh_cards_total?: number;
+  // Total shots (tiri totali) FT/HT/SH
+  shots_total_home?: number;
+  shots_total_away?: number;
+  ht_shots_total_home?: number;
+  ht_shots_total_away?: number;
+  sh_shots_total_home?: number;
+  sh_shots_total_away?: number;
+  // Shots on target HT/SH (shots_on_target_home/away FT already exist above)
+  ht_shots_on_target_home?: number;
+  ht_shots_on_target_away?: number;
+  sh_shots_on_target_home?: number;
+  sh_shots_on_target_away?: number;
 }
 
 type Verdict = "won" | "lost" | "void" | "push";
@@ -107,43 +142,77 @@ function buildResult(
     }
   }
 
-  // Match statistics from Flashscore (persisted in live_data.stats)
-  const statsArr = ld.stats as Array<{ name: string; home: string | number; away: string | number }> | undefined;
+  // Match statistics from Flashscore (persisted in live_data.stats, Italian names)
+  const statsArr = ld.stats as FlashscoreStat[] | undefined;
   if (statsArr?.length) {
-    const extractStat = (section: string, stat: string): { home: number; away: number } | null => {
-      const found = statsArr.find(s => s.name === `${section}: ${stat}`);
-      if (!found) return null;
-      const h = parseInt(String(found.home), 10);
-      const a = parseInt(String(found.away), 10);
-      if (isNaN(h) || isNaN(a)) return null;
-      return { home: h, away: a };
-    };
-
-    const corners = extractStat("Match", "Corner Kicks");
-    if (corners) {
-      sr.corners_home = corners.home;
-      sr.corners_away = corners.away;
-      sr.corners_total = corners.home + corners.away;
+    const cornersFt = extractStat(statsArr, "ft", "corners");
+    if (cornersFt) {
+      sr.corners_home = cornersFt.home;
+      sr.corners_away = cornersFt.away;
+      sr.corners_total = cornersFt.total;
     }
-
-    const htCorners = extractStat("1st Half", "Corner Kicks");
-    if (htCorners) {
-      sr.ht_corners_home = htCorners.home;
-      sr.ht_corners_away = htCorners.away;
+    const cornersHt = extractStat(statsArr, "ht", "corners");
+    if (cornersHt) {
+      sr.ht_corners_home = cornersHt.home;
+      sr.ht_corners_away = cornersHt.away;
+      sr.ht_corners_total = cornersHt.total;
     }
-
-    const yellowCards = extractStat("Match", "Yellow Cards");
-    const redCards = extractStat("Match", "Red Cards");
-    if (yellowCards) {
-      sr.cards_home = yellowCards.home + (redCards?.home ?? 0);
-      sr.cards_away = yellowCards.away + (redCards?.away ?? 0);
+    const yellowFt = extractStat(statsArr, "ft", "cards_yellow");
+    const redFt = extractStat(statsArr, "ft", "cards_red");
+    if (yellowFt) {
+      sr.cards_home = yellowFt.home + (redFt?.home ?? 0);
+      sr.cards_away = yellowFt.away + (redFt?.away ?? 0);
       sr.cards_total = sr.cards_home + sr.cards_away;
     }
-
-    const shots = extractStat("Match", "Shots on Target");
-    if (shots) {
-      sr.shots_on_target_home = shots.home;
-      sr.shots_on_target_away = shots.away;
+    const shotsOn = extractStat(statsArr, "ft", "shots_on_target");
+    if (shotsOn) {
+      sr.shots_on_target_home = shotsOn.home;
+      sr.shots_on_target_away = shotsOn.away;
+    }
+    const cornersSh = extractStat(statsArr, "sh", "corners");
+    if (cornersSh) {
+      sr.sh_corners_home = cornersSh.home;
+      sr.sh_corners_away = cornersSh.away;
+      sr.sh_corners_total = cornersSh.total;
+    }
+    const yellowHt = extractStat(statsArr, "ht", "cards_yellow");
+    const redHt = extractStat(statsArr, "ht", "cards_red");
+    if (yellowHt) {
+      sr.ht_cards_home = yellowHt.home + (redHt?.home ?? 0);
+      sr.ht_cards_away = yellowHt.away + (redHt?.away ?? 0);
+      sr.ht_cards_total = sr.ht_cards_home + sr.ht_cards_away;
+    }
+    const yellowSh = extractStat(statsArr, "sh", "cards_yellow");
+    const redSh = extractStat(statsArr, "sh", "cards_red");
+    if (yellowSh) {
+      sr.sh_cards_home = yellowSh.home + (redSh?.home ?? 0);
+      sr.sh_cards_away = yellowSh.away + (redSh?.away ?? 0);
+      sr.sh_cards_total = sr.sh_cards_home + sr.sh_cards_away;
+    }
+    const shotsFt = extractStat(statsArr, "ft", "shots_total");
+    if (shotsFt) {
+      sr.shots_total_home = shotsFt.home;
+      sr.shots_total_away = shotsFt.away;
+    }
+    const shotsHt = extractStat(statsArr, "ht", "shots_total");
+    if (shotsHt) {
+      sr.ht_shots_total_home = shotsHt.home;
+      sr.ht_shots_total_away = shotsHt.away;
+    }
+    const shotsSh = extractStat(statsArr, "sh", "shots_total");
+    if (shotsSh) {
+      sr.sh_shots_total_home = shotsSh.home;
+      sr.sh_shots_total_away = shotsSh.away;
+    }
+    const shotsOnHt = extractStat(statsArr, "ht", "shots_on_target");
+    if (shotsOnHt) {
+      sr.ht_shots_on_target_home = shotsOnHt.home;
+      sr.ht_shots_on_target_away = shotsOnHt.away;
+    }
+    const shotsOnSh = extractStat(statsArr, "sh", "shots_on_target");
+    if (shotsOnSh) {
+      sr.sh_shots_on_target_home = shotsOnSh.home;
+      sr.sh_shots_on_target_away = shotsOnSh.away;
     }
   }
 
@@ -171,9 +240,16 @@ const VOID_PATTERNS: RegExp[] = [
   /^Marc\s*\+/i,
   /^(1X2|U\/O)\s+Interv\./i,
   // ── Corner/angoli: keep only race/primo types ──
+  // Family B out-of-scope (require minute-level timeline data we do not ingest):
+  //   - "Primo Corner Squadra" (subset of /^Primo Corner/i)
+  //   - "Gara A N Corner" (race-to-N)
+  //   - "1X2 Corner - Prima Metà/Meta" (half-specific 1X2 corner)
   /^Gara\s+A\s+\d+\s+Corner/i,
   /^Corner successivo/i,
-  /^Calci d'angolo\s+-\s+/i,
+  // "Calci d'angolo - Minuto X" / "Calci d'angolo - Prossimo" etc. (unsettlable race markets)
+  // NOTE: "Calci d'angolo - 1X2 con Handicap" and HT/SH corner markets are settled below
+  /^Calci d'angolo\s+-\s+(?!1X2 con Handicap|Totale|Più|1X2|Handicap\s+[12]°?\s*Tempo)/i,
+  /^1X2\s+Corner\s+-\s+Prima\s+Mett[aà]/i,
   /^Primo\s+Angolo/i,
   /^Primo Corner/i,
   /^Espulsione/i,
@@ -216,9 +292,7 @@ const VOID_PATTERNS: RegExp[] = [
   /^Squadra\s+(Casa|Ospite)\s+Segna\s+\d/i,
   /^Marcatore\s+(Entrambi|1°|2°)/i,
   /^Primo\s+Marcatore\s+Squadra/i,
-  // ── Handicap per tempo (calcio only — no per-half handicap settler) ──
-  /^Handicap\s+\d°\s*Tempo/i,
-  /^Handicap Asiatico\s+\d°\s*Tempo/i,
+  // ── Handicap Punti (basketball/sports — complex point handicap) ──
   /^Handicap Punti\b/i,
   // ── Exact score per period (too complex to settle) ──
   /^Risultato esatto\s+-\s+\d+°\s*Periodo$/i,
@@ -263,7 +337,6 @@ const VOID_PATTERNS: RegExp[] = [
   /^DC Gol PP/i,
   /^Risultato Gol PP/i,
   // ── Player props (stat suffix) ──
-  /\bTiri Totali\b/i,
   /\bPassaggi Completati\b/i,
   /\bContrasti Difensivi\b/i,
   /\bAssist$/i,
@@ -342,12 +415,21 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^1X2\s+Hand$/, key: "HANDICAP" },
   { pattern: /^Handicap Asiatico\b/, key: "HANDICAP" },
   { pattern: /^Handicap\s+Corner\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS", lineGroup: 1 },
+  // GAP 1: "Calci d'angolo - 1X2 con Handicap (-1)" / "(+1.5)" etc.
+  { pattern: /^Calci d'angolo\s+-\s+1X2 con Handicap\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS", lineGroup: 1 },
   // Kambi verbose: "Handicap - 1° Quarto (-1.5)" — must be before catch-all
   { pattern: /^Handicap\s+-\s+(\d+)°\s*Quarto\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_QUARTER", setGroup: 1, lineGroup: 2 },
   // Kambi verbose: "Handicap - 3° Periodo (-1)" / "Handicap -1° Periodo (-1)"
   { pattern: /^Handicap\s*-\s*(\d+)°\s*Periodo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_PERIOD", setGroup: 1, lineGroup: 2 },
   // Kambi verbose: "1X2 con Handicap - Cartellini (-1)"
   { pattern: /^1X2 con Handicap\s+-\s+Cartellini\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CARDS", lineGroup: 1 },
+  // Family B: handicap corners HT/SH — must precede /^Handicap\b/ catch-all
+  { pattern: /^Handicap\s+Corner\s+1°?\s*T\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS_HT", lineGroup: 1 },
+  { pattern: /^Handicap\s+Corner\s+2°?\s*T\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS_SH", lineGroup: 1 },
+  { pattern: /^Calci d'angolo\s+-\s+Handicap\s+1°?\s*Tempo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS_HT", lineGroup: 1 },
+  { pattern: /^Calci d'angolo\s+-\s+Handicap\s+2°?\s*Tempo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CORNERS_SH", lineGroup: 1 },
+  // Family B: handicap HT cards — must precede /^Handicap\b/ catch-all
+  { pattern: /^Handicap\s+Cartellini\s+1°?\s*T\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_CARDS_HT", lineGroup: 1 },
   { pattern: /^Handicap\b/, key: "HANDICAP" },
   { pattern: /^(?:Somma Gol|Multigol)$/, key: "GOALS_BAND" },
   { pattern: /^P\/D$/, key: "ODD_EVEN" },
@@ -359,11 +441,17 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Draw No Bet\s+-\s+2°?\s*tempo$/i, key: "DNB_SH" },
   { pattern: /^1X2\s+1T$/, key: "1X2_HT" },
   { pattern: /^1X2\s+(?:Primo Tempo|1°?\s*Tempo)$/, key: "1X2_HT" },
+  // GAP 3: "1x2 con Handicap - 1° tempo (-1)" / "(+1.5)"
+  { pattern: /^1[xX]2\s+con\s+Handicap\s+-\s+1°?\s*[Tt]empo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_HT", lineGroup: 1 },
+  { pattern: /^Handicap\s+-\s+1°?\s*[Tt]empo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_HT", lineGroup: 1 },
+  // GAP 4: "Handicap Asiatico - 1° tempo (-0.5)" / "(+1)"
+  { pattern: /^Handicap\s+Asiatico\s+-\s+1°?\s*[Tt]empo\s+\(?([+-]?[\d.]+)\)?$/i, key: "HANDICAP_ASIAN_HT", lineGroup: 1 },
   { pattern: /^U\/O\s+1T\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^U\/O\s+1°?\s*Tempo\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^Under\/Over\s+1°?\s*Tempo\s+([\d.]+)$/, key: "O/U_HT", lineGroup: 1 },
   { pattern: /^Under\/Over\s+1°?\s*Tempo$/, key: "O/U_HT" },
-  { pattern: /^Totale Asiatico\s+-\s+1°?\s*tempo\s+([\d.]+)$/i, key: "O/U_HT", lineGroup: 1 },
+  // GAP 5: Totale Asiatico 1° tempo — uses Asian O/U settler for quarter-point lines
+  { pattern: /^Totale Asiatico\s+-\s+1°?\s*tempo\s+([\d.]+)$/i, key: "O/U_HT_ASIAN", lineGroup: 1 },
   { pattern: /^DC\s+1°?\s*Tempo$/, key: "DC_HT" },
   { pattern: /^DC\s+2°?\s*Tempo$/, key: "DC_SH" },
   { pattern: /^(?:GG\/NG|Gol\/NoGol)\s+1°?\s*Tempo$/, key: "GG/NG_HT" },
@@ -491,15 +579,41 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Draw No Bet\s+-\s+(\d+)°\s+Periodo$/i, key: "DNB_PERIOD", setGroup: 1 },
 
   // ─── Corner/Angoli markets ───
+  // GAP 2: HT corners — must be before catch-all FT corner patterns
+  { pattern: /^Totale calci d'angolo\s+-\s+1°\s*[Tt]empo\s+([\d.]+)$/i, key: "O/U_CORNERS_HT", lineGroup: 1 },
+  { pattern: /^U\/O\s+(?:Angoli|Corner)\s+1°?\s*[Tt]empo\s+([\d.]+)$/i, key: "O/U_CORNERS_HT", lineGroup: 1 },
+  { pattern: /^Più calci d'angolo\s+-\s+1°\s*[Tt]empo$/i, key: "1X2_CORNERS_HT" },
+  { pattern: /^1X2\s+(?:Angoli|Corner)\s+1°?\s*[Tt]empo$/i, key: "1X2_CORNERS_HT" },
+  { pattern: /^Calci d'angolo\s+-\s+Totale\s+1°\s*[Tt]empo\s+([\d.]+)$/i, key: "O/U_CORNERS_HT", lineGroup: 1 },
+  { pattern: /^Calci d'angolo\s+-\s+Più\s+1°\s*[Tt]empo$/i, key: "1X2_CORNERS_HT" },
+  // GAP 2: SH corners
+  { pattern: /^Totale calci d'angolo\s+-\s+2°\s*[Tt]empo\s+([\d.]+)$/i, key: "O/U_CORNERS_SH", lineGroup: 1 },
+  { pattern: /^U\/O\s+(?:Angoli|Corner)\s+2°?\s*[Tt]empo\s+([\d.]+)$/i, key: "O/U_CORNERS_SH", lineGroup: 1 },
+  { pattern: /^Più calci d'angolo\s+-\s+2°\s*[Tt]empo$/i, key: "1X2_CORNERS_SH" },
+  { pattern: /^1X2\s+(?:Angoli|Corner)\s+2°?\s*[Tt]empo$/i, key: "1X2_CORNERS_SH" },
+  { pattern: /^Calci d'angolo\s+-\s+Totale\s+2°\s*[Tt]empo\s+([\d.]+)$/i, key: "O/U_CORNERS_SH", lineGroup: 1 },
+  { pattern: /^Calci d'angolo\s+-\s+Più\s+2°\s*[Tt]empo$/i, key: "1X2_CORNERS_SH" },
+  // ─── Family A: team-split corners O/U ───
+  { pattern: /^O\/U\s+Corner\s+Casa\s+([\d.]+)$/i, key: "O/U_CORNER_HOME", lineGroup: 1 },
+  { pattern: /^O\/U\s+Corner\s+Ospite\s+([\d.]+)$/i, key: "O/U_CORNER_AWAY", lineGroup: 1 },
+  { pattern: /^Calci d'angolo\s+-\s+Totale\s+Casa\s+([\d.]+)$/i, key: "O/U_CORNER_HOME", lineGroup: 1 },
+  { pattern: /^Calci d'angolo\s+-\s+Totale\s+Ospite\s+([\d.]+)$/i, key: "O/U_CORNER_AWAY", lineGroup: 1 },
+  // FT corners (catch-all, after HT/SH variants)
   { pattern: /^U\/O\s+(?:Angoli|Corner)\s+([\d.]+)$/i, key: "O/U_CORNERS", lineGroup: 1 },
   { pattern: /^Totale calci d'angolo\s+([\d.]+)$/i, key: "O/U_CORNERS", lineGroup: 1 },
   { pattern: /^Corners\s+U\/O\s+([\d.]+)$/i, key: "O/U_CORNERS", lineGroup: 1 },
   { pattern: /^1X2\s+(?:Angoli|Corner)$/i, key: "1X2_CORNERS" },
   { pattern: /^Più calci d'angolo$/i, key: "1X2_CORNERS" },
+  // Family B: DC corners HT/SH — must precede bare /^DC\s+Corner$/
+  { pattern: /^DC\s+Corner\s+1°?\s*T$/i, key: "DC_CORNERS_HT" },
+  { pattern: /^DC\s+Corner\s+2°?\s*T$/i, key: "DC_CORNERS_SH" },
   { pattern: /^DC\s+Corner$/i, key: "DC_CORNERS" },
   { pattern: /^Fascia\s+Corner$/i, key: "CORNERS_BAND" },
 
   // ─── Card/Cartellini markets ───
+  // Family B: HT cards (total) — must precede FT O/U catch-all
+  { pattern: /^O\/U\s+Cartellini\s+1°?\s*T\s+([\d.]+)$/i, key: "O/U_CARDS_HT", lineGroup: 1 },
+  { pattern: /^U\/O\s+Cartellini\s+1°?\s*T\s+([\d.]+)$/i, key: "O/U_CARDS_HT", lineGroup: 1 },
   { pattern: /^1X2\s+Cartellini$/i, key: "1X2_CARDS" },
   { pattern: /^U\/O\s+Cartellini\s+([\d.]+)$/i, key: "O/U_CARDS", lineGroup: 1 },
   // Kambi verbose: "Totale cartellini 5.5"
@@ -508,12 +622,23 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Pi[uúù] cartellini$/i, key: "1X2_CARDS" },
 
   // ─── Shot/Tiri markets ───
+  // ─── Family A: team-split shots O/U ───
+  { pattern: /^O\/U\s+Tiri\s+Porta\s+Casa\s+([\d.]+)$/i, key: "O/U_SHOTS_ON_TARGET_HOME", lineGroup: 1 },
+  { pattern: /^O\/U\s+Tiri\s+Porta\s+Ospite\s+([\d.]+)$/i, key: "O/U_SHOTS_ON_TARGET_AWAY", lineGroup: 1 },
+  { pattern: /^O\/U\s+Tiri\s+Casa\s+([\d.]+)$/i, key: "O/U_SHOTS_HOME", lineGroup: 1 },
+  { pattern: /^O\/U\s+Tiri\s+Ospite\s+([\d.]+)$/i, key: "O/U_SHOTS_AWAY", lineGroup: 1 },
   { pattern: /^U\/O\s+Tiri\s+In\s+Porta\s+([\d.]+)$/i, key: "O/U_SHOTS", lineGroup: 1 },
   { pattern: /^1X2\s+Tiri$/i, key: "1X2_SHOTS" },
   // Kambi verbose: "Totale tiri in porta (Scommesse refertate usando Opta) 8.5"
   { pattern: /^Totale tiri in porta\s+\(.*?\)\s+([\d.]+)$/i, key: "O/U_SHOTS", lineGroup: 1 },
   // Kambi verbose: "Più tiri in porta (Scommesse refertate usando Opta)"
   { pattern: /^Pi[uúù] tiri in porta\b/i, key: "1X2_SHOTS" },
+
+  // ─── Family A: team-split goals O/U ───
+  { pattern: /^O\/U\s+Gol\s+Casa\s+([\d.]+)$/i, key: "O/U_GOALS_HOME", lineGroup: 1 },
+  { pattern: /^O\/U\s+Gol\s+Ospite\s+([\d.]+)$/i, key: "O/U_GOALS_AWAY", lineGroup: 1 },
+  { pattern: /^Gol\s+totali\s+Casa\s+([\d.]+)$/i, key: "O/U_GOALS_HOME", lineGroup: 1 },
+  { pattern: /^Gol\s+totali\s+Ospite\s+([\d.]+)$/i, key: "O/U_GOALS_AWAY", lineGroup: 1 },
 
   // ─── Basketball ───
   { pattern: /^U\/O\s+Incl\.?\s*Supp\.?\s*([\d.]+)?$/, key: "O/U", lineGroup: 1 },
@@ -537,12 +662,23 @@ const MARKET_PATTERNS: MarketPattern[] = [
   { pattern: /^Entrambe\s+Segnano\s+Almeno\s+(\d+)\s+Goal$/i, key: "BOTH_SCORE_N", lineGroup: 1 },
 ];
 
-// ═══ resolveSettlerKey — maps Goldbet market names → settler key ═══
+// ═══ resolveSettlerKey — maps source market names → settler key ═══
+//
+// Dispatch order:
+//   1. Auto-VOID regex (unchanged) — fast path for unsettlable markets.
+//   2. MARKET_PATTERNS regex (unchanged) — fast path for Kambi Italian naming
+//      and known 22bet verbose forms.
+//   3. Canonical fallback (Phase B) — looks up (source, market_type) in
+//      market_normalization. If a trusted mapping exists and its canonical_key
+//      is registered in CANONICAL_TO_SETTLER, dispatch to that settler.
+//   4. Return null → void.
 
 function resolveSettlerKey(
   marketType: string,
-  marketLine?: number | null
-): { key: string; line?: number; setIdx?: number } | null {
+  marketLine?: number | null,
+  source?: string | null,
+  lookups?: CanonicalLookups | null
+): { key: string; line?: number; setIdx?: number; canonicalKey?: string } | null {
   const mt = marketType.trim();
 
   // Check auto-VOID patterns first
@@ -587,6 +723,19 @@ function resolveSettlerKey(
     return { key: mp.key, line, setIdx };
   }
 
+  // Canonical fallback (Phase B + C)
+  if (source && lookups) {
+    const canonical = resolveCanonicalSettler(source, mt, marketLine, lookups);
+    if (canonical) {
+      return {
+        key: canonical.key,
+        line: canonical.line,
+        setIdx: canonical.setIdx,
+        canonicalKey: canonical.canonicalKey,
+      };
+    }
+  }
+
   // No match → void
   return null;
 }
@@ -616,6 +765,70 @@ function settleOU(total: number, sel: string, line?: number): Verdict {
   if (isUnderSel(sel) && total < line) return "won";
   if (isOverSel(sel) && total < line) return "lost";
   if (isUnderSel(sel) && total > line) return "lost";
+  return "lost";
+}
+
+// Asian O/U: supports quarter-point lines (1.25, 1.75, 2.25, etc.)
+// Quarter-point lines split stake between two adjacent full/half lines:
+//   X.25 → split between X and X.5: if total == X → lower half push (overall push), if total == X+1 → full win
+//   X.75 → split between X.5 and X+1: if total == X+1 → upper half push (overall push), if total == X → full loss
+// In our engine push → void (refund), so partial push = push = void for simplicity.
+function isQuarterPoint(line: number): boolean {
+  // Handles both positive and negative values: abs(line % 1) ≈ 0.25 or 0.75
+  const frac = Math.abs(line % 1);
+  return Math.abs(frac - 0.25) < 0.001 || Math.abs(frac - 0.75) < 0.001;
+}
+
+function settleOUAsian(total: number, sel: string, line?: number): Verdict {
+  if (line == null) return "void";
+  // Quarter-point lines
+  if (isQuarterPoint(line)) {
+    const lower = Math.floor(line * 2) / 2; // round down to nearest 0.5
+    const upper = lower + 0.5;
+    // Settle against both halves
+    const lowerV = settleOU(total, sel, lower);
+    const upperV = settleOU(total, sel, upper);
+    if (lowerV === upperV) return lowerV;
+    // Mismatched (one push/one win or one win/one lost) → push (partial refund)
+    if (lowerV === "push" || upperV === "push") {
+      // Half push + half win → push overall (conservative)
+      return "push";
+    }
+    // Half won + half lost → push (stake returned)
+    return "push";
+  }
+  // Regular half/full lines
+  return settleOU(total, sel, line);
+}
+
+// Asian handicap: supports quarter-point lines
+function settleHandicapAsian(homeScore: number, awayScore: number, sel: string, line?: number): Verdict {
+  if (line == null) return "void";
+  const s = sel.replace(/\s*H\s*$/i, "").trim();
+  if (isQuarterPoint(line)) {
+    const lower = Math.floor(line * 2) / 2;
+    const upper = lower + 0.5;
+    const adjHomeLower = homeScore + lower;
+    const adjHomeUpper = homeScore + upper;
+    const verdictLower = (() => {
+      if (adjHomeLower === awayScore) return "push" as Verdict;
+      if (s === "1" && adjHomeLower > awayScore) return "won" as Verdict;
+      if (s === "2" && adjHomeLower < awayScore) return "won" as Verdict;
+      return "lost" as Verdict;
+    })();
+    const verdictUpper = (() => {
+      if (adjHomeUpper === awayScore) return "push" as Verdict;
+      if (s === "1" && adjHomeUpper > awayScore) return "won" as Verdict;
+      if (s === "2" && adjHomeUpper < awayScore) return "won" as Verdict;
+      return "lost" as Verdict;
+    })();
+    if (verdictLower === verdictUpper) return verdictLower;
+    return "push";
+  }
+  const adjHome = homeScore + line;
+  if (adjHome === awayScore) return "push";
+  if (s === "1" && adjHome > awayScore) return "won";
+  if (s === "2" && adjHome < awayScore) return "won";
   return "lost";
 }
 
@@ -682,6 +895,86 @@ function settleYesNo(condition: boolean, sel: string): Verdict {
   if (isYes(sel) && condition) return "won";
   if (isNo(sel) && !condition) return "won";
   return "lost";
+}
+
+// Helper: generic O/U settler parametrized by which numeric getter to use.
+// Used by Family A per-team O/U markets (corners, shots, goals per team).
+function makeTeamOU(getter: (sr: SettlementResult) => number | undefined): SettlerFn {
+  return (sr, outcomeName, line) => {
+    const v = getter(sr);
+    if (v == null || line == null) return null;
+    const n = outcomeName.trim().toLowerCase();
+    const isOver = n === "over" || n.startsWith("over ");
+    const isUnder = n === "under" || n.startsWith("under ");
+    if (!isOver && !isUnder) return null;
+    if (v === line) return "push";
+    const won = isOver ? v > line : v < line;
+    return won ? "won" : "lost";
+  };
+}
+
+// Helper: generic total O/U settler parametrized by a total-value getter.
+// Used by Family B for HT cards (total yellow+red over/under).
+function makeTotalOU(getter: (sr: SettlementResult) => number | undefined): SettlerFn {
+  return (sr, outcomeName, line) => {
+    const v = getter(sr);
+    if (v == null || line == null) return null;
+    const n = outcomeName.trim().toLowerCase();
+    const isOver = n === "over" || n.startsWith("over ");
+    const isUnder = n === "under" || n.startsWith("under ");
+    if (!isOver && !isUnder) return null;
+    if (v === line) return "push";
+    const won = isOver ? v > line : v < line;
+    return won ? "won" : "lost";
+  };
+}
+
+// Helper: generic Double Chance settler for per-period / per-stat DC markets.
+// Outcomes: "1X" (home or draw), "12" (home or away), "X2" (draw or away).
+// Used by Family B for HT/SH corners.
+function makeDC(
+  getHome: (sr: SettlementResult) => number | undefined,
+  getAway: (sr: SettlementResult) => number | undefined
+): SettlerFn {
+  return (sr, outcomeName) => {
+    const h = getHome(sr);
+    const a = getAway(sr);
+    if (h == null || a == null) return null;
+    const n = outcomeName.trim().replace(/\s/g, "").toUpperCase();
+    const homeWins = h > a;
+    const draw = h === a;
+    const awayWins = h < a;
+    if (n === "1X") return homeWins || draw ? "won" : "lost";
+    if (n === "12") return homeWins || awayWins ? "won" : "lost";
+    if (n === "X2") return draw || awayWins ? "won" : "lost";
+    return null;
+  };
+}
+
+// Helper: generic handicap settler for per-period / per-stat 1X2-handicap markets.
+// Line convention mirrors existing HANDICAP_CORNERS (FT): adjHome = h + line.
+// Outcomes: "1"/"Casa" (home covers), "2"/"Ospite" (away covers), "X"/"Pareggio" (handicap push).
+// Used by Family B for HT/SH corners and HT cards.
+function makeHandicap(
+  getHome: (sr: SettlementResult) => number | undefined,
+  getAway: (sr: SettlementResult) => number | undefined
+): SettlerFn {
+  return (sr, outcomeName, line) => {
+    const h = getHome(sr);
+    const a = getAway(sr);
+    if (h == null || a == null || line == null) return null;
+    const n = outcomeName.trim();
+    const isHome = n === "1" || /^casa$/i.test(n);
+    const isAway = n === "2" || /^ospite$/i.test(n);
+    const isDraw = n === "X" || /^pareggio$/i.test(n);
+    if (!isHome && !isAway && !isDraw) return null;
+    const adjHome = h + line;
+    if (adjHome === a) return isDraw ? "won" : "push";
+    if (isHome) return adjHome > a ? "won" : "lost";
+    if (isAway) return adjHome < a ? "won" : "lost";
+    // Draw selection but adjHome !== a → lost
+    return "lost";
+  };
 }
 
 // ═══ SETTLERS ═══
@@ -767,6 +1060,30 @@ const SETTLERS: Record<string, SettlerFn> = {
   "O/U_AWAY_HT": (r, sel, line) => {
     if (r.ht_away == null) return "void";
     return settleOU(r.ht_away, sel, line);
+  },
+
+  // GAP 3: 1x2 con Handicap - 1° tempo
+  HANDICAP_HT: (r, sel, line) => {
+    if (r.ht_home == null || r.ht_away == null || line == null) return "void";
+    const adjHome = r.ht_home + line;
+    if (adjHome === r.ht_away) return "push";
+    const s = sel.replace(/\s*H\s*$/i, "").trim();
+    if (s === "1" && adjHome > r.ht_away) return "won";
+    if ((s === "X" || s === "x") && adjHome === r.ht_away) return "won";
+    if (s === "2" && adjHome < r.ht_away) return "won";
+    return "lost";
+  },
+
+  // GAP 4: Handicap Asiatico - 1° tempo (supports quarter-point lines)
+  HANDICAP_ASIAN_HT: (r, sel, line) => {
+    if (r.ht_home == null || r.ht_away == null) return "void";
+    return settleHandicapAsian(r.ht_home, r.ht_away, sel, line);
+  },
+
+  // GAP 5: Totale Asiatico - 1° tempo (Asian O/U with quarter-point support)
+  "O/U_HT_ASIAN": (r, sel, line) => {
+    if (r.ht_total == null) return "void";
+    return settleOUAsian(r.ht_total, sel, line);
   },
 
   DNB_HT: (r, sel) => {
@@ -1312,9 +1629,63 @@ const SETTLERS: Record<string, SettlerFn> = {
     return "lost";
   },
 
+  // Family B: handicap corners HT/SH
+  HANDICAP_CORNERS_HT: makeHandicap((sr) => sr.ht_corners_home, (sr) => sr.ht_corners_away),
+  HANDICAP_CORNERS_SH: makeHandicap((sr) => sr.sh_corners_home, (sr) => sr.sh_corners_away),
+
+  // Family B: DC corners HT/SH
+  DC_CORNERS_HT: makeDC((sr) => sr.ht_corners_home, (sr) => sr.ht_corners_away),
+  DC_CORNERS_SH: makeDC((sr) => sr.sh_corners_home, (sr) => sr.sh_corners_away),
+
+  // Family B: HT cards (yellow + red total, per team handicap)
+  "O/U_CARDS_HT": makeTotalOU((sr) => sr.ht_cards_total),
+  HANDICAP_CARDS_HT: makeHandicap((sr) => sr.ht_cards_home, (sr) => sr.ht_cards_away),
+
+  // Family A: O/U corners per team (home or away individually)
+  "O/U_CORNER_HOME": makeTeamOU((sr) => sr.corners_home),
+  "O/U_CORNER_AWAY": makeTeamOU((sr) => sr.corners_away),
+
+  // Family A: O/U shots per team (total shots + on-target, home or away individually)
+  // "Tiri" = shots (total), "Tiri in porta" = shots on target
+  "O/U_SHOTS_HOME": makeTeamOU((sr) => sr.shots_total_home),
+  "O/U_SHOTS_AWAY": makeTeamOU((sr) => sr.shots_total_away),
+  "O/U_SHOTS_ON_TARGET_HOME": makeTeamOU((sr) => sr.shots_on_target_home),
+  "O/U_SHOTS_ON_TARGET_AWAY": makeTeamOU((sr) => sr.shots_on_target_away),
+
+  // Family A: team-split goals (sr.home/sr.away are FT scores — always populated when buildResult returns non-null)
+  "O/U_GOALS_HOME": makeTeamOU((sr) => sr.home),
+  "O/U_GOALS_AWAY": makeTeamOU((sr) => sr.away),
+
   CORNERS_BAND: (r, sel) => {
     if (r.corners_total == null) return null;
     return settleGoalsBand(r.corners_total, sel);
+  },
+
+  // ─── Corner HT/SH markets (null = stats not yet available) ───
+
+  // GAP 2: HT corners
+  "O/U_CORNERS_HT": (r, sel, line) => {
+    if (r.ht_corners_total == null) return null;
+    return settleOU(r.ht_corners_total, sel, line);
+  },
+
+  "1X2_CORNERS_HT": (r, sel) => {
+    if (r.ht_corners_home == null || r.ht_corners_away == null) return null;
+    return settle1X2(r.ht_corners_home, r.ht_corners_away, sel);
+  },
+
+  // GAP 2: SH corners — sh_corners = corners_total - ht_corners_total
+  "O/U_CORNERS_SH": (r, sel, line) => {
+    if (r.corners_total == null || r.ht_corners_total == null) return null;
+    const shCornersTotal = r.corners_total - r.ht_corners_total;
+    return settleOU(shCornersTotal, sel, line);
+  },
+
+  "1X2_CORNERS_SH": (r, sel) => {
+    if (r.corners_home == null || r.corners_away == null || r.ht_corners_home == null || r.ht_corners_away == null) return null;
+    const shHome = r.corners_home - r.ht_corners_home;
+    const shAway = r.corners_away - r.ht_corners_away;
+    return settle1X2(shHome, shAway, sel);
   },
 
   // ─── Card markets (null = stats not yet available) ───
@@ -1363,7 +1734,7 @@ export async function settleEvent(
   // 1. Fetch event with sport name
   const { data: event, error: evErr } = await supabase
     .from("events")
-    .select("id, score_home, score_away, status, live_data, settled_at, period, sport_id, sports!inner(name)")
+    .select("id, source, score_home, score_away, status, live_data, settled_at, period, sport_id, sports!inner(name)")
     .eq("id", eventId)
     .single();
 
@@ -1420,6 +1791,29 @@ export async function settleEvent(
     return { success: true, legs_processed: 0, bets_settled: 0, total_payout: 0 };
   }
 
+  // 6b. Pre-load canonical lookup maps for this event (Phase B).
+  // Used only when the regex fast-path in resolveSettlerKey misses,
+  // which is the common case for non-Kambi-Italian market naming.
+  const eventSource = (event as { source?: string | null }).source ?? null;
+  const legMarketTypes = legs.map(
+    (l) => (l.markets as unknown as { market_type: string }).market_type,
+  );
+  const legOutcomeNames = legs.map(
+    (l) => (l.outcomes as unknown as { name: string }).name,
+  );
+  let canonicalLookups: CanonicalLookups;
+  try {
+    canonicalLookups = await loadCanonicalLookups(
+      supabase,
+      eventSource,
+      legMarketTypes,
+      legOutcomeNames,
+    );
+  } catch {
+    // Fail-open: settlement still works via regex fast-path only.
+    canonicalLookups = makeEmptyLookups();
+  }
+
   // 7. Settle each leg
   let legsProcessed = 0;
   let legsSkipped = 0;
@@ -1432,7 +1826,12 @@ export async function settleEvent(
     };
     const outcome = leg.outcomes as unknown as { name: string };
 
-    const resolved = resolveSettlerKey(market.market_type, market.line);
+    const resolved = resolveSettlerKey(
+      market.market_type,
+      market.line,
+      eventSource,
+      canonicalLookups,
+    );
     let verdict: Verdict | null;
 
     if (!resolved) {
@@ -1444,7 +1843,20 @@ export async function settleEvent(
         verdict = "void";
       } else {
         const line = resolved.line ?? market.line ?? undefined;
-        verdict = settler(result, outcome.name, line, resolved.setIdx);
+        // If dispatch came through canonical fallback, translate the outcome
+        // name into a form the settler recognises (e.g. 22bet "Si" → "Sì").
+        // For regex-resolved markets (Kambi Italian) we pass the raw name —
+        // those settlers already understand the native verbose strings.
+        const outcomeInput = resolved.canonicalKey
+          ? canonicalizeOutcome(
+              eventSource ?? "",
+              market.market_type,
+              outcome.name,
+              resolved.canonicalKey,
+              canonicalLookups,
+            )
+          : outcome.name;
+        verdict = settler(result, outcomeInput, line, resolved.setIdx);
       }
     }
 
@@ -1790,3 +2202,54 @@ export async function deactivateEvent(
     }
   }
 }
+
+// Test-only exports — do not use in production code paths
+export const __test__buildResult = buildResult;
+export const __test__settle = (
+  event: Record<string, unknown>,
+  marketType: string,
+  outcomeName: string,
+  line: number | undefined,
+  sport: string,
+  opts?: { source?: string; lookups?: CanonicalLookups }
+): Verdict | null => {
+  const sr = buildResult(event, undefined, sport);
+  if (!sr) return null;
+  const mt = marketType.trim();
+  // Mirror production resolveSettlerKey: VOID patterns checked first
+  for (const vp of VOID_PATTERNS) {
+    if (vp.test(mt)) return "void";
+  }
+  for (const mp of MARKET_PATTERNS) {
+    const m = mt.match(mp.pattern);
+    if (!m) continue;
+    const settler = SETTLERS[mp.key];
+    if (!settler) {
+      throw new Error(
+        `__test__settle: pattern ${mp.pattern} matched but no settler registered for key "${mp.key}"`
+      );
+    }
+    const resolvedLine =
+      mp.lineGroup && m[mp.lineGroup] != null ? parseFloat(m[mp.lineGroup]) : line;
+    const resolvedSet =
+      mp.setGroup && m[mp.setGroup] != null ? parseInt(m[mp.setGroup], 10) : undefined;
+    return settler(sr, outcomeName, resolvedLine, resolvedSet);
+  }
+  // Canonical fallback — only when explicitly provided by the test harness.
+  if (opts?.source && opts.lookups) {
+    const canonical = resolveCanonicalSettler(opts.source, mt, line ?? null, opts.lookups);
+    if (canonical) {
+      const settler = SETTLERS[canonical.key];
+      if (!settler) return null;
+      const outcomeInput = canonicalizeOutcome(
+        opts.source,
+        mt,
+        outcomeName,
+        canonical.canonicalKey,
+        opts.lookups,
+      );
+      return settler(sr, outcomeInput, canonical.line, canonical.setIdx);
+    }
+  }
+  return null;
+};

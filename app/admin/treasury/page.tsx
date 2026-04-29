@@ -40,10 +40,10 @@ export default function AdminTreasury() {
       <p className="text-sm text-gray-500 mb-6">Panoramica finanziaria</p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { l: "Depositi", v: `$${(data.deposits||0).toFixed(0)}`, c: "text-emerald-400", i: "↓" },
-          { l: "Prelievi", v: `$${(data.wdTotal||0).toFixed(0)}`, c: "text-red-400", i: "↑" },
-          { l: "Net Revenue", v: `$${(data.net||0).toFixed(0)}`, c: (data.net||0) >= 0 ? "text-emerald-400" : "text-red-400", i: "💰" },
-          { l: "GGR", v: `$${(data.ggr||0).toFixed(0)}`, c: (data.ggr||0) >= 0 ? "text-emerald-400" : "text-red-400", i: "📊" },
+          { l: "Depositi", v: `€${(data.deposits||0).toFixed(0)}`, c: "text-emerald-400", i: "↓" },
+          { l: "Prelievi", v: `€${(data.wdTotal||0).toFixed(0)}`, c: "text-red-400", i: "↑" },
+          { l: "Net Revenue", v: `€${(data.net||0).toFixed(0)}`, c: (data.net||0) >= 0 ? "text-emerald-400" : "text-red-400", i: "💰" },
+          { l: "GGR", v: `€${(data.ggr||0).toFixed(0)}`, c: (data.ggr||0) >= 0 ? "text-emerald-400" : "text-red-400", i: "📊" },
         ].map((k, i) => (
           <div key={i} className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
             <div className="text-lg mb-1">{k.i}</div>
@@ -54,10 +54,10 @@ export default function AdminTreasury() {
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { l: "Saldo Utenti", v: `$${(data.totalBal||0).toFixed(0)}`, c: "text-blue-400" },
-          { l: "Bonus", v: `$${(data.totalBonus||0).toFixed(0)}`, c: "text-purple-400" },
+          { l: "Saldo Utenti", v: `€${(data.totalBal||0).toFixed(0)}`, c: "text-blue-400" },
+          { l: "Bonus", v: `€${(data.totalBonus||0).toFixed(0)}`, c: "text-purple-400" },
           { l: "WD Pending", v: String(data.pending?.length || 0), c: "text-yellow-400" },
-          { l: "Liability WD", v: `$${(data.pending||[]).reduce((s: number, x: any) => s + (x.amount_usdt || 0), 0).toFixed(0)}`, c: "text-orange-400" },
+          { l: "Liability WD", v: `€${(data.pending||[]).reduce((s: number, x: any) => s + (x.amount_usdt || 0), 0).toFixed(0)}`, c: "text-orange-400" },
         ].map((k, i) => (
           <div key={i} className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
             <div className={cn("text-xl font-black font-mono", k.c)}>{k.v}</div>
@@ -72,7 +72,7 @@ export default function AdminTreasury() {
             <div key={hw.coin} className="bg-gray-900/50 rounded-lg p-3">
               <span className={cn("text-sm font-bold",hw.c)}>{hw.coin}</span>
               <div className="text-xs font-mono text-white mt-1">{hw.bal} {hw.coin}</div>
-              <div className="text-[9px] text-gray-500">${hw.usd.toLocaleString()}</div>
+              <div className="text-[9px] text-gray-500">€{hw.usd.toLocaleString()}</div>
             </div>
           ))}
         </div>
@@ -80,11 +80,11 @@ export default function AdminTreasury() {
       <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-5">
         <h3 className="text-sm font-bold text-white mb-3">📈 P&L</h3>
         <div className="flex items-center gap-6 text-sm">
-          <div><div className="text-[10px] text-gray-500">Bet</div><div className="font-black font-mono text-emerald-400">${(data.totalBets||0).toFixed(0)}</div></div>
+          <div><div className="text-[10px] text-gray-500">Bet</div><div className="font-black font-mono text-emerald-400">€{(data.totalBets||0).toFixed(0)}</div></div>
           <div className="text-xl text-gray-600">−</div>
-          <div><div className="text-[10px] text-gray-500">Win</div><div className="font-black font-mono text-red-400">${(data.totalWins||0).toFixed(0)}</div></div>
+          <div><div className="text-[10px] text-gray-500">Win</div><div className="font-black font-mono text-red-400">€{(data.totalWins||0).toFixed(0)}</div></div>
           <div className="text-xl text-gray-600">=</div>
-          <div><div className="text-[10px] text-gray-500">GGR</div><div className={cn("text-2xl font-black font-mono",(data.ggr||0)>=0?"text-emerald-400":"text-red-400")}>${(data.ggr||0).toFixed(0)}</div></div>
+          <div><div className="text-[10px] text-gray-500">GGR</div><div className={cn("text-2xl font-black font-mono",(data.ggr||0)>=0?"text-emerald-400":"text-red-400")}>€{(data.ggr||0).toFixed(0)}</div></div>
         </div>
       </div>
     </div>

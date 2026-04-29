@@ -208,7 +208,7 @@ function MarketCard({
   isSelected: (eventId: string, marketName: string, selectionLabel: string) => boolean;
 }) {
   // Extract line from market name if present (e.g. "U/O Incl. Supp. 136.5" → line=136.5)
-  // DB market.line is unreliable (Goldbet internal field), so always prefer name-extracted line
+  // DB market.line is unreliable (Kambi internal field), so always prefer name-extracted line
   const lineMatch = market.name.match(/[-+]?(\d+\.?\d*)\s*$/);
   const displayLine = lineMatch ? lineMatch[0].trim() : null;
   const displayName = lineMatch ? market.name.replace(lineMatch[0], "").trim() : market.name;

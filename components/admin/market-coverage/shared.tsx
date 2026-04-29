@@ -16,7 +16,7 @@ export interface EventDetail {
     league_name: string;
     source_markets_count: number | null;
   };
-  vincitu_count: number;
+  betssolution_count: number;
   market_types: { type: string; count: number; markets: string[] }[];
 }
 
@@ -202,7 +202,7 @@ export function EventDetailModal({ detail, loading, onClose }: {
   detail: EventDetail | null; loading: boolean; onClose: () => void;
 }) {
   const sourceCount = detail?.event.source_markets_count;
-  const dbCount = detail?.vincitu_count ?? 0;
+  const dbCount = detail?.betssolution_count ?? 0;
   const gap = sourceCount != null ? sourceCount - dbCount : null;
 
   return (

@@ -86,7 +86,7 @@ export default function AdminManagement() {
         {loading ? (
           <div className="p-8 text-center text-gray-500 text-sm">Caricamento...</div>
         ) : (
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-500 border-b border-gray-800">
                 <th className="text-left px-4 py-3">Username</th>
@@ -105,12 +105,12 @@ export default function AdminManagement() {
                 <tr key={u.id} className="border-b border-gray-800/50 hover:bg-white/5">
                   <td className="px-4 py-3 text-white font-medium">{u.username}</td>
                   <td className="px-4 py-3 text-gray-400">{u.email}</td>
-                  <td className="px-4 py-3 text-right font-mono text-emerald-400">${u.balance.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-purple-400">${u.bonus_balance.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-emerald-400">€{u.balance.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-purple-400">€{u.bonus_balance.toFixed(2)}</td>
                   <td className="px-4 py-3 text-center text-gray-300">{u.total_bets}</td>
                   <td className="px-4 py-3 text-center">
                     <select value={u.kyc_status || "pending"} onChange={(e) => updateKYC(u.id, e.target.value)}
-                      className="bg-transparent border border-gray-700 rounded px-1 py-0.5 text-[9px] text-gray-300 focus:outline-none">
+                      className="bg-transparent border border-gray-700 rounded px-1 py-0.5 text-xs text-gray-300 focus:outline-none">
                       <option value="pending">Pending</option>
                       <option value="submitted">Submitted</option>
                       <option value="verified">Verified</option>
@@ -118,14 +118,14 @@ export default function AdminManagement() {
                     </select>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",
+                    <span className={cn("px-2 py-0.5 rounded text-xs font-bold",
                       u.is_active !== false ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
                     )}>{u.is_active !== false ? "ATTIVO" : "BLOCCATO"}</span>
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500">{new Date(u.created_at).toLocaleDateString("it-IT")}</td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActive(u.id, u.is_active !== false)}
-                      className={cn("px-2 py-1 rounded text-[9px] font-bold",
+                      className={cn("px-2 py-1 rounded text-xs font-bold",
                         u.is_active !== false ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
                       )}>{u.is_active !== false ? "Blocca" : "Attiva"}</button>
                   </td>

@@ -98,7 +98,7 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
                   <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text2)" }}>{u.total_bets}</td>
                   <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text2)" }}>{(u.win_rate * 100).toFixed(1)}%</td>
                   <td className={cn("px-4 py-2 text-right font-mono", u.lifetime_ggr >= 0 ? "text-emerald-400" : "text-red-400")}>
-                    ${u.lifetime_ggr.toFixed(2)}
+                    €${u.lifetime_ggr.toFixed(2)}
                   </td>
                   <td className="px-4 py-2 text-center font-mono text-orange-400">{u.flags_count}</td>
                   <td className="px-4 py-2 text-center">
@@ -115,11 +115,11 @@ export function FlaggedUsersTable({ users }: { users: FlaggedUser[] }) {
                       <div className="grid grid-cols-4 gap-4 text-[10px]">
                         <div>
                           <span style={{ color: "var(--admin-text4)" }}>Stake Totale</span>
-                          <div className="font-mono" style={{ color: "var(--admin-text)" }}>${u.total_stake.toFixed(2)}</div>
+                          <div className="font-mono" style={{ color: "var(--admin-text)" }}>€{u.total_stake.toFixed(2)}</div>
                         </div>
                         <div>
                           <span style={{ color: "var(--admin-text4)" }}>Avg Stake</span>
-                          <div className="font-mono" style={{ color: "var(--admin-text)" }}>${u.avg_stake.toFixed(2)}</div>
+                          <div className="font-mono" style={{ color: "var(--admin-text)" }}>€{u.avg_stake.toFixed(2)}</div>
                         </div>
                         <div>
                           <span style={{ color: "var(--admin-text4)" }}>Account</span>

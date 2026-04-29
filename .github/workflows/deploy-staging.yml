@@ -1,0 +1,80 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint || echo "lint warnings only"
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_APP_ENV: staging
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run build
+
+      - name: Build tarballs
+        run: bash scripts/deploy/build-tarball.sh
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload tarballs
+        run: |
+          scp /tmp/deploy-source.tar.gz /tmp/deploy-next.tar.gz \
+            root@${{ secrets.STAGING_HOST }}:/tmp/
+
+      - name: Apply on staging
+        run: |
+          scp scripts/deploy/remote-apply.sh root@${{ secrets.STAGING_HOST }}:/tmp/remote-apply.sh
+          ssh root@${{ secrets.STAGING_HOST }} \
+            "bash /tmp/remote-apply.sh \
+              /root/betssolution-admin-staging \
+              betssolution-admin-staging \
+              /root/betssolution-admin-staging/.env.staging \
+              https://admin-staging.betssolution.com/api/health"
+
+      - name: Telegram notify success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "parse_mode=Markdown" \
+            --data-urlencode "text=*[ADMIN-STAGING] Deploy ✅* %0Acommit: \`${{ github.sha }}\` %0Aby: ${{ github.actor }} %0A[run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      - name: Telegram notify failure
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "parse_mode=Markdown" \
+            --data-urlencode "text=*[ADMIN-STAGING] Deploy ❌* %0Acommit: \`${{ github.sha }}\` %0Aby: ${{ github.actor }} %0A[run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) — investigate"

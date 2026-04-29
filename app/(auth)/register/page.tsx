@@ -60,7 +60,7 @@ export default function RegisterPage() {
     <div>
       <h1 className="text-xl font-bold text-gray-900 mb-1">Crea Account</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Unisciti a VinciTu — Scommesse, Casino & Crypto
+        Unisciti a BetsSolution — Scommesse, Casino & Crypto
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">

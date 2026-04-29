@@ -39,15 +39,15 @@ export default function AdminCasino() {
         </div>
         <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">TOTAL BET</div>
-          <div className="text-lg font-black font-mono text-brand">${totalBet.toFixed(2)}</div>
+          <div className="text-lg font-black font-mono text-brand">€{totalBet.toFixed(2)}</div>
         </div>
         <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">TOTAL WIN</div>
-          <div className="text-lg font-black font-mono text-emerald-400">${totalWin.toFixed(2)}</div>
+          <div className="text-lg font-black font-mono text-emerald-400">€{totalWin.toFixed(2)}</div>
         </div>
         <div className="bg-[var(--admin-card)] rounded-xl border border-gray-800 p-4">
           <div className="text-[10px] text-gray-500">GGR</div>
-          <div className={cn("text-lg font-black font-mono", ggr >= 0 ? "text-emerald-400" : "text-red-400")}>${ggr.toFixed(2)}</div>
+          <div className={cn("text-lg font-black font-mono", ggr >= 0 ? "text-emerald-400" : "text-red-400")}>€{ggr.toFixed(2)}</div>
         </div>
       </div>
 
@@ -76,8 +76,8 @@ export default function AdminCasino() {
                   <td className="px-4 py-2 text-white">{s.users?.username || "—"}</td>
                   <td className="px-4 py-2 text-gray-300">{s.game_name}</td>
                   <td className="px-4 py-2 text-gray-500">{s.provider}</td>
-                  <td className="px-4 py-2 text-right font-mono text-brand">${(s.total_bet || 0).toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right font-mono text-emerald-400">${(s.total_win || 0).toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-brand">€{(s.total_bet || 0).toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-emerald-400">€{(s.total_win || 0).toFixed(2)}</td>
                   <td className="px-4 py-2 text-center text-gray-400">{s.rounds || 0}</td>
                   <td className="px-4 py-2 text-center">
                     <span className={cn("px-2 py-0.5 rounded text-[9px] font-bold",

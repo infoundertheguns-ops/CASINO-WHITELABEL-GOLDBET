@@ -1,10 +1,11 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // ═══ GET — Market Coverage Report ═══
 // Query params: action=stats|event-detail|sport-leagues|league-events|live-summary, source=kambi
 
-const VALID_SOURCES = ["kambi"];
+const VALID_SOURCES = ["kambi", "22bet"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -115,7 +116,7 @@ async function getEventDetail(supabase: any, sp: URLSearchParams) {
       league_name: event.leagues?.name,
       source_markets_count: event.source_markets_count,
     },
-    vincitu_count: markets.length,
+    betssolution_count: markets.length,
     market_types: marketTypes,
   });
 }

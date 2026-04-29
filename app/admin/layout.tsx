@@ -29,13 +29,25 @@ const NAVIGATION: AdminNavGroup[] = [
     group: "SISTEMA",
     items: [
       { id: "agents", icon: "🏢", label: "Agenti" },
+      { id: "kiosks", icon: "🖥️", label: "Kiosk" },
       { id: "agent-tickets", icon: "🎫", label: "Ticket" },
+      { id: "kiosk-vouchers", icon: "💸", label: "Voucher Cashout" },
       { id: "financial", icon: "💹", label: "Financial" },
       { id: "scraper", icon: "🔄", label: "Scraper Monitor" },
       { id: "settlement-health", icon: "💚", label: "Settlement Health" },
       { id: "market-coverage", icon: "📈", label: "Market Coverage" },
-      { id: "market-translations", icon: "🌐", label: "Traduzioni Mercati" },
+      { id: "consensus", icon: "⚖️", label: "Consensus Outliers" },
+      { id: "shade-monitor", icon: "🎚️", label: "Shade Monitor" },
+      { id: "manual-overrides", icon: "🛠️", label: "Manual Overrides" },
+      { id: "market-catalog", icon: "📚", label: "Market Explorer" },
+      { id: "canonicalization", icon: "🔭", label: "Canonicalizzazione" },
+      { id: "market-normalization", icon: "🔗", label: "Normalizzazione Mercati" },
+      { id: "outcome-normalization", icon: "🎚️", label: "Normalizzazione Outcome" },
+      { id: "event-normalization", icon: "🎯", label: "Normalizzazione Eventi" },
+      { id: "canonical-markets", icon: "📦", label: "Catalogo Canonical" },
+      { id: "home-content", icon: "🏠", label: "Home CMS" },
       { id: "fixtures", icon: "📅", label: "Fixtures" },
+      { id: "settlements", icon: "📅", label: "Settlements" },
     ],
   },
   {
@@ -55,13 +67,29 @@ const TITLES: Record<string, string> = {
   risk: "Risk & Trading Desk",
   liability: "Liability Management",
   agents: "Gestione Agenti",
+  kiosks: "Gestione Kiosk",
+  "agent-kiosks": "I Miei Kiosk",
   "agent-tickets": "Ticket",
+  "kiosk-vouchers": "Voucher Cashout Kiosk",
   financial: "Financial Report",
   scraper: "Scraper Monitor",
   "settlement-health": "Settlement Health",
   "market-coverage": "Market Coverage",
-  "market-translations": "Traduzioni Mercati",
+  consensus: "Consensus Outliers",
+  "shade-monitor": "Shade Monitor",
+  "manual-overrides": "Manual Overrides",
+  "market-catalog": "Market Explorer",
+  canonicalization: "Canonicalizzazione",
+  "market-normalization": "Normalizzazione Mercati",
+  "outcome-normalization": "Normalizzazione Outcome",
+  "event-normalization": "Normalizzazione Eventi",
+  "canonical-markets": "Catalogo Canonical Markets",
+  "home-content": "Home CMS",
   fixtures: "Fixtures",
+  settlements: "Settlements",
+  "agent-bets": "Scommesse",
+  "agent-wallet": "Wallet",
+  "agent-network": "Rete Agenti",
   users: "Gestione Utenti",
   config: "Configurazione",
   audit: "Audit Log",
@@ -82,16 +110,33 @@ export default function AdminLayout({
   const [userRole, setUserRole] = useState<"super_admin" | "agent" | "loading">("loading");
   const [agentPermissions, setAgentPermissions] = useState<AgentPermissions | null>(null);
   const [agentName, setAgentName] = useState("");
+  const [agentCode, setAgentCode] = useState("");
 
   const activeId = useMemo(() => {
     const parts = pathname.split("/").filter(Boolean);
+    if (parts[1] === "home-content") return "home-content";
     if (parts[1] === "market-coverage") return "market-coverage";
-    if (parts[1] === "market-translations") return "market-translations";
+    if (parts[1] === "consensus") return "consensus";
+    if (parts[1] === "shade-monitor") return "shade-monitor";
+    if (parts[1] === "manual-overrides") return "manual-overrides";
+    if (parts[1] === "market-catalog") return "market-catalog";
+    if (parts[1] === "canonicalization") return "canonicalization";
+    if (parts[1] === "market-normalization") return "market-normalization";
+    if (parts[1] === "outcome-normalization") return "outcome-normalization";
+    if (parts[1] === "event-normalization") return "event-normalization";
+    if (parts[1] === "canonical-markets") return "canonical-markets";
     if (parts[1] === "settlement-health") return "settlement-health";
+    if (parts[1] === "kiosks") return "kiosks";
+    if (parts[1] === "agent-kiosks") return "agent-kiosks";
     if (parts[1] === "agents") return "agents";
     if (parts[1] === "agent-tickets") return "agent-tickets";
+    if (parts[1] === "kiosk-vouchers") return "kiosk-vouchers";
     if (parts[1] === "financial") return "financial";
     if (parts[1] === "risk") return "risk";
+    if (parts[1] === "agent-bets") return "bets";
+    if (parts[1] === "agent-wallet") return "agent-wallet";
+    if (parts[1] === "agent-network") return "agent-network";
+    if (parts[1] === "settlements") return "agent-settlements";
     return parts[parts.length - 1] || "dashboard";
   }, [pathname]);
 
@@ -121,6 +166,7 @@ export default function AdminLayout({
           setUserRole("agent");
           setAgentPermissions(myAgent.permissions);
           setAgentName(myAgent.name);
+          setAgentCode(myAgent.code || "");
         } else {
           setUserRole("super_admin");
         }
@@ -144,25 +190,39 @@ export default function AdminLayout({
       // Agent routes
       "agent-dashboard": "/admin/agent-dashboard",
       "agent-players": "/admin/agent-players",
-      "agent-subagents": "/admin/agents",
+      "agent-bets": "/admin/bets",
+      "agent-wallet": "/admin/agent-wallet",
+      "agent-network": "/admin/agent-network",
       "agent-credit": "/admin/agent-players",
       "agent-tickets": "/admin/agent-tickets",
-      "agent-bets": "/admin/agent-bets",
+      "agent-kiosks": "/admin/agent-kiosks",
       "agent-reports": "/admin/agent-commissions",
       "agent-commissions": "/admin/agent-commissions",
+      "agent-settlements": "/admin/settlements",
       "agent-risk": "/admin/risk",
       // Super admin routes
       dashboard: "/admin/dashboard",
-      bets: "/admin/sportsbook",
+      bets: "/admin/bets",
       settlement: "/admin/sportsbook",
       risk: "/admin/risk",
       liability: "/admin/risk",
       agents: "/admin/agents",
+      kiosks: "/admin/kiosks",
+      "kiosk-vouchers": "/admin/kiosk-vouchers",
+      "home-content": "/admin/home-content",
       financial: "/admin/financial",
       scraper: "/admin/scraper",
       "settlement-health": "/admin/settlement-health",
       "market-coverage": "/admin/market-coverage",
-      "market-translations": "/admin/market-translations",
+      consensus: "/admin/consensus",
+      "shade-monitor": "/admin/shade-monitor",
+      "manual-overrides": "/admin/manual-overrides",
+      "market-catalog": "/admin/market-catalog",
+      canonicalization: "/admin/canonicalization",
+      "market-normalization": "/admin/market-normalization",
+      "outcome-normalization": "/admin/outcome-normalization",
+      "event-normalization": "/admin/event-normalization",
+      "canonical-markets": "/admin/canonical-markets",
       fixtures: "/admin/fixtures",
       users: "/admin/management",
       config: "/admin/config",
@@ -203,6 +263,8 @@ export default function AdminLayout({
         onToggleCollapse={() => setCollapsed(!collapsed)}
         mobileOpen={mobileOpen}
         onCloseMobile={closeMobile}
+        userRole={userRole}
+        agentCode={agentCode}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -214,7 +276,7 @@ export default function AdminLayout({
           onMenuClick={() => setMobileOpen(!mobileOpen)}
         />
 
-        <main className="flex-1 overflow-auto p-3 md:p-5">{children}</main>
+        <main className="flex-1 overflow-auto p-3 md:p-5 admin-content">{children}</main>
       </div>
     </div>
   );

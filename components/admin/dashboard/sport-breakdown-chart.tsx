@@ -43,7 +43,7 @@ export function SportBreakdownChart({ data }: { data: SportData[] }) {
             contentStyle={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: 8, fontSize: 12 }}
             itemStyle={{ color: "#fff" }}
             formatter={(val: number, name: string, props: any) => [
-              `${val} scommesse ($${props.payload.stake?.toFixed(0) || 0})`,
+              `${val} scommesse (€${props.payload.stake?.toFixed(0) || 0})`,
               name,
             ]}
           />

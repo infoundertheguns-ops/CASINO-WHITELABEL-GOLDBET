@@ -1,5 +1,9 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdmin, isAdminError } from "@/lib/auth/admin-session";
+import { mapClaimRpcResult } from "./_claim";
+import { normalizeTicketCode, isValidTicketCode } from "@/app/admin/agent-tickets/lib/ticket-code";
 
 function getAdminSupabase() {
   return createClient(
@@ -134,46 +138,49 @@ export async function GET(req: NextRequest) {
     }).eq("id", ticket.id);
   }
 
+  const { player_id, ...ticketSanitized } = ticket;
   return NextResponse.json({
-    ticket: { ...ticket, status: ticketStatus, win_amount: ticketStatus === "won" ? bet?.potential_win : ticketStatus === "void" ? ticket.stake : 0 },
+    ticket: { ...ticketSanitized, status: ticketStatus, win_amount: ticketStatus === "won" ? bet?.potential_win : ticketStatus === "void" ? ticket.stake : 0 },
     bet,
     selections: selections || [],
   });
 }
 
-// PUT — Claim ticket (agent pays out)
+// PUT — Claim ticket (agent pays out). Session-based auth ONLY.
+// Ignora qualsiasi claimed_by passato nel body (breaking change vs vecchio contratto).
 export async function PUT(req: NextRequest) {
-  const supabase = getAdminSupabase();
+  const session = await requireAdmin();
+  if (isAdminError(session)) {
+    return NextResponse.json({ error: session.error }, { status: session.status });
+  }
+
   const body = await req.json();
-  const { ticket_code, claimed_by } = body;
-
-  if (!ticket_code) return NextResponse.json({ error: "ticket_code richiesto" }, { status: 400 });
-
-  const { data: ticket } = await supabase
-    .from("tickets")
-    .select("*")
-    .eq("ticket_code", ticket_code.toUpperCase())
-    .single();
-
-  if (!ticket) return NextResponse.json({ error: "Ticket non trovato" }, { status: 404 });
-
-  if (ticket.status === "claimed") {
-    return NextResponse.json({ error: "Ticket già incassato" }, { status: 400 });
-  }
-  if (ticket.status !== "won" && ticket.status !== "void") {
-    return NextResponse.json({ error: `Ticket non pagabile (status: ${ticket.status})` }, { status: 400 });
+  const raw = body?.ticket_code;
+  if (!raw) return NextResponse.json({ error: "ticket_code richiesto" }, { status: 400 });
+  const code = normalizeTicketCode(String(raw));
+  if (!isValidTicketCode(code)) {
+    return NextResponse.json({ error: "Formato codice non valido" }, { status: 400 });
   }
 
-  // Mark as claimed
-  await supabase.from("tickets").update({
-    status: "claimed",
-    claimed_at: new Date().toISOString(),
-    claimed_by: claimed_by || null,
-    updated_at: new Date().toISOString(),
-  }).eq("id", ticket.id);
-
-  return NextResponse.json({
-    success: true,
-    amount_paid: ticket.win_amount || 0,
+  const supabase = getAdminSupabase();
+  const { data, error } = await supabase.rpc("claim_ticket", {
+    p_code: code,
+    p_admin_id: session.adminUserId,
   });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const mapped = mapClaimRpcResult((data as any) ?? []);
+
+  if (mapped.status === 200) {
+    await supabase.from("audit_log").insert({
+      admin_id: session.adminUserId,
+      action: "ticket_claim",
+      module: "tickets",
+      target_type: "ticket",
+      target_id: mapped.body.ticket_id,
+      after_state: { ticket_code: code, amount_paid: mapped.body.amount_paid },
+    });
+  }
+
+  return NextResponse.json(mapped.body, { status: mapped.status });
 }

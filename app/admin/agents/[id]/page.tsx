@@ -28,18 +28,38 @@ export default function AgentDetailPage() {
   const handleSave = async (updates: Record<string, any>) => {
     setSaving(true);
     setMsg("");
+    // Optimistic update
+    if (data?.agent) {
+      setData((prev: any) => ({
+        ...prev,
+        agent: { ...prev.agent, ...updates },
+      }));
+    }
     try {
       const res = await fetch(`/api/admin/agents/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      if (!res.ok) { const d = await res.json(); setMsg(d.error); return; }
+      if (!res.ok) {
+        const d = await res.json();
+        setMsg(d.error || "Errore");
+        loadData(); // rollback on error
+        return;
+      }
+      const result = await res.json();
+      // Update with server response
+      if (result.agent) {
+        setData((prev: any) => ({ ...prev, agent: result.agent }));
+      }
       setMsg("Salvato!");
-      loadData();
-      setTimeout(() => setMsg(""), 3000);
-    } catch (e: any) { setMsg(e.message); }
-    finally { setSaving(false); }
+      setTimeout(() => setMsg(""), 2000);
+    } catch (e: any) {
+      setMsg(e.message);
+      loadData(); // rollback on error
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleWalletOp = async (action: "load" | "unload") => {
@@ -64,7 +84,7 @@ export default function AgentDetailPage() {
   if (!data?.agent) return <div style={{ padding: 60, textAlign: "center", color: "#ef4444" }}>Agente non trovato</div>;
 
   const agent = data.agent;
-  const permissions: AgentPermissions = agent.permissions || DEFAULT_PERMISSIONS;
+  const permissions: AgentPermissions = { ...DEFAULT_PERMISSIONS, ...agent.permissions };
 
   const TABS = [
     { key: "info", label: "Info" },
@@ -171,38 +191,59 @@ export default function AgentDetailPage() {
 
       {/* Permissions Tab */}
       {activeTab === "permissions" && (
-        <div style={{ background: "var(--admin-card, #0f172a)", border: "1px solid #1e3a5f", borderRadius: 12, padding: 20 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #1e3a5f" }}>
-                <th style={{ padding: "8px 12px", textAlign: "left", color: "#64748b", fontSize: 11, fontWeight: 700 }}>FUNZIONE</th>
-                {(["none", "viewer", "editor"] as const).map(l => (
-                  <th key={l} style={{ padding: "8px 12px", textAlign: "center", color: "#64748b", fontSize: 11, fontWeight: 700 }}>{l.toUpperCase()}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PERMISSION_KEYS.map(key => (
-                <tr key={key} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <td style={{ padding: "8px 12px", color: "#e2e8f0", fontWeight: 500 }}>{PERMISSION_LABELS[key]}</td>
-                  {(["none", "viewer", "editor"] as const).map(level => (
-                    <td key={level} style={{ padding: "8px 12px", textAlign: "center" }}>
-                      <input
-                        type="radio"
-                        name={`perm-${key}`}
-                        checked={permissions[key] === level}
-                        onChange={() => {
-                          const newPerms = { ...permissions, [key]: level };
-                          handleSave({ permissions: newPerms });
-                        }}
-                        style={{ cursor: "pointer", accentColor: "#f0b429" }}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ background: "var(--admin-card, #0f172a)", border: "1px solid var(--admin-border, #1e3a5f)", borderRadius: 12, padding: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {/* Header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 120px", padding: "12px 16px", borderBottom: "2px solid var(--admin-border, #1e3a5f)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--admin-text3, #94a3b8)", textTransform: "uppercase", letterSpacing: 1 }}>Funzione</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444", textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>Nessuno</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#3b82f6", textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>Viewer</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#10b981", textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>Editor</div>
+            </div>
+            {/* Rows */}
+            {PERMISSION_KEYS.map((key, i) => {
+              const levelColors = { none: "#ef4444", viewer: "#3b82f6", editor: "#10b981" };
+              const currentLevel = permissions[key];
+              return (
+                <div key={key} style={{
+                  display: "grid", gridTemplateColumns: "1fr 120px 120px 120px",
+                  padding: "14px 16px", alignItems: "center",
+                  background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)",
+                  borderBottom: "1px solid rgba(255,255,255,0.04)",
+                }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--admin-text, #e2e8f0)" }}>{PERMISSION_LABELS[key]}</div>
+                  {(["none", "viewer", "editor"] as const).map(level => {
+                    const isActive = currentLevel === level;
+                    const color = levelColors[level];
+                    return (
+                      <div key={level} style={{ textAlign: "center" }}>
+                        <button
+                          onClick={() => {
+                            const newPerms = { ...permissions, [key]: level };
+                            handleSave({ permissions: newPerms });
+                          }}
+                          style={{
+                            width: 40, height: 40, borderRadius: 8,
+                            border: isActive ? `2px solid ${color}` : "2px solid transparent",
+                            background: isActive ? `${color}20` : "var(--admin-surface2, #161527)",
+                            cursor: "pointer",
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {isActive ? (
+                            <span style={{ width: 16, height: 16, borderRadius: "50%", background: color, display: "block" }} />
+                          ) : (
+                            <span style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--admin-border, #1e3a5f)", display: "block" }} />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

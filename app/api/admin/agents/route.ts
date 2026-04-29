@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Email is optional — generate a placeholder if not provided
-  const email = rawEmail || `${code.toLowerCase()}@agents.vincitu.local`;
+  const email = rawEmail || `${code.toLowerCase()}@agents.betssolution.local`;
 
   if (level < 1 || level > 3) {
     return NextResponse.json({ error: "Level deve essere 1, 2 o 3" }, { status: 400 });

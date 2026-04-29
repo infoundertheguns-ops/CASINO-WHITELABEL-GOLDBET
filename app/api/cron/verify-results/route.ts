@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent } from "@/lib/settlement";
@@ -27,6 +28,12 @@ import type { MatchedEvent as BeMatchedEvent } from "@/lib/betexplorer";
 // - Calls settleEvent() with verified data
 // - Runs every 5 minutes via crontab
 // ═══════════════════════════════════════════════════
+
+
+// Record last successful run timestamp
+async function stampLastRun(sb: any, key: string) {
+  await sb.from("system_config").upsert({ key, value: JSON.stringify(new Date().toISOString()) }, { onConflict: "key" });
+}
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-cron-key");
@@ -62,6 +69,7 @@ export async function POST(req: NextRequest) {
     .order("updated_at", { ascending: true })
     .limit(100);
 
+    await stampLastRun(supabase, "last_run_verify_results");
   if (evErr || !events || events.length === 0) {
     return NextResponse.json({
       ...stats,
@@ -218,6 +226,8 @@ export async function POST(req: NextRequest) {
       stats.unmatched++;
     }
   }
+  await stampLastRun(supabase, "last_run_verify_results");
+
 
   return NextResponse.json({
     ...stats,

@@ -22,7 +22,7 @@ export function ResolveModal({ isOpen, onClose, onConfirm, alertCount, mode }: R
     { value: "dismissed", label: "Ignora", desc: "Falso positivo / non rilevante" },
     { value: "escalated", label: "Escalation", desc: "Richiede attenzione superiore" },
     { value: "block_users", label: "Blocca Utenti", desc: "Blocca account associati" },
-    { value: "reduce_limits", label: "Riduci Limiti", desc: "Imposta limite $50 max bet" },
+    { value: "reduce_limits", label: "Riduci Limiti", desc: "Imposta limite €50 max bet" },
   ];
 
   const handleConfirm = async () => {

@@ -51,8 +51,8 @@ export default function MarketTranslationsPage() {
   }) || [];
 
   const kpiStyle: React.CSSProperties = {
-    background: "#0f1a2e",
-    border: "1px solid #1e3a5f",
+    background: "var(--admin-card)",
+    border: "1px solid var(--admin-border)",
     borderRadius: 8,
     padding: "16px 20px",
     textAlign: "center",
@@ -60,23 +60,25 @@ export default function MarketTranslationsPage() {
   };
 
   const kpiLabel: React.CSSProperties = {
-    fontSize: 11,
+    fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: 1,
-    color: "#64748b",
+    color: "var(--admin-text3)",
     marginBottom: 4,
+    fontWeight: 600,
   };
 
   const kpiValue: React.CSSProperties = {
     fontSize: 28,
     fontWeight: 700,
+    color: "var(--admin-text)",
   };
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--admin-text)" }}>
           Traduzioni Mercati
         </h1>
         <div style={{ display: "flex", gap: 8 }}>
@@ -84,7 +86,7 @@ export default function MarketTranslationsPage() {
               style={{
                 padding: "6px 16px",
                 borderRadius: 6,
-                border: "1px solid #1e3a5f",
+                border: "none",
                 background: "#1e40af",
                 color: "#fff",
                 fontSize: 13,
@@ -99,9 +101,9 @@ export default function MarketTranslationsPage() {
             style={{
               padding: "6px 16px",
               borderRadius: 6,
-              border: "1px solid #1e3a5f",
-              background: "#0f1a2e",
-              color: "#94a3b8",
+              border: "1px solid var(--admin-border)",
+              background: "var(--admin-card)",
+              color: "var(--admin-text3)",
               cursor: "pointer",
               fontSize: 13,
             }}
@@ -156,10 +158,10 @@ export default function MarketTranslationsPage() {
           style={{
             padding: "8px 12px",
             borderRadius: 6,
-            border: "1px solid #1e3a5f",
-            background: "#0a1929",
-            color: "#e2e8f0",
-            fontSize: 13,
+            border: "1px solid var(--admin-border)",
+            background: "var(--admin-input)",
+            color: "var(--admin-text)",
+            fontSize: 14,
             flex: 1,
             maxWidth: 300,
           }}
@@ -171,9 +173,9 @@ export default function MarketTranslationsPage() {
             style={{
               padding: "6px 14px",
               borderRadius: 6,
-              border: "1px solid #1e3a5f",
-              background: filter === f ? (f === "english" ? "#991b1b" : f === "italian" ? "#166534" : "#1e3a5f") : "#0f1a2e",
-              color: filter === f ? "#fff" : "#94a3b8",
+              border: "1px solid var(--admin-border)",
+              background: filter === f ? (f === "english" ? "#991b1b" : f === "italian" ? "#166534" : "var(--admin-border)") : "var(--admin-card)",
+              color: filter === f ? "#fff" : "var(--admin-text3)",
               cursor: "pointer",
               fontSize: 12,
               fontWeight: 600,
@@ -190,13 +192,13 @@ export default function MarketTranslationsPage() {
         <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>Caricamento...</div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #1e3a5f" }}>
-                <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>#</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>Market Type</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>Lingua</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>Conteggio</th>
+              <tr style={{ borderBottom: "2px solid var(--admin-border)" }}>
+                <th style={{ textAlign: "left", padding: "12px 14px", color: "var(--admin-text3)", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>#</th>
+                <th style={{ textAlign: "left", padding: "12px 14px", color: "var(--admin-text3)", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>Market Type</th>
+                <th style={{ textAlign: "center", padding: "12px 14px", color: "var(--admin-text3)", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>Lingua</th>
+                <th style={{ textAlign: "right", padding: "12px 14px", color: "var(--admin-text3)", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>Conteggio</th>
               </tr>
             </thead>
             <tbody>
@@ -204,25 +206,25 @@ export default function MarketTranslationsPage() {
                 <tr
                   key={m.market_type}
                   style={{
-                    borderBottom: "1px solid #1e293b",
-                    background: i % 2 === 0 ? "transparent" : "#0a1a30",
+                    borderBottom: "1px solid var(--admin-border)",
+                    background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)",
                   }}
                 >
-                  <td style={{ padding: "8px 12px", color: "#475569" }}>{i + 1}</td>
-                  <td style={{
-                    padding: "8px 12px",
-                    color: m.is_italian ? "#e2e8f0" : "#fbbf24",
-                    fontFamily: "monospace",
-                    fontSize: 13,
-                  }}>
-                    {m.market_type}
+                  <td style={{ padding: "10px 14px", color: "var(--admin-text4)", fontSize: 14 }}>{i + 1}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 15 }}>
+                    <span style={{
+                      color: "var(--admin-text)",
+                      fontWeight: 700,
+                    }}>
+                      {m.market_type}
+                    </span>
                   </td>
                   <td style={{ textAlign: "center", padding: "8px 12px" }}>
                     <span style={{
                       display: "inline-block",
                       padding: "2px 10px",
                       borderRadius: 10,
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: 600,
                       background: m.is_italian ? "#052e1633" : "#3b0a0a66",
                       color: m.is_italian ? "#22c55e" : "#ef4444",
@@ -231,7 +233,7 @@ export default function MarketTranslationsPage() {
                       {m.is_italian ? "IT" : "EN"}
                     </span>
                   </td>
-                  <td style={{ textAlign: "right", padding: "8px 12px", color: "#94a3b8", fontFamily: "monospace" }}>
+                  <td style={{ textAlign: "right", padding: "10px 14px", color: "var(--admin-text)", fontFamily: "monospace", fontSize: 15 }}>
                     {m.count.toLocaleString()}
                   </td>
                 </tr>

@@ -138,7 +138,7 @@ export default function HomePage() {
                 </>
               ) : (
                 <h1 className="text-2xl lg:text-3xl font-black text-white mb-1">
-                  Benvenuto su <span className="text-[#e8611c]">VinciTu</span>
+                  Benvenuto su <span className="text-[#e8611c]">BetsSolution</span>
                 </h1>
               )}
               <p className="text-white/50 text-sm mb-4">La tua piattaforma di scommesse sportive.</p>

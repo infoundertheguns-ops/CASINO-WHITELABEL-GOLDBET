@@ -1,44 +1,68 @@
 "use client";
 
-import { Suspense, useState } from "react";
+// E10 — tab persisted in URL for deep-linkable sharing.
+export const dynamic = "force-dynamic";
+
+import { Suspense } from "react";
 import CoverageDashboard from "@/components/admin/market-coverage/coverage-dashboard";
 import IppicaCoverage from "@/components/admin/market-coverage/ippica-coverage";
+import { useAdminFilters } from "@/lib/hooks/use-admin-filters";
 
 const TABS = [
-  { key: "kambi", label: "Kambi Sport" },
-  { key: "ippica", label: "Ippica" },
+  { key: "kambi", label: "Kambi Sport", icon: "⚽", color: "#f0b429" },
+  { key: "22bet", label: "22bet Sport", icon: "🎯", color: "#f97316" },
+  { key: "ippica", label: "Ippica", icon: "🏇", color: "#f0b429" },
 ];
 
 export default function MarketCoveragePage() {
-  const [activeTab, setActiveTab] = useState("kambi");
+  return (
+    <Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>Caricamento…</div>}>
+      <MarketCoverageInner />
+    </Suspense>
+  );
+}
+
+function MarketCoverageInner() {
+  const { filters, updateFilter } = useAdminFilters({ tab: "kambi" });
+  const activeTab = filters.tab;
+  const setActiveTab = (v: string) => updateFilter("tab", v);
+
+  const activeColor = TABS.find(t => t.key === activeTab)?.color || "#f0b429";
 
   return (
     <div>
       {/* Tab switcher */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: "10px 24px",
-              borderRadius: 8,
-              border: activeTab === tab.key ? "1px solid #f0b429" : "1px solid var(--admin-border, #1e3a5f)",
-              background: activeTab === tab.key ? "#f0b42920" : "transparent",
-              color: activeTab === tab.key ? "#f0b429" : "var(--admin-text-muted, #94a3b8)",
-              cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 700,
-              transition: "all 0.15s",
-            }}
-          >
-            {tab.key === "ippica" ? "🏇 " : "⚽ "}{tab.label}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: "10px 24px",
+                borderRadius: 8,
+                border: active ? `1px solid ${tab.color}` : "1px solid var(--admin-border, #1e3a5f)",
+                background: active ? `${tab.color}20` : "transparent",
+                color: active ? tab.color : "var(--admin-text-muted, #94a3b8)",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 700,
+                transition: "all 0.15s",
+              }}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       <Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>Caricamento...</div>}>
-        {activeTab === "kambi" ? <CoverageDashboard /> : <IppicaCoverage />}
+        {activeTab === "ippica" ? (
+          <IppicaCoverage />
+        ) : (
+          <CoverageDashboard key={activeTab} source={activeTab} />
+        )}
       </Suspense>
     </div>
   );

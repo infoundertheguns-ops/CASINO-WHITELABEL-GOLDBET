@@ -22,7 +22,7 @@ export default function AuthLayout({
 
       {/* Footer */}
       <p className="mt-6 text-xs text-gray-400">
-        © 2026 VinciTu. Gioca responsabilmente. 18+
+        © 2026 BetsSolution. Gioca responsabilmente. 18+
       </p>
     </div>
   );

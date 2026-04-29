@@ -1,4 +1,4 @@
-# 🎲 VinciTu — Scommesse, Casino & Crypto
+# 🎲 BetsSolution — Scommesse, Casino & Crypto
 
 Full-stack iGaming platform built with Next.js 14, Supabase, and Tailwind CSS.
 
@@ -45,7 +45,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ## Project Structure
 
 ```
-vincitu/
+betssolution/
 ├── app/
 │   ├── (auth)/          # Login, Register, Forgot Password
 │   ├── (player)/        # Sport, Casino, Promo, Wallet, Account

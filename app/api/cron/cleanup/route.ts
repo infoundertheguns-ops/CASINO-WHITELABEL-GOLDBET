@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent, deactivateEvent, resolveBet } from "@/lib/settlement";
@@ -9,6 +10,12 @@ import { sendTelegramAlert } from "@/lib/telegram";
 // - Fixes ended events that still have active markets
 // - Runs every 10 minutes via crontab
 // ═══════════════════════════════════════════════════
+
+
+// Record last successful run timestamp
+async function stampLastRun(sb: any, key: string) {
+  await sb.from("system_config").upsert({ key, value: JSON.stringify(new Date().toISOString()) }, { onConflict: "key" });
+}
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-cron-key");
@@ -60,25 +67,45 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Helper: batched .in() update to avoid PostgREST 8KB URL limit.
+  // supabase-js builds a GET-style URL for .in(col, [...uuids]) which silently
+  // truncates/fails above ~200 UUIDs. Always chunk before .in() on large sets.
+  const UPDATE_BATCH = 200;
+  async function updateByIdsInBatches(
+    ids: string[],
+    patch: Record<string, unknown>,
+  ): Promise<{ updated: number; error: string | null }> {
+    let updated = 0;
+    for (let i = 0; i < ids.length; i += UPDATE_BATCH) {
+      const chunk = ids.slice(i, i + UPDATE_BATCH);
+      const { error } = await supabase.from("events").update(patch).in("id", chunk);
+      if (error) return { updated, error: `batch ${i}: ${error.message}` };
+      updated += chunk.length;
+    }
+    return { updated, error: null };
+  }
+
   // ── 2. Force-finish stale live events (no updates for 10+ min) ──
   // Critical: stale live events have active markets players can bet on
   let staleLiveFinished = 0;
-  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data: staleLive } = await supabase
     .from("events")
     .select("id")
     .eq("status", "live")
     .eq("is_live", true)
     .lt("updated_at", staleThreshold)
-    .limit(200);
+    .limit(1000);
 
   if (staleLive && staleLive.length > 0) {
     const ids = staleLive.map((e: { id: string }) => e.id);
-    await supabase
-      .from("events")
-      .update({ status: "finished", is_live: false, updated_at: new Date().toISOString() })
-      .in("id", ids);
-    staleLiveFinished = ids.length;
+    const res = await updateByIdsInBatches(ids, {
+      status: "finished",
+      is_live: false,
+      updated_at: new Date().toISOString(),
+    });
+    staleLiveFinished = res.updated;
+    if (res.error) errors.push(`stale_live: ${res.error}`);
   }
 
   // ── 2b. End abandoned prematch events (no scraper update for 75+ min) ──
@@ -91,15 +118,40 @@ export async function POST(req: NextRequest) {
     .eq("status", "prematch")
     .eq("is_live", false)
     .lt("updated_at", prematchStaleThreshold)
-    .limit(500);
+    .limit(2000);
 
   if (stalePrematch && stalePrematch.length > 0) {
     const ids = stalePrematch.map((e: { id: string }) => e.id);
-    await supabase
-      .from("events")
-      .update({ status: "ended", updated_at: new Date().toISOString() })
-      .in("id", ids);
-    stalePrematchEnded = ids.length;
+    const res = await updateByIdsInBatches(ids, {
+      status: "ended",
+      updated_at: new Date().toISOString(),
+    });
+    stalePrematchEnded = res.updated;
+    if (res.error) errors.push(`stale_prematch: ${res.error}`);
+  }
+
+  // ── 2c. Force-end prematch events already past start time ──
+  // Covers 22bet (and any other source) that fails to transition prematch → live
+  // when the event starts and just keeps updating the stale prematch row.
+  // 30min buffer after starts_at gives the scraper a reasonable window.
+  let prematchPastStartEnded = 0;
+  const pastStartThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: pastStart } = await supabase
+    .from("events")
+    .select("id")
+    .eq("status", "prematch")
+    .eq("is_live", false)
+    .lt("starts_at", pastStartThreshold)
+    .limit(2000);
+
+  if (pastStart && pastStart.length > 0) {
+    const ids = pastStart.map((e: { id: string }) => e.id);
+    const res = await updateByIdsInBatches(ids, {
+      status: "ended",
+      updated_at: new Date().toISOString(),
+    });
+    prematchPastStartEnded = res.updated;
+    if (res.error) errors.push(`past_start: ${res.error}`);
   }
 
   // ── 3. Bulk-fix ended events that still have active markets (single RPC) ──
@@ -262,12 +314,15 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* daily report is non-critical */ }
 
+  await stampLastRun(supabase, "last_run_cleanup");
+
   return NextResponse.json({
     finished_remaining: finishedEvents?.length || 0,
     settled,
     deactivated,
     stale_live_finished: staleLiveFinished || undefined,
     stale_prematch_ended: stalePrematchEnded || undefined,
+    prematch_past_start_ended: prematchPastStartEnded || undefined,
     ended_fixed: endedFixed || undefined,
     multis_resolved: multisResolved || undefined,
     orphan_markets: orphanMarkets || undefined,

@@ -105,7 +105,7 @@ export function TicketPrint({ ticket, onClose }: { ticket: TicketData; onClose: 
         {/* Preview */}
         <div ref={printRef} style={{ color: "#000", fontSize: 12 }}>
           <div className="center" style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>VINCITU</div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>BETSSOLUTION</div>
             <div style={{ fontSize: 10, color: "#666" }}>Ricevuta Scommessa</div>
           </div>
 

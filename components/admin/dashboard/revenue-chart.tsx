@@ -41,11 +41,11 @@ export function RevenueChart({ data }: { data: DayStat[] }) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
           <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 10 }} interval="preserveStartEnd" />
-          <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={v => `$${v}`} />
+          <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={v => `€${v}`} />
           <Tooltip
             contentStyle={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: 8, fontSize: 12 }}
             itemStyle={{ color: "#fff" }}
-            formatter={(val: number) => [`$${val.toFixed(2)}`]}
+            formatter={(val: number) => [`€${val.toFixed(2)}`]}
           />
           <Area type="monotone" dataKey="ggr" stroke="#22c55e" fill="url(#ggrGrad)" name="GGR" strokeWidth={2} />
           <Area type="monotone" dataKey="deposit_volume" stroke="#3b82f6" fill="url(#depGrad)" name="Depositi" strokeWidth={1.5} />

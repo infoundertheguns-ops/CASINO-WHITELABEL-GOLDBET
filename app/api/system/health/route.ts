@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import {
   computeHealthScores,
+  computeTwobetHealth,
+  computeBetfairHealth,
   type SystemHealthRPC,
   type ScraperInfo,
   type RedisInfo,
@@ -51,7 +53,7 @@ function getScraperInfo(source: string, type: "live" | "prematch"): ScraperInfo 
   if (!buf || buf.length === 0) return { connected: false };
 
   const latest = buf[buf.length - 1];
-  const gb = latest?.goldbet;
+  const gb = latest?.kambi;
   if (!gb) return { connected: false };
 
   const cycleField =
@@ -129,7 +131,7 @@ export async function GET() {
     try {
       const { getRedisClient } = await import("@/lib/redis");
       const redis = await getRedisClient();
-      for (const source of ["kambi"]) {
+      for (const source of ["kambi", "22bet", "betfair"]) {
         const raw = await redis.get(`scraper:snapshot:${source}`);
         if (raw) {
           if (!g.__scraperSnapshotsBySource) g.__scraperSnapshotsBySource = {};
@@ -139,9 +141,13 @@ export async function GET() {
     } catch { /* Redis fallback is best-effort */ }
   }
 
-  // 2. Kambi scraper info from in-memory snapshots
+  // 2. Scraper info from in-memory snapshots (Kambi + 22bet + Betfair)
   const kambiLive = getScraperInfo("kambi", "live");
   const kambiPrematch = getScraperInfo("kambi", "prematch");
+  const twobetLive = getScraperInfo("22bet", "live");
+  const twobetPrematch = getScraperInfo("22bet", "prematch");
+  const betfairLive = getScraperInfo("betfair", "live");
+  const betfairPrematch = getScraperInfo("betfair", "prematch");
 
   // 3. Redis info
   let redisInfo: RedisInfo = { connected: false };
@@ -158,19 +164,106 @@ export async function GET() {
     redisInfo = { connected: false };
   }
 
-  // 4. Compute scores — Kambi primary
+  // 4. Kambi scores (primary — player-facing subsystems)
   const scores = computeHealthScores(
     rpc,
     { live: kambiLive, prematch: kambiPrematch },
     redisInfo,
   );
 
+  // 5. 22bet scores (secondary — consensus + normalization focus)
+  const twobetConnected = twobetLive.connected || twobetPrematch.connected;
+  let twobet_scores: ReturnType<typeof computeTwobetHealth> | null = null;
+  if (twobetConnected) {
+    const staleCutoff = new Date(Date.now() - 75 * 60 * 1000).toISOString();
+    const [consensusRes, staleRes] = await Promise.all([
+      supabase.from("consensus_snapshots")
+        .select("snapshot_at", { count: "exact", head: false })
+        .order("snapshot_at", { ascending: false })
+        .limit(1),
+      supabase.from("events")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "22bet")
+        .eq("status", "prematch")
+        .lt("updated_at", staleCutoff),
+    ]);
+
+    const lastSnapshotAt = consensusRes.data?.[0]?.snapshot_at ?? null;
+    const lastRefreshAgeSec = lastSnapshotAt
+      ? (Date.now() - new Date(lastSnapshotAt).getTime()) / 1000
+      : null;
+
+    // markets-per-event ratio for 22bet from RPC data
+    const twobetMarkets = rpc.active_by_source?.markets?.["22bet"] ?? 0;
+    const twobetEvents = (rpc.events?.["22bet_live"] ?? 0) + (rpc.events?.["22bet_prematch"] ?? 0);
+    const marketsPerEvent = twobetEvents > 0 ? twobetMarkets / twobetEvents : 0;
+
+    twobet_scores = computeTwobetHealth(
+      { live: twobetLive, prematch: twobetPrematch },
+      rpc,
+      {
+        lastRefreshAgeSec,
+        totalSnapshots: consensusRes.count ?? 0,
+      },
+      {
+        marketsPerEvent,
+        stalePrematch: staleRes.count ?? 0,
+      },
+    );
+  }
+
+  // 6. Betfair scores (third consensus source — exchange)
+  const betfairConnected = betfairLive.connected || betfairPrematch.connected;
+  let betfair_scores: ReturnType<typeof computeBetfairHealth> | null = null;
+  if (betfairConnected) {
+    const staleCutoff = new Date(Date.now() - 75 * 60 * 1000).toISOString();
+    const [consensusRes, staleRes] = await Promise.all([
+      supabase.from("consensus_snapshots")
+        .select("snapshot_at", { count: "exact", head: false })
+        .order("snapshot_at", { ascending: false })
+        .limit(1),
+      supabase.from("events")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "betfair")
+        .eq("status", "prematch")
+        .lt("updated_at", staleCutoff),
+    ]);
+
+    const lastSnapshotAt = consensusRes.data?.[0]?.snapshot_at ?? null;
+    const lastRefreshAgeSec = lastSnapshotAt
+      ? (Date.now() - new Date(lastSnapshotAt).getTime()) / 1000
+      : null;
+
+    const betfairMarkets = rpc.active_by_source?.markets?.["betfair"] ?? 0;
+    const betfairEvents = (rpc.events?.["betfair_live"] ?? 0) + (rpc.events?.["betfair_prematch"] ?? 0);
+    const marketsPerEvent = betfairEvents > 0 ? betfairMarkets / betfairEvents : 0;
+
+    betfair_scores = computeBetfairHealth(
+      { live: betfairLive, prematch: betfairPrematch },
+      rpc,
+      {
+        lastRefreshAgeSec,
+        totalSnapshots: consensusRes.count ?? 0,
+      },
+      {
+        marketsPerEvent,
+        stalePrematch: staleRes.count ?? 0,
+      },
+    );
+  }
+
   const result = {
     scores,
+    twobet_scores,
+    betfair_scores,
     metrics: rpc,
     scraper: {
       kambi_live: kambiLive,
       kambi_prematch: kambiPrematch,
+      twobet_live: twobetLive,
+      twobet_prematch: twobetPrematch,
+      betfair_live: betfairLive,
+      betfair_prematch: betfairPrematch,
     },
     redis: redisInfo,
     cached_at: new Date().toISOString(),

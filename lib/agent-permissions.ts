@@ -25,12 +25,19 @@ export function buildAgentNavigation(permissions: AgentPermissions) {
     items.push({ id: "agent-dashboard", icon: "📊", label: "Dashboard" });
   if (hasPermission(permissions, "players", "viewer"))
     items.push({ id: "agent-players", icon: "👥", label: "Giocatori" });
+  if (hasPermission(permissions, "bets", "viewer"))
+    items.push({ id: "bets", icon: "🎯", label: "Scommesse" });
+  items.push({ id: "agent-wallet", icon: "💳", label: "Wallet" });
   if (hasPermission(permissions, "sub_agents", "viewer"))
-    items.push({ id: "agent-subagents", icon: "🏢", label: "Sub-Agenti" });
+    items.push({ id: "agent-network", icon: "🌐", label: "Rete Agenti" });
+  if (hasPermission(permissions, "kiosks", "viewer"))
+    items.push({ id: "agent-kiosks", icon: "🖥️", label: "Kiosk" });
   if (hasPermission(permissions, "tickets", "viewer"))
     items.push({ id: "agent-tickets", icon: "🎫", label: "Ticket" });
   if (hasPermission(permissions, "reports", "viewer") || hasPermission(permissions, "commissions", "viewer"))
     items.push({ id: "agent-commissions", icon: "💰", label: "Report & Commissioni" });
+  if (hasPermission(permissions, "commissions", "viewer"))
+    items.push({ id: "agent-settlements", icon: "📅", label: "Settlements" });
   if (hasPermission(permissions, "risk", "viewer"))
     items.push({ id: "agent-risk", icon: "🛡️", label: "Rischio" });
 

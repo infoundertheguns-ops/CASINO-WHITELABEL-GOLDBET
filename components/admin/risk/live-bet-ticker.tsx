@@ -97,7 +97,7 @@ export function LiveBetTicker() {
 
             {/* Stake + odds */}
             <span className="font-mono" style={{ color: "var(--admin-text3)" }}>
-              ${b.stake.toFixed(0)} @{b.total_odds.toFixed(2)}
+              €{b.stake.toFixed(0)} @{b.total_odds.toFixed(2)}
             </span>
 
             {/* Risk indicator */}

@@ -1,5 +1,6 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 function formatAge(minutes: number | null): string {
   if (minutes === null) return "N/A";
@@ -10,7 +11,16 @@ function formatAge(minutes: number | null): string {
 }
 
 export async function GET() {
-  const supabase = createAdminClient();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      global: {
+        fetch: (url: any, options: any = {}) =>
+          fetch(url, { ...options, cache: "no-store" }),
+      },
+    }
+  );
 
   try {
     const now = new Date();
@@ -128,8 +138,18 @@ export async function GET() {
       .limit(1);
     const healthLog = healthLogRows?.[0] || null;
 
-    // ── 9. Verify-results cron — use latest ended event as proxy ──
-    // (settlement_log is not actively written by current flow)
+    // ── Real cron execution timestamps from system_config ──
+    const { data: cronTimestamps } = await supabase
+      .from("system_config")
+      .select("key, value")
+      .in("key", ["last_run_verify_results", "last_run_cleanup", "last_run_flashscore_results", "last_run_flashscore_fixtures"]);
+
+    const cronTs: Record<string, string | null> = {};
+    for (const row of cronTimestamps || []) {
+      try { cronTs[row.key] = JSON.parse(row.value) || null; } catch { cronTs[row.key] = null; }
+    }
+
+    // ── 9. Verify-results cron — separate cron freshness from settlement activity ──
     const { data: latestEnded } = await supabase
       .from("events")
       .select("updated_at")
@@ -139,51 +159,103 @@ export async function GET() {
       .limit(1)
       .single();
 
-    const lastEndedAt = latestEnded?.updated_at || null;
-    const lastEndedAge = lastEndedAt
-      ? Math.round((now.getTime() - new Date(lastEndedAt).getTime()) / 60000)
+    // Cron execution freshness (is the cron running?)
+    const verifyCronTs = cronTs["last_run_verify_results"] || null;
+    const verifyCronAge = verifyCronTs
+      ? Math.round((now.getTime() - new Date(verifyCronTs).getTime()) / 60000)
       : null;
 
-    // ── 10. Ippica settlement health ──
-    const { count: ippicaUnsettled } = await supabase
-      .from("ippica_odds")
-      .select("id", { count: "exact", head: true })
-      .is("result", null)
-      .eq("status", "active");
+    // Last actual settlement (when was the last event settled?)
+    const lastSettlementTs = latestEnded?.updated_at || null;
+    const lastSettlementAge = lastSettlementTs
+      ? Math.round((now.getTime() - new Date(lastSettlementTs).getTime()) / 60000)
+      : null;
 
-    const { data: ippicaFinished } = await supabase
+    // For display/actor status, prefer cron timestamp
+    const verifyLastRun = verifyCronTs || lastSettlementTs || null;
+    const lastEndedAge = verifyCronAge ?? lastSettlementAge;
+
+    // ── 10. Ippica settlement health ──
+    // Count unsettled odds ONLY on finished races (not scheduled/closed/active)
+    const { data: ippicaFinishedRaces } = await supabase
       .from("ippica_races")
       .select("id")
       .eq("status", "finished");
 
+    const finishedRaceIds = (ippicaFinishedRaces || []).map(r => r.id);
+    let ippicaUnsettled = 0;
+    if (finishedRaceIds.length > 0) {
+      // Get market IDs for finished races
+      const { data: finishedMarkets } = await supabase
+        .from("ippica_markets")
+        .select("id")
+        .in("race_id", finishedRaceIds);
+      const fmIds = (finishedMarkets || []).map(m => m.id);
+      if (fmIds.length > 0) {
+        const { count } = await supabase
+          .from("ippica_odds")
+          .select("id", { count: "exact", head: true })
+          .in("market_id", fmIds)
+          .is("result", null)
+          .eq("status", "active");
+        ippicaUnsettled = count || 0;
+      }
+    }
+
+    // Count active (upcoming) races and odds separately
+    const { count: ippicaActiveOdds } = await supabase
+      .from("ippica_odds")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active")
+      .is("result", null);
+
+    const ippicaFinished = ippicaFinishedRaces;
+
     // Build actor health
-    const flashscoreLastPush = latestFixture?.created_at || null;
-    const flashscoreAge = flashscoreLastPush
-      ? Math.round((now.getTime() - new Date(flashscoreLastPush).getTime()) / 60000)
+    // Use real cron timestamp if available, fallback to fixture created_at
+    const flashscoreLastRun = cronTs["last_run_flashscore_results"] || cronTs["last_run_flashscore_fixtures"] || latestFixture?.created_at || null;
+    const flashscoreAge = flashscoreLastRun
+      ? Math.round((now.getTime() - new Date(flashscoreLastRun).getTime()) / 60000)
       : null;
 
-    const healthLogAge = healthLog?.created_at
-      ? Math.round((now.getTime() - new Date(healthLog.created_at).getTime()) / 60000)
+    const cleanupLastRun = cronTs["last_run_cleanup"] || healthLog?.created_at || null;
+    const healthLogAge = cleanupLastRun
+      ? Math.round((now.getTime() - new Date(cleanupLastRun).getTime()) / 60000)
       : null;
 
-    // Actor statuses
+    // Pre-compute cron freshness for use in both actors and scoring
+    const fsCronAge = cronTs["last_run_flashscore_results"]
+      ? Math.round((now.getTime() - new Date(cronTs["last_run_flashscore_results"]).getTime()) / 60000)
+      : flashscoreAge; // fallback to data age
+
+    // Actor statuses — based on cron freshness, not data age
     const actors = {
       flashscore: {
-        status: flashscoreAge !== null && flashscoreAge < 120 ? "healthy" : flashscoreAge !== null && flashscoreAge < 360 ? "warning" : "critical",
-        last_push: flashscoreLastPush,
+        status: fsCronAge !== null && fsCronAge < 15 ? "healthy" : fsCronAge !== null && fsCronAge < 120 ? "warning" : "critical",
+        last_push: flashscoreLastRun,
         age_minutes: flashscoreAge,
+        cron_age_minutes: fsCronAge,
         matched_24h: fsMatched24h || 0,
+        interval_minutes: 60,
+        next_in_minutes: flashscoreAge !== null ? Math.max(0, 60 - flashscoreAge) : null,
       },
       verify_results: {
-        status: lastEndedAge !== null && lastEndedAge < 15 ? "healthy" : lastEndedAge !== null && lastEndedAge < 60 ? "warning" : "critical",
-        last_settlement: lastEndedAt,
+        status: verifyCronAge !== null && verifyCronAge < 10 ? "healthy" : verifyCronAge !== null && verifyCronAge < 30 ? "warning" : "critical",
+        last_settlement: lastSettlementTs,
+        last_cron_run: verifyCronTs,
         age_minutes: lastEndedAge,
+        cron_age_minutes: verifyCronAge,
+        settlement_age_minutes: lastSettlementAge,
         settled_1h: settled1h || 0,
+        interval_minutes: 5,
+        next_in_minutes: verifyCronAge !== null ? Math.max(0, 5 - verifyCronAge) : null,
       },
       cleanup: {
         status: healthLogAge !== null && healthLogAge < 300 ? "healthy" : healthLogAge !== null && healthLogAge < 480 ? "warning" : "critical",
-        last_run: healthLog?.created_at || null,
+        last_run: cleanupLastRun,
         age_minutes: healthLogAge,
+        interval_minutes: 240,
+        next_in_minutes: healthLogAge !== null ? Math.max(0, 240 - healthLogAge) : null,
       },
     };
 
@@ -193,21 +265,36 @@ export async function GET() {
 
     // Subsystem 1: Flashscore Scraper (weight 25)
     let flashscoreScore = 100;
-    if (flashscoreAge === null) flashscoreScore = 0;
-    else if (flashscoreAge <= 30) flashscoreScore = 100;
-    else if (flashscoreAge >= 360) flashscoreScore = 0;
-    else flashscoreScore = 100 - ((flashscoreAge - 30) / 330) * 100;
+    if (fsCronAge === null) flashscoreScore = 0;
+    else if (fsCronAge <= 15) flashscoreScore = 100;
+    else if (fsCronAge >= 120) flashscoreScore = 0;
+    else flashscoreScore = 100 - ((fsCronAge - 15) / 105) * 100;
     flashscoreScore = clamp(flashscoreScore);
 
     // Subsystem 2: Verify Results (weight 30)
-    let verifyScore = 100;
-    if (lastEndedAge === null) verifyScore = 0;
-    else if (lastEndedAge <= 10) verifyScore = 100;
-    else if (lastEndedAge >= 60) verifyScore = 0;
-    else verifyScore = 100 - ((lastEndedAge - 10) / 50) * 100;
-    // Bonus/penalty based on rate
+    // Two-dimensional: cron must be running + pipeline must be clearing work
     const rate1h = settled1h || 0;
-    if (rate1h === 0 && lastEndedAge !== null && lastEndedAge > 30) verifyScore = clamp(verifyScore - 30);
+    const bl_ = backlog || 0;
+    let verifyScore = 100;
+
+    if (verifyCronAge === null) {
+      // Cron never ran — critical
+      verifyScore = 0;
+    } else if (verifyCronAge <= 10 && bl_ === 0 && stuckCount === 0) {
+      // Cron is fresh, no backlog, no stuck → pipeline is healthy (nothing to do = OK)
+      verifyScore = 100;
+    } else if (verifyCronAge > 15) {
+      // Cron is stale — real problem: cron not running
+      if (verifyCronAge >= 120) verifyScore = 0;
+      else verifyScore = 100 - ((verifyCronAge - 15) / 105) * 100;
+    } else {
+      // Cron is running but there may be work piling up
+      // Score based on backlog + stuck (already covered by subsystems 3 & 4)
+      // Only penalize here if settlement rate dropped while backlog exists
+      if (bl_ > 50 && rate1h === 0) verifyScore = 40;
+      else if (bl_ > 20 && rate1h === 0) verifyScore = 70;
+      else verifyScore = 100;
+    }
     verifyScore = clamp(verifyScore);
 
     // Subsystem 3: Backlog (weight 30)
@@ -226,8 +313,8 @@ export async function GET() {
     stuckScore = clamp(stuckScore);
 
     const subsystems = {
-      flashscore: { score: flashscoreScore, weight: 25, label: "Flashscore Scraper", details: `Età: ${formatAge(flashscoreAge)}` },
-      verify_results: { score: verifyScore, weight: 30, label: "Verify Results", details: `Età: ${formatAge(lastEndedAge)}, ${rate1h} settlati/1h` },
+      flashscore: { score: flashscoreScore, weight: 25, label: "Flashscore Scraper", details: `Cron: ${formatAge(fsCronAge)}, dati: ${formatAge(flashscoreAge)}` },
+      verify_results: { score: verifyScore, weight: 30, label: "Verify Results", details: `Cron: ${formatAge(verifyCronAge)}, ultimo settle: ${formatAge(lastSettlementAge)}, ${rate1h}/1h` },
       backlog: { score: backlogScore, weight: 30, label: "Backlog", details: `${bl} eventi in attesa` },
       stuck: { score: stuckScore, weight: 15, label: "Stuck Events", details: `${stuckCount} stuck > 30 min` },
     };
@@ -273,7 +360,8 @@ export async function GET() {
         settled_at: e.updated_at,
       })),
       ippica: {
-        unsettled_odds: ippicaUnsettled || 0,
+        unsettled_odds: ippicaUnsettled,
+        pending_odds: (ippicaActiveOdds || 0) - ippicaUnsettled,
         finished_races: ippicaFinished?.length || 0,
       },
       generated_at: now.toISOString(),

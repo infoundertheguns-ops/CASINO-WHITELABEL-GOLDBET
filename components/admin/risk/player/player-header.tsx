@@ -62,10 +62,10 @@ export function PlayerHeader({ user, profile, limits }: PlayerHeaderProps) {
       <div className="grid grid-cols-6 gap-3 mt-4">
         {[
           { label: "Bet Totali", value: profile?.total_bets || 0 },
-          { label: "Stake Tot.", value: `$${(profile?.total_stake || 0).toLocaleString()}` },
+          { label: "Stake Tot.", value: `€${(profile?.total_stake || 0).toLocaleString()}` },
           { label: "Win Rate", value: `${((profile?.win_rate || 0) * 100).toFixed(1)}%` },
-          { label: "Avg Stake", value: `$${(profile?.avg_stake || 0).toFixed(2)}` },
-          { label: "GGR", value: `$${(profile?.lifetime_ggr || 0).toFixed(2)}`, color: (profile?.lifetime_ggr || 0) >= 0 ? "#22c55e" : "#ef4444" },
+          { label: "Avg Stake", value: `€${(profile?.avg_stake || 0).toFixed(2)}` },
+          { label: "GGR", value: `€${(profile?.lifetime_ggr || 0).toFixed(2)}`, color: (profile?.lifetime_ggr || 0) >= 0 ? "#22c55e" : "#ef4444" },
           { label: "Flags", value: profile?.flags_count || 0 },
         ].map((s, i) => (
           <div key={i} className="text-center">

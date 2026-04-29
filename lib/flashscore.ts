@@ -41,6 +41,20 @@ export interface FlashscoreFixture {
   sport: string;
 }
 
+export interface FlashscoreLive {
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  scoreHome: number | null;
+  scoreAway: number | null;
+  periods: number[][]; // partial per-period breakdown
+  stageCode: string;
+  timestamp: number;
+  country: string;
+  league: string;
+  sport: string;
+}
+
 export interface FlashscoreMatchDetail {
   matchId: string;
   homeTeam: string;
@@ -392,6 +406,100 @@ export function parseResultsFeed(
   }
 
   return results;
+}
+
+// ═══ PARSE LIVE FEED ═══
+
+export function parseLiveFeed(raw: string, sport: string): FlashscoreLive[] {
+  const records = parseFeed(raw);
+  const live: FlashscoreLive[] = [];
+  let currentCountry = "";
+  let currentLeague = "";
+
+  for (const rec of records) {
+    if (rec["ZA"] && !rec[F.MATCH_ID]) {
+      currentCountry = rec["ZY"] || currentCountry;
+      const zaText = rec["ZA"] || "";
+      currentLeague = zaText.includes(":") ? zaText.split(":").slice(1).join(":").trim() : zaText;
+      continue;
+    }
+
+    const matchId = rec[F.MATCH_ID];
+    const homeTeam = rec[F.HOME_TEAM];
+    const awayTeam = rec[F.AWAY_TEAM];
+    if (!matchId || !homeTeam || !awayTeam) continue;
+
+    const stageCode = (rec[F.STAGE] || "").trim();
+    const status = parseStatus(stageCode);
+    if (status !== "live") continue;
+
+    const periods: number[][] = [];
+    for (const [hk, ak] of F.PERIOD_FIELDS) {
+      const h = safeInt(rec[hk]);
+      const a = safeInt(rec[ak]);
+      if (h !== null && a !== null) periods.push([h, a]);
+    }
+
+    live.push({
+      matchId,
+      homeTeam,
+      awayTeam,
+      scoreHome: safeInt(rec[F.SCORE_HOME]),
+      scoreAway: safeInt(rec[F.SCORE_AWAY]),
+      periods,
+      stageCode,
+      timestamp: safeInt(rec[F.TIMESTAMP]) || 0,
+      country: currentCountry,
+      league: currentLeague,
+      sport,
+    });
+  }
+
+  return live;
+}
+
+/**
+ * Italian period label for a sport from the number of periods seen in the feed.
+ * Flashscore emits periods as they complete (so `periodCount` is the current period index).
+ * Returns undefined if the sport has no meaningful period concept.
+ */
+export function derivePeriodLabel(sport: string, periodCount: number): string | undefined {
+  if (periodCount <= 0) return undefined;
+  const s = sport.toLowerCase();
+  if (s === "tennis" || s === "tennis_tavolo" || s === "tennis tavolo" || s === "volley" || s === "volleyball" || s === "badminton") {
+    return `${periodCount}° Set`;
+  }
+  if (s === "basket" || s === "basketball") {
+    return periodCount > 4 ? "OT" : `${periodCount}Q`;
+  }
+  if (s === "hockey" || s === "hockey ghiaccio") {
+    return periodCount > 3 ? "OT" : `${periodCount}P`;
+  }
+  if (s === "baseball") {
+    return `Inn ${periodCount}`;
+  }
+  if (s === "freccette" || s === "darts") {
+    return `Leg ${periodCount}`;
+  }
+  if (s === "snooker") {
+    return `Frame ${periodCount}`;
+  }
+  if (s === "calcio" || s === "football") {
+    return periodCount === 1 ? "1T" : periodCount === 2 ? "2T" : undefined;
+  }
+  if (s === "pallamano" || s === "handball") {
+    return periodCount === 1 ? "1T" : "2T";
+  }
+  if (s === "rugby" || s === "rugby league" || s === "rugby_league") {
+    return periodCount === 1 ? "1T" : "2T";
+  }
+  if (s === "football americano" || s === "football_americano") {
+    return periodCount > 4 ? "OT" : `${periodCount}Q`;
+  }
+  if (s === "australian rules" || s === "australian_rules") {
+    return `${periodCount}Q`;
+  }
+  return undefined;
 }
 
 // ═══ FETCH FIXTURES (upcoming matches) ═══

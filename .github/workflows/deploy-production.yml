@@ -1,0 +1,101 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch or commit to deploy"
+        required: true
+        default: master
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Check circuit breaker
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LOCKED=$(gh issue list --label deploy-prod-locked --state open --json number --jq 'length' -R ${{ github.repository }})
+          echo "Locked issues count: $LOCKED"
+          if [ "$LOCKED" -gt 0 ] 2>/dev/null; then
+            echo "🚫 Circuit breaker active. Resolve the deploy-prod-locked issue first."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npm run lint || echo "lint warnings only"
+      - run: npx tsc --noEmit
+      - name: Build
+        env:
+          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_APP_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run build
+
+      - name: Build tarballs
+        run: bash scripts/deploy/build-tarball.sh
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.PROD_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload tarballs
+        run: |
+          scp /tmp/deploy-source.tar.gz /tmp/deploy-next.tar.gz \
+            root@${{ secrets.PROD_HOST }}:/tmp/
+
+      - name: Apply on production
+        run: |
+          scp scripts/deploy/remote-apply.sh root@${{ secrets.PROD_HOST }}:/tmp/remote-apply.sh
+          ssh root@${{ secrets.PROD_HOST }} \
+            "bash /tmp/remote-apply.sh \
+              /root/betssolution-admin \
+              betssolution-admin \
+              /root/betssolution-admin/.env.local \
+              https://admin.betssolution.com/api/health"
+
+      - name: Telegram notify success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "parse_mode=Markdown" \
+            --data-urlencode "text=*[ADMIN-PROD] Deploy ✅* %0Abranch: \`${{ inputs.branch }}\` %0Acommit: \`${{ github.sha }}\` %0Aby: ${{ github.actor }}"
+
+      - name: Telegram notify failure + lock
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "parse_mode=Markdown" \
+            --data-urlencode "text=*[ADMIN-PROD] Deploy ❌* — automatic rollback attempted. Investigate immediately. [run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+          FAILS=$(gh run list --workflow=deploy-production.yml --limit=5 --json conclusion --jq '[.[] | select(.conclusion=="failure")] | length' || echo 0)
+          if [ "$FAILS" -ge 3 ]; then
+            gh issue create \
+              --title "Production deploy circuit breaker triggered" \
+              --label deploy-prod-locked \
+              --body "3+ consecutive failures. Manual intervention required. Latest run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+          fi

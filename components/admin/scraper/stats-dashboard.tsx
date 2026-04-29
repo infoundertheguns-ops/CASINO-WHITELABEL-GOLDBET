@@ -1,37 +1,55 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { StatsResponse, RedisMetrics, HealthData } from "./types";
 import { HealthBanner } from "./health-banner";
 import { KambiHeroSection } from "./kambi-hero-section";
+import { TwobetHeroSection } from "./twobet-hero-section";
+import { BetfairHeroSection } from "./betfair-hero-section";
 import { SecondaryScrapers } from "./secondary-scrapers";
-import { CoverageKPIs } from "./coverage-kpis";
-import { LiveCoverageSection } from "./live-coverage-section";
 import { FreshnessSection } from "./freshness-section";
 import { RedisPipeline } from "./redis-pipeline";
 import { formatNumFull } from "./helpers";
 
-// ═══ COLLAPSIBLE SECTION ═══
+// ═══ COLLAPSIBLE SECTION (E7: anchor + hash deep-link) ═══
 
 function CollapsibleSection({
+  id,
   title,
   defaultOpen = true,
   badge,
   children,
 }: {
+  id?: string;
   title: string;
   defaultOpen?: boolean;
   badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // E7: if URL hash matches this section's id, force-open and scroll into view.
+  useEffect(() => {
+    if (!id || typeof window === "undefined") return;
+    const applyHash = () => {
+      if (window.location.hash === `#${id}`) {
+        setOpen(true);
+        requestAnimationFrame(() => sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      }
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, [id]);
 
   return (
-    <div style={{
+    <div id={id} ref={sectionRef} style={{
       background: "var(--admin-card)",
       border: "1px solid var(--admin-border)",
       borderRadius: 12,
       overflow: "hidden",
+      scrollMarginTop: 16,
     }}>
       <button
         onClick={() => setOpen(!open)}
@@ -73,25 +91,54 @@ export default function ScraperStatsDashboard() {
   const [redisMetrics, setRedisMetrics] = useState<RedisMetrics | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = useCallback(async () => {
-    try {
-      const [statsResp, redisResp, healthResp] = await Promise.all([
-        fetch("/api/scraper/stats"),
-        fetch("/api/odds/metrics").catch(() => null),
-        fetch("/api/system/health").catch(() => null),
-      ]);
-      if (statsResp.ok) setData(await statsResp.json());
-      if (redisResp?.ok) setRedisMetrics(await redisResp.json());
-      if (healthResp?.ok) setHealthData(await healthResp.json());
-    } catch {
-      // silently fail
-    } finally {
-      setLoading(false);
-      setLastRefresh(new Date());
+    setRefreshing(true);
+    // Review #5 P1-A/B/C: allSettled keeps the dashboard alive when Redis or
+    // Health endpoints are flaky, error message surfaces to UI, lastRefresh
+    // only updates on a non-empty success.
+    const settled = await Promise.allSettled([
+      fetch("/api/scraper/stats"),
+      fetch("/api/odds/metrics"),
+      fetch("/api/system/health"),
+    ]);
+    const [statsRes, redisRes, healthRes] = settled;
+    const errors: string[] = [];
+
+    let primaryOk = false;
+    if (statsRes.status === "fulfilled" && statsRes.value.ok) {
+      try {
+        setData(await statsRes.value.json());
+        primaryOk = true;
+      } catch (e: any) { errors.push(`stats parse: ${e?.message ?? e}`); }
+    } else {
+      const reason = statsRes.status === "rejected"
+        ? (statsRes.reason?.message ?? String(statsRes.reason))
+        : `HTTP ${statsRes.value.status}`;
+      errors.push(`stats: ${reason}`);
     }
+
+    if (redisRes.status === "fulfilled" && redisRes.value.ok) {
+      try { setRedisMetrics(await redisRes.value.json()); }
+      catch (e: any) { errors.push(`redis parse: ${e?.message ?? e}`); }
+    } else if (redisRes.status === "rejected") {
+      errors.push(`redis: ${redisRes.reason?.message ?? String(redisRes.reason)}`);
+    }
+
+    if (healthRes.status === "fulfilled" && healthRes.value.ok) {
+      try { setHealthData(await healthRes.value.json()); }
+      catch (e: any) { errors.push(`health parse: ${e?.message ?? e}`); }
+    } else if (healthRes.status === "rejected") {
+      errors.push(`health: ${healthRes.reason?.message ?? String(healthRes.reason)}`);
+    }
+
+    setFetchError(errors.length > 0 ? errors.join(" · ") : null);
+    if (primaryOk) setLastRefresh(new Date());
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -118,7 +165,7 @@ export default function ScraperStatsDashboard() {
 
   // ─── Disconnected: DB-only ───
   if (!data.connected) {
-    const v = data.vincitu_only!;
+    const v = data.betssolution_only!;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div style={{
@@ -173,48 +220,99 @@ export default function ScraperStatsDashboard() {
 
   // ─── Connected: full dashboard ───
   const kambiServer = data.servers?.kambi || null;
+  const twobetServer = data.servers?.["22bet"] || null;
+  const betfairServer = data.servers?.betfair || null;
   const flashscoreServer = data.servers?.flashscore || null;
+  const betfairScores = healthData?.betfair_scores ?? null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* A. Health Banner */}
-      {healthData && <HealthBanner health={healthData} />}
-
-      {/* B. Kambi Hero Section */}
-      <KambiHeroSection server={kambiServer} />
-
-      {/* C. Secondary Scrapers (Flashscore only) */}
-      <SecondaryScrapers
-        flashscoreServer={flashscoreServer}
+      {/* Anchor nav (E7: deep-link to any section + cross-page link to Settlement Health) */}
+      <SectionNav
+        items={[
+          kambiServer ? { href: "#kambi", label: "Kambi", color: "#f0b429" } : null,
+          twobetServer ? { href: "#twobet", label: "22bet", color: "#f97316" } : null,
+          betfairServer ? { href: "#betfair", label: "Betfair", color: "#fbbf24" } : null,
+          flashscoreServer ? { href: "#flashscore", label: "Flashscore", color: "#06b6d4" } : null,
+          healthData ? { href: "#freshness", label: "Freshness", color: "#8b5cf6" } : null,
+          redisMetrics?.redis?.connected ? { href: "#redis", label: "Redis", color: "#10b981" } : null,
+          // Review #5 P2-D: cross-page drill to Settlement Health.
+          { href: "/admin/settlement-health", label: "Settlement →", color: "#06b6d4" },
+        ].filter(Boolean) as Array<{ href: string; label: string; color: string }>}
       />
 
-      {/* D. Coverage KPIs */}
-      <CoverageKPIs server={kambiServer} />
+      {/* P1-A: surface fetch failures (was silently swallowed). */}
+      {fetchError && (
+        <div style={{
+          padding: "10px 14px",
+          background: "rgba(239,68,68,0.1)",
+          border: "1px solid rgba(239,68,68,0.4)",
+          borderRadius: 8,
+          color: "#fca5a5",
+          fontSize: 13,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}>
+          <span style={{ fontWeight: 700 }}>⚠ Errore fetch</span>
+          <span style={{ fontFamily: "monospace", fontSize: 11 }}>{fetchError}</span>
+        </div>
+      )}
 
-      {/* D2. Live Coverage per Sport */}
-      <CollapsibleSection
-        title="Coverage Live"
-        defaultOpen={true}
-        badge={
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />
-            <span style={{ fontSize: 13, color: "var(--admin-text3)" }}>In tempo reale</span>
-          </div>
-        }
-      >
-        <LiveCoverageSection />
+      {/* A. Health Banners (Kambi primary + 22bet secondary) */}
+      {healthData && (
+        <HealthBanner title="Kambi — System Health" scores={healthData.scores} />
+      )}
+      {healthData?.twobet_scores && (
+        <HealthBanner
+          title="22bet — System Health"
+          scores={healthData.twobet_scores}
+          accent="#f97316"
+        />
+      )}
+      {betfairScores && (
+        <HealthBanner
+          title="Betfair — System Health"
+          scores={betfairScores}
+          accent="#fbbf24"
+        />
+      )}
+
+      {/* B. Kambi Hero Section */}
+      <CollapsibleSection id="kambi" title="Kambi Scraper">
+        <KambiHeroSection server={kambiServer} />
       </CollapsibleSection>
 
-      {/* E. Freshness */}
+      {/* B2. 22bet Hero Section */}
+      {twobetServer && (
+        <CollapsibleSection id="twobet" title="22bet Scraper">
+          <TwobetHeroSection server={twobetServer} />
+        </CollapsibleSection>
+      )}
+
+      {/* B3. Betfair Exchange Hero Section (review #5 — was missing) */}
+      {betfairServer && (
+        <CollapsibleSection id="betfair" title="Betfair Exchange">
+          <BetfairHeroSection server={betfairServer} />
+        </CollapsibleSection>
+      )}
+
+      {/* C. Flashscore (single source of truth — settlement-health links here) */}
+      <CollapsibleSection id="flashscore" title="Flashscore Scraper">
+        <SecondaryScrapers flashscoreServer={flashscoreServer} />
+      </CollapsibleSection>
+
+      {/* D. Freshness */}
       {healthData && (
-        <CollapsibleSection title="Freshness Quote" defaultOpen={false}>
+        <CollapsibleSection id="freshness" title="Freshness Quote" defaultOpen={false}>
           <FreshnessSection health={healthData} />
         </CollapsibleSection>
       )}
 
-      {/* F. Redis Pipeline */}
+      {/* E. Redis Pipeline */}
       {redisMetrics && redisMetrics.redis.connected && (
         <CollapsibleSection
+          id="redis"
           title="Redis Pipeline"
           defaultOpen={false}
           badge={
@@ -228,10 +326,65 @@ export default function ScraperStatsDashboard() {
         </CollapsibleSection>
       )}
 
-      {/* Refresh indicator */}
-      <div style={{ textAlign: "right", fontSize: 13, color: "var(--admin-text4)" }}>
-        Auto-refresh ogni 30s &mdash; Ultimo: {lastRefresh.toLocaleTimeString("it-IT")}
+      {/* Refresh indicator (P1-C: lastRefresh shows last SUCCESS, not last attempt). */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, fontSize: 13, color: "var(--admin-text4)" }}>
+        <span>
+          Auto-refresh ogni 30s &mdash; Ultimo successo: {lastRefresh ? lastRefresh.toLocaleTimeString("it-IT") : "—"}
+        </span>
+        <button
+          onClick={fetchStats}
+          disabled={refreshing}
+          aria-label="Refresh ora"
+          title="Refresh ora"
+          style={{
+            padding: "4px 10px",
+            background: "transparent",
+            border: "1px solid var(--admin-border)",
+            color: "var(--admin-text3)",
+            borderRadius: 6,
+            fontSize: 12,
+            cursor: refreshing ? "wait" : "pointer",
+            opacity: refreshing ? 0.5 : 1,
+          }}
+        >
+          {refreshing ? "…" : "↻ Refresh"}
+        </button>
       </div>
+    </div>
+  );
+}
+
+// ═══ SECTION NAV (E7: anchor links for quick jump) ═══
+
+function SectionNav({ items }: { items: Array<{ href: string; label: string; color: string }> }) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8,
+      padding: "8px 12px",
+      background: "var(--admin-card)",
+      border: "1px solid var(--admin-border)",
+      borderRadius: 10,
+    }}>
+      <span style={{ fontSize: 11, color: "var(--admin-text4)", textTransform: "uppercase", letterSpacing: 0.5, alignSelf: "center", marginRight: 8 }}>
+        Vai a:
+      </span>
+      {items.map((it) => (
+        <a key={it.href} href={it.href} style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          fontWeight: 700,
+          color: it.color,
+          background: `${it.color}18`,
+          border: `1px solid ${it.color}44`,
+          borderRadius: 999,
+          textDecoration: "none",
+        }}>
+          {it.label}
+        </a>
+      ))}
     </div>
   );
 }

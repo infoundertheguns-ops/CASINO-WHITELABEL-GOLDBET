@@ -31,7 +31,7 @@ export function BetVolumeChart({ data }: { data: DayStat[] }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
           <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 10 }} interval="preserveStartEnd" />
           <YAxis yAxisId="left" tick={{ fill: "#6b7280", fontSize: 10 }} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={v => `$${v}`} />
+          <YAxis yAxisId="right" orientation="right" tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={v => `€${v}`} />
           <Tooltip
             contentStyle={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)", borderRadius: 8, fontSize: 12 }}
             itemStyle={{ color: "#fff" }}

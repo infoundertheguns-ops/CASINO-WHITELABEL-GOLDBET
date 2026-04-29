@@ -53,7 +53,7 @@ function LoginForm() {
     <div>
       <h1 className="text-xl font-bold text-gray-900 mb-1">Bentornato</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Accedi al tuo account VinciTu
+        Accedi al tuo account BetsSolution
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,0 +1,10 @@
+# Ensure shell scripts keep LF line endings on all platforms.
+# Without this, Windows git checkout rewrites *.sh with CRLF and breaks
+# deploy scripts that run on Linux VPS targets.
+*.sh text eol=lf
+
+# SQL migrations also run server-side — keep LF.
+*.sql text eol=lf
+
+# Lock files: let git handle as binary to avoid merge issues.
+package-lock.json binary

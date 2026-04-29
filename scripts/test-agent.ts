@@ -146,7 +146,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 20; i++) {
     profiles.push({
       username: `rec_player_${i}`,
-      email: `rec_player_${i}@test.vincitu.local`,
+      email: `rec_player_${i}@test.betssolution.local`,
       password: `TestPass123!rec${i}`,
       category: "recreational",
       userClass: "recreational",
@@ -163,7 +163,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 10; i++) {
     profiles.push({
       username: `semipro_${i}`,
-      email: `semipro_${i}@test.vincitu.local`,
+      email: `semipro_${i}@test.betssolution.local`,
       password: `TestPass123!semi${i}`,
       category: "semi_pro",
       userClass: "semi_pro",
@@ -181,7 +181,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 5; i++) {
     profiles.push({
       username: `sharp_${i}`,
-      email: `sharp_${i}@test.vincitu.local`,
+      email: `sharp_${i}@test.betssolution.local`,
       password: `TestPass123!sharp${i}`,
       category: "sharp",
       userClass: "sharp",
@@ -199,7 +199,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 5; i++) {
     profiles.push({
       username: `bot_pattern_${i}`,
-      email: `bot_pattern_${i}@test.vincitu.local`,
+      email: `bot_pattern_${i}@test.betssolution.local`,
       password: `TestPass123!bot${i}`,
       category: "bot",
       userClass: "recreational",
@@ -216,7 +216,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 5; i++) {
     profiles.push({
       username: `newbie_whale_${i}`,
-      email: `newbie_whale_${i}@test.vincitu.local`,
+      email: `newbie_whale_${i}@test.betssolution.local`,
       password: `TestPass123!newbie${i}`,
       category: "new_account_abuser",
       userClass: "new",
@@ -234,7 +234,7 @@ function generateProfiles(): UserProfile[] {
     const pairId = Math.ceil(i / 2);
     profiles.push({
       username: `multi_${i}`,
-      email: `multi_${i}@test.vincitu.local`,
+      email: `multi_${i}@test.betssolution.local`,
       password: `TestPass123!multi${i}`,
       category: "multi_account",
       userClass: "recreational",
@@ -253,7 +253,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 3; i++) {
     profiles.push({
       username: `vip_roller_${i}`,
-      email: `vip_roller_${i}@test.vincitu.local`,
+      email: `vip_roller_${i}@test.betssolution.local`,
       password: `TestPass123!vip${i}`,
       category: "high_roller",
       userClass: "vip",
@@ -270,7 +270,7 @@ function generateProfiles(): UserProfile[] {
   for (let i = 1; i <= 2; i++) {
     profiles.push({
       username: `bonus_hunter_${i}`,
-      email: `bonus_hunter_${i}@test.vincitu.local`,
+      email: `bonus_hunter_${i}@test.betssolution.local`,
       password: `TestPass123!bonus${i}`,
       category: "bonus_abuser",
       userClass: "recreational",
@@ -938,7 +938,7 @@ async function cleanup(supabase: SupabaseClient): Promise<void> {
 
 async function main() {
   console.log("\n═══════════════════════════════════════════════════");
-  console.log("  VINCITU TEST AGENT");
+  console.log("  BETSSOLUTION TEST AGENT");
   console.log(`  Mode: ${DRY_RUN ? "DRY-RUN" : CLEANUP ? "CLEANUP" : `LIVE (${ROUNDS} rounds)`}`);
   console.log("═══════════════════════════════════════════════════\n");
 

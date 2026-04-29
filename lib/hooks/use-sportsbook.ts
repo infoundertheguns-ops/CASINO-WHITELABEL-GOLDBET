@@ -85,7 +85,7 @@ export interface BetslipItem {
 
 // ═══ CANONICAL OUTCOME ORDERING ═══
 // Ensures outcomes display in correct order regardless of DB insertion order.
-// Covers all Goldbet market types: 1X2, DC, U/O, GG/NG, combos, handicap,
+// Covers all Kambi market types: 1X2, DC, U/O, GG/NG, combos, handicap,
 // risultato esatto, prossimo gol, pari/dispari, somma gol, si/no, etc.
 
 export function sortSelections(marketName: string, selections: Selection[]): Selection[] {

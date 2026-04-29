@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -14,6 +15,12 @@ import type { FlashscoreFixture } from "@/lib/flashscore";
 // ═══════════════════════════════════════════════════
 
 const CHUNK_SIZE = 500;
+
+
+// Record last successful run timestamp
+async function stampLastRun(sb: any, key: string) {
+  await sb.from("system_config").upsert({ key, value: JSON.stringify(new Date().toISOString()) }, { onConflict: "key" });
+}
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-scraper-key");
@@ -174,6 +181,8 @@ export async function POST(req: NextRequest) {
       stats.errors.push(`${m.eventId}: ${error.message}`);
     }
   }
+
+  await stampLastRun(supabase, "last_run_flashscore_fixtures");
 
   return NextResponse.json({
     ...stats,

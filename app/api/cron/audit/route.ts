@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent, deactivateEvent } from "@/lib/settlement";
@@ -214,7 +215,7 @@ export async function POST(req: NextRequest) {
         const buf = snapshots?.[source];
         if (buf && buf.length > 0) {
           const latest = buf[buf.length - 1];
-          const gb = latest?.goldbet;
+          const gb = latest?.kambi;
           if (gb) {
             const cycleField = type === "live" ? gb.last_live_cycle : gb.last_prematch_cycle;
             const cycleAge = cycleField

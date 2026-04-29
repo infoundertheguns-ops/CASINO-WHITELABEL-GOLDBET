@@ -38,7 +38,7 @@ export default function AdminLoginPage() {
       }
 
       setStatus("Accesso riuscito...");
-      window.location.href = data.role === "super_admin" ? "/admin/dashboard" : "/admin/agents";
+      window.location.href = data.role === "super_admin" ? "/admin/dashboard" : "/admin/agent-dashboard";
     } catch (err: any) {
       setError(err?.message || "Errore di connessione");
       setLoading(false);
@@ -65,11 +65,7 @@ export default function AdminLoginPage() {
           padding: 40,
         }}
       >
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <span style={{ color: "#f0b429", fontSize: 32, fontWeight: 800 }}>VINCITU</span>
-          <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Back Office</div>
-        </div>
+        <div style={{ marginBottom: 24 }} />
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>

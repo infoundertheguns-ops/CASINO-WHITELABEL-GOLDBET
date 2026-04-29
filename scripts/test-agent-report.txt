@@ -1,0 +1,25 @@
+═══════════════════════════════════════════════════
+  TEST AGENT REPORT
+  2026-02-27T14:36:58.137Z
+  Rounds: 1
+═══════════════════════════════════════════════════
+
+CATEGORIA          | USERS | BETS  | ACCEPTED | PENDING | BLOCKED | REJECTED | ERRORS | AVG RISK | STAKE
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+recreational       |    20 |    63 |       63 |       0 |       0 |        0 |      7 |      1.1 | $    1791
+semi_pro           |    10 |    67 |       65 |       0 |       2 |        0 |     40 |     25.7 | $    8407
+sharp              |     5 |    17 |        0 |      17 |       0 |        0 |      4 |     64.1 | $   37220
+bot                |     5 |    99 |       99 |       0 |       0 |        0 |     32 |     10.2 | $    1227
+new_account_abuser |     5 |    15 |       15 |       0 |       0 |        0 |     12 |     73.3 | $   18555
+multi_account      |    10 |    39 |       39 |       0 |       0 |        0 |     44 |      2.9 | $    2125
+high_roller        |     3 |     2 |        0 |       0 |       2 |        0 |      4 |      0.0 | $       0
+bonus_abuser       |     2 |     2 |        0 |       0 |       2 |        0 |     16 |      0.0 | $       0
+
+═══ DB VERIFICATION ═══
+
+Total bets in DB:          381
+  - Sistema parents:       7
+  - Sistema combos:        77
+Risk flags generated:      52
+Users blocked:             6 vip_roller_1, bonus_hunter_1, vip_roller_2, bonus_hunter_2, semipro_7, semipro_8
+Bets in trading queue:     17

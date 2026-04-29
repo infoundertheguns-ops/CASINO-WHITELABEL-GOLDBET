@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -146,7 +147,27 @@ export async function POST(req: NextRequest) {
       if (sent7) alerts.push(`settlement_backlog: recovered`);
     }
 
-    // ── Check 8: Market Coverage (gap-based from DB) ──
+    // ── Check 8: Settlement Health ──
+    try {
+      const shResp = await fetch(`${baseUrl}/api/admin/settlement-health`, { cache: "no-store" });
+      if (shResp.ok) {
+        const sh = await shResp.json();
+        const shScore = sh.health_score ?? 100;
+        const sent8sh = await checkAndTransition(
+          "settlement_health",
+          shScore,
+          50,   // critical
+          70,   // warning
+          80,   // healthy
+          "SETTLEMENT HEALTH"
+        );
+        if (sent8sh) alerts.push(`settlement_health: ${shScore}`);
+      }
+    } catch (err) {
+      console.error("[cron/alerts] settlement health check error:", err);
+    }
+
+    // ── Check 9: Market Coverage (gap-based from DB) ──
     const coverageScores: Record<string, number> = {};
     try {
       const { data: coverageData } = await supabase.rpc("get_market_coverage").single() as { data: any };

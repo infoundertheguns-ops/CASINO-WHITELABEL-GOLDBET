@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -54,12 +55,18 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch usernames
-    const userIds = [...new Set((bets || []).map((b: Record<string, unknown>) => b.user_id as string))];
+    const userIds = [...new Set((bets || []).filter((b: any) => b.user_id).map((b: Record<string, unknown>) => b.user_id as string))];
     const { data: users } = userIds.length > 0
       ? await supabase.from("users").select("id, username").in("id", userIds)
       : { data: [] };
-
     const userMap = new Map((users || []).map((u: Record<string, unknown>) => [u.id, u.username]));
+
+    // Fetch kiosk codes for kiosk bets
+    const kioskIds = [...new Set((bets || []).filter((b: any) => b.kiosk_id).map((b: Record<string, unknown>) => b.kiosk_id as string))];
+    const { data: kiosks } = kioskIds.length > 0
+      ? await supabase.from("kiosks").select("id, code").in("id", kioskIds)
+      : { data: [] };
+    const kioskMap = new Map((kiosks || []).map((k: Record<string, unknown>) => [k.id, k.code]));
 
     // Open events count
     const { count } = await supabase
@@ -70,7 +77,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       bets: (bets || []).map((b: Record<string, unknown>) => ({
         ...b,
-        username: userMap.get(b.user_id as string) || "—",
+        username: b.user_id ? (userMap.get(b.user_id as string) || "—") : (b.kiosk_id ? `Kiosk ${kioskMap.get(b.kiosk_id as string) || ""}` : "—"),
         children: childrenMap.get(b.id as string) || undefined,
       })),
       openEventsCount: count || 0,
@@ -89,28 +96,103 @@ export async function GET(req: NextRequest) {
   }
 
   if (tab === "settlement") {
-    const { data: bets, error } = await supabase
-      .from("bets")
-      .select(`*, bet_selections(event:events(home_team, away_team))`)
-      .in("status", ["won", "lost", "void"])
-      .order("settled_at", { ascending: false })
-      .limit(200);
+    const statusParam = req.nextUrl.searchParams.get("status") || "all";
+    const cutoff = req.nextUrl.searchParams.get("cutoff");
+    const search = (req.nextUrl.searchParams.get("search") || "").trim();
+    const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") || "1", 10));
+    const pageSize = Math.min(200, Math.max(10, parseInt(req.nextUrl.searchParams.get("pageSize") || "50", 10)));
 
+    const statusList = statusParam === "all" ? ["won", "lost", "void"] : [statusParam];
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    // Resolve search to user_id / kiosk_id lists when needed
+    let userIdFilter: string[] | null = null;
+    let kioskIdFilter: string[] | null = null;
+    if (search) {
+      const [{ data: matchedUsers }, { data: matchedKiosks }] = await Promise.all([
+        supabase.from("users").select("id").ilike("username", `%${search}%`).limit(500),
+        supabase.from("kiosks").select("id").ilike("code", `%${search}%`).limit(500),
+      ]);
+      userIdFilter = (matchedUsers || []).map((u: Record<string, unknown>) => u.id as string);
+      kioskIdFilter = (matchedKiosks || []).map((k: Record<string, unknown>) => k.id as string);
+    }
+
+    let query = supabase
+      .from("bets")
+      .select(`*, bet_selections(event:events(home_team, away_team))`, { count: "exact" })
+      .in("status", statusList)
+      .order("settled_at", { ascending: false, nullsFirst: false })
+      .range(from, to);
+
+    if (cutoff) query = query.gte("settled_at", cutoff);
+
+    if (search && userIdFilter !== null && kioskIdFilter !== null) {
+      const orParts: string[] = [];
+      if (userIdFilter.length) orParts.push(`user_id.in.(${userIdFilter.join(",")})`);
+      if (kioskIdFilter.length) orParts.push(`kiosk_id.in.(${kioskIdFilter.join(",")})`);
+      // Also allow matching by bet id prefix
+      if (/^[0-9a-f-]+$/i.test(search)) orParts.push(`id.eq.${search}`);
+      if (orParts.length === 0) {
+        // No match for search → return empty
+        return NextResponse.json({ settledBets: [], total: 0, page, pageSize });
+      }
+      query = query.or(orParts.join(","));
+    }
+
+    const { data: bets, error, count } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const userIds = [...new Set((bets || []).map((b: Record<string, unknown>) => b.user_id as string))];
+    const userIds = [...new Set((bets || []).filter((b: Record<string, unknown>) => b.user_id).map((b: Record<string, unknown>) => b.user_id as string))];
     const { data: users } = userIds.length > 0
       ? await supabase.from("users").select("id, username").in("id", userIds)
       : { data: [] };
-
     const userMap = new Map((users || []).map((u: Record<string, unknown>) => [u.id, u.username]));
+
+    const kioskIds2 = [...new Set((bets || []).filter((b: Record<string, unknown>) => b.kiosk_id).map((b: Record<string, unknown>) => b.kiosk_id as string))];
+    const { data: kiosks2 } = kioskIds2.length > 0
+      ? await supabase.from("kiosks").select("id, code").in("id", kioskIds2)
+      : { data: [] };
+    const kioskMap2 = new Map((kiosks2 || []).map((k: Record<string, unknown>) => [k.id, k.code]));
 
     return NextResponse.json({
       settledBets: (bets || []).map((b: Record<string, unknown>) => ({
         ...b,
-        username: userMap.get(b.user_id as string) || "—",
+        username: b.user_id ? (userMap.get(b.user_id as string) || "—") : (b.kiosk_id ? `Kiosk ${kioskMap2.get(b.kiosk_id as string) || ""}` : "—"),
       })),
+      total: count || 0,
+      page,
+      pageSize,
     });
+  }
+
+  if (tab === "stats") {
+    // Global KPIs computed DB-side — not limited by pagination
+    const cutoff = req.nextUrl.searchParams.get("cutoff");
+    let base = supabase.from("bets").select("status, stake, potential_win", { count: "exact" }).is("parent_bet_id", null);
+    if (cutoff) base = base.gte("created_at", cutoff);
+    const { data: rows, error } = await base;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    let staked = 0, payoutsWon = 0, refundsVoid = 0, openBets = 0, liability = 0;
+    for (const r of (rows || []) as Record<string, unknown>[]) {
+      const stake = Number(r.stake || 0);
+      const pw = Number(r.potential_win || 0);
+      staked += stake;
+      const s = r.status as string;
+      if (s === "won") payoutsWon += pw;
+      else if (s === "void") refundsVoid += stake;
+      else if (s === "open") { openBets += 1; liability += pw; }
+    }
+    const totalPayouts = payoutsWon + refundsVoid;
+    const margin = staked > 0 ? ((staked - totalPayouts) / staked) * 100 : 0;
+
+    const { count: openEventsCount } = await supabase
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["prematch", "live"]);
+
+    return NextResponse.json({ staked, liability, openBets, margin, openEventsCount: openEventsCount || 0 });
   }
 
   return NextResponse.json({ error: "Invalid tab" }, { status: 400 });

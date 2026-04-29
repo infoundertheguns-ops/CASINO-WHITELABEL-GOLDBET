@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Kpi, KpiRow } from "@/components/admin/ui";
 
 // ═══ TYPES ═══
 
@@ -11,6 +12,8 @@ interface Actor {
   last_run?: string;
   age_minutes: number | null;
   matched_24h?: number;
+  interval_minutes?: number;
+  next_in_minutes?: number | null;
 }
 
 interface StuckEvent {
@@ -53,7 +56,7 @@ interface HealthData {
     cleanup: Actor;
   };
   recent_settlements: SettlementEntry[];
-  ippica: { unsettled_odds: number; finished_races: number };
+  ippica: { unsettled_odds: number; pending_odds: number; finished_races: number };
   generated_at: string;
 }
 
@@ -85,29 +88,19 @@ function formatAge(minutes: number | null): string {
   return `${Math.round(minutes / 1440)}d fa`;
 }
 
+function formatCountdown(minutes: number | null): string {
+  if (minutes === null) return "N/A";
+  if (minutes <= 0) return "imminente";
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  return `${Math.round(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+}
+
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 // ═══ COMPONENTS ═══
-
-function KPI({ label, value, color, subtitle }: { label: string; value: string | number; color?: string; subtitle?: string }) {
-  return (
-    <div style={{
-      background: "var(--admin-card, #0f172a)",
-      border: "1px solid var(--admin-border, #1e3a5f)",
-      borderRadius: 12, padding: "16px 20px",
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--admin-text-muted, #94a3b8)", marginBottom: 8 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: color || "var(--admin-text, #e2e8f0)", fontFamily: "monospace" }}>
-        {value}
-      </div>
-      {subtitle && <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)", marginTop: 4 }}>{subtitle}</div>}
-    </div>
-  );
-}
 
 function ActorCard({ name, icon, actor, description }: { name: string; icon: string; actor: Actor; description: string }) {
   const age = actor.age_minutes;
@@ -162,6 +155,26 @@ function ActorCard({ name, icon, actor, description }: { name: string; icon: str
           </div>
         )}
       </div>
+
+      {/* Next update countdown */}
+      {actor.interval_minutes !== undefined && (
+        <div style={{
+          marginTop: 10, paddingTop: 10,
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          display: "flex", alignItems: "center", gap: 8, fontSize: 12,
+        }}>
+          <span style={{ color: "var(--admin-text-muted, #94a3b8)" }}>Prossimo aggiornamento:</span>
+          <span style={{
+            fontWeight: 700, fontFamily: "monospace",
+            color: (actor.next_in_minutes ?? 99) <= 0 ? "#10b981" : (actor.next_in_minutes ?? 99) <= 5 ? "#60a5fa" : "var(--admin-text, #e2e8f0)",
+          }}>
+            {formatCountdown(actor.next_in_minutes ?? null)}
+          </span>
+          <span style={{ color: "var(--admin-text-muted, #94a3b8)", fontSize: 10 }}>
+            (ogni {actor.interval_minutes < 60 ? `${actor.interval_minutes} min` : `${Math.round(actor.interval_minutes / 60)}h`})
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -203,7 +216,6 @@ export default function SettlementHealthPage() {
   }
   if (!data) return null;
 
-  const sportBacklogEntries = Object.entries(data.backlog_by_sport).sort((a, b) => b[1] - a[1]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -249,24 +261,24 @@ export default function SettlementHealthPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-        <KPI
+      {/* KPIs — E9 shared primitive */}
+      <KpiRow minWidth={160}>
+        <Kpi
           label="Backlog"
           value={data.backlog}
-          color={data.backlog > 200 ? "#ef4444" : data.backlog > 50 ? "#f59e0b" : "#10b981"}
-          subtitle="eventi finished in attesa"
+          accent={data.backlog > 200 ? "#ef4444" : data.backlog > 50 ? "#f59e0b" : "#10b981"}
+          sub="eventi finished in attesa"
         />
-        <KPI label="Settlati 1h" value={data.rates.last_1h} color="#60a5fa" />
-        <KPI label="Settlati 6h" value={data.rates.last_6h} color="#60a5fa" />
-        <KPI label="Settlati 24h" value={data.rates.last_24h} color="#60a5fa" />
-        <KPI
+        <Kpi label="Settlati 1h" value={data.rates.last_1h} accent="#60a5fa" />
+        <Kpi label="Settlati 6h" value={data.rates.last_6h} accent="#60a5fa" />
+        <Kpi label="Settlati 24h" value={data.rates.last_24h} accent="#60a5fa" />
+        <Kpi
           label="Tempo medio"
           value={`${data.avg_settlement_minutes}m`}
-          color={data.avg_settlement_minutes > 120 ? "#f59e0b" : "#10b981"}
-          subtitle="da inizio evento a settlement"
+          accent={data.avg_settlement_minutes > 120 ? "#f59e0b" : "#10b981"}
+          sub="da inizio evento a settlement"
         />
-      </div>
+      </KpiRow>
 
       {/* Subsystem Score Bars */}
       {data.subsystems && (
@@ -309,14 +321,9 @@ export default function SettlementHealthPage() {
         </div>
       )}
 
-      {/* Actors */}
+      {/* Actors — Flashscore moved to Scraper Monitor (E7) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <ActorCard
-          name="Flashscore Scraper"
-          icon="📡"
-          actor={data.actors.flashscore}
-          description="Manda risultati + fixtures al DB"
-        />
+        <FlashscoreLinkCard />
         <ActorCard
           name="Verify Results"
           icon="✅"
@@ -331,77 +338,8 @@ export default function SettlementHealthPage() {
         />
       </div>
 
-      {/* Backlog by Sport + Stuck Events side by side */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
-        {/* Backlog by Sport */}
-        <div style={{
-          background: "var(--admin-card, #0f172a)",
-          border: "1px solid var(--admin-border, #1e3a5f)",
-          borderRadius: 12, overflow: "hidden",
-        }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--admin-border, #1e3a5f)", fontSize: 13, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
-            Backlog per Sport
-          </div>
-          {sportBacklogEntries.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#10b981", fontSize: 13 }}>
-              Nessun backlog
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <tbody>
-                {sportBacklogEntries.map(([sport, count]) => (
-                  <tr key={sport} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <td style={{ padding: "8px 16px", color: "var(--admin-text, #e2e8f0)" }}>{sport}</td>
-                    <td style={{ padding: "8px 16px", textAlign: "right", fontFamily: "monospace", fontWeight: 700, color: count > 20 ? "#f59e0b" : "var(--admin-text, #e2e8f0)" }}>
-                      {count}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Stuck Events */}
-        <div style={{
-          background: "var(--admin-card, #0f172a)",
-          border: "1px solid var(--admin-border, #1e3a5f)",
-          borderRadius: 12, overflow: "hidden",
-        }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--admin-border, #1e3a5f)", fontSize: 13, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
-            Eventi Stuck ({">"}30 min in finished)
-          </div>
-          {data.stuck_events.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#10b981", fontSize: 13 }}>
-              Nessun evento stuck
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--admin-border, #1e3a5f)" }}>
-                  {["Evento", "Sport", "Stuck da", "Inizio"].map(h => (
-                    <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.stuck_events.map(e => (
-                  <tr key={e.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <td style={{ padding: "6px 12px", color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>{e.match}</td>
-                    <td style={{ padding: "6px 12px", color: "var(--admin-text-muted, #94a3b8)" }}>{e.sport}</td>
-                    <td style={{ padding: "6px 12px", fontFamily: "monospace", color: e.stuck_minutes > 60 ? "#ef4444" : "#f59e0b", fontWeight: 700 }}>
-                      {e.stuck_minutes} min
-                    </td>
-                    <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "var(--admin-text-muted, #94a3b8)", fontSize: 11 }}>
-                      {new Date(e.starts_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      {/* Canonical dispatch coverage (Settlement Phase B/C observability) */}
+      <CanonicalCoverageCard />
 
       {/* Ippica Settlement */}
       <div style={{
@@ -423,57 +361,205 @@ export default function SettlementHealthPage() {
             <span style={{ fontWeight: 700, color: "var(--admin-text, #e2e8f0)", fontFamily: "monospace" }}>{data.ippica.finished_races}</span>
           </div>
           <div>
-            <span style={{ color: "var(--admin-text-muted, #94a3b8)" }}>Quote non settlate: </span>
-            <span style={{ fontWeight: 700, color: data.ippica.unsettled_odds > 100 ? "#f59e0b" : "#10b981", fontFamily: "monospace" }}>
+            <span style={{ color: "var(--admin-text-muted, #94a3b8)" }}>Non settlate: </span>
+            <span style={{ fontWeight: 700, color: data.ippica.unsettled_odds > 0 ? "#ef4444" : "#10b981", fontFamily: "monospace" }}>
               {data.ippica.unsettled_odds}
+            </span>
+          </div>
+          <div>
+            <span style={{ color: "var(--admin-text-muted, #94a3b8)" }}>In programma: </span>
+            <span style={{ fontWeight: 700, color: "#60a5fa", fontFamily: "monospace" }}>
+              {data.ippica.pending_odds}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Recent Settlement Log */}
-      <div style={{
+    </div>
+  );
+}
+
+// ═══ FLASHSCORE LINK CARD (E7: single source of truth) ═══
+
+function FlashscoreLinkCard() {
+  return (
+    <a
+      href="/admin/scraper#flashscore"
+      style={{
+        textDecoration: "none",
         background: "var(--admin-card, #0f172a)",
         border: "1px solid var(--admin-border, #1e3a5f)",
-        borderRadius: 12, overflow: "hidden",
-      }}>
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--admin-border, #1e3a5f)", fontSize: 13, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
-          Ultimi Settlement
-        </div>
-        {data.recent_settlements.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: "var(--admin-text-muted, #94a3b8)", fontSize: 13 }}>
-            Nessun settlement recente nel log
+        borderRadius: 12,
+        padding: 20,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        cursor: "pointer",
+        transition: "border-color 0.15s",
+      }}
+      title="Apri Scraper Monitor — sezione Flashscore"
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 20 }}>📡</span>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>Flashscore Scraper</div>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "#06b6d4", background: "#06b6d415", border: "1px solid #06b6d444", borderRadius: 999, padding: "2px 8px", fontWeight: 700 }}>
+          → Scraper Monitor
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)", lineHeight: 1.5 }}>
+        Status e ultimo push del Flashscore actor sono consolidati nello Scraper Monitor — clicca per aprire la sezione dedicata.
+      </div>
+    </a>
+  );
+}
+
+// ═══ CANONICAL COVERAGE CARD (Settlement Phase B/C observability) ═══
+
+interface CoverageCanonical {
+  canonical_key: string;
+  canonical_name_it: string | null;
+  has_settler: boolean;
+  void_by_design: boolean;
+  total_mappings: number;
+  verified_mappings: number;
+  by_source: Record<string, { total: number; verified: number }>;
+}
+interface CoverageData {
+  totals: {
+    canonicals: number;
+    settleable: number;
+    void_by_design: number;
+    gap: number;
+    total_mappings: number;
+    settleable_mappings: number;
+  };
+  canonicals: CoverageCanonical[];
+}
+
+function CanonicalCoverageCard() {
+  const [data, setData] = useState<CoverageData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [showGaps, setShowGaps] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/admin/settlement-health/canonical-coverage");
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error ?? `HTTP ${r.status}`);
+        setData(json);
+      } catch (e: any) { setErr(e?.message ?? String(e)); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const gaps = (data?.canonicals ?? []).filter((c) => !c.has_settler && !c.void_by_design).slice(0, 20);
+  const coveragePct = data && data.totals.total_mappings > 0
+    ? Math.round((data.totals.settleable_mappings / data.totals.total_mappings) * 100)
+    : 0;
+
+  return (
+    <div style={{
+      background: "var(--admin-card, #0f172a)",
+      border: "1px solid var(--admin-border, #1e3a5f)",
+      borderRadius: 12,
+      padding: 16,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 22 }}>🎯</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--admin-text, #e2e8f0)" }}>
+            Canonical dispatch coverage
           </div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                {["Ora", "Evento", "Sport", "Risultato"].map(h => (
-                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.recent_settlements.map((s, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "var(--admin-text-muted, #94a3b8)" }}>
-                    {formatTime(s.settled_at)}
-                  </td>
-                  <td style={{ padding: "6px 12px", color: "var(--admin-text, #e2e8f0)", fontWeight: 500 }}>
-                    {s.match}
-                  </td>
-                  <td style={{ padding: "6px 12px", color: "var(--admin-text-muted, #94a3b8)" }}>
-                    {s.sport}
-                  </td>
-                  <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "#60a5fa", fontWeight: 700 }}>
-                    {s.score || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)", marginTop: 2 }}>
+            Settlement Phase B/C fallback: quanto copre il <code>CANONICAL_TO_SETTLER</code> dei canonical oggi mappati in DB.
+          </div>
+        </div>
+        {data && (
+          <div style={{ marginLeft: "auto", display: "flex", gap: 16, fontSize: 13 }}>
+            <StatCell label="Canonicals mappati" value={data.totals.canonicals} />
+            <StatCell label="Settleable" value={data.totals.settleable} color="#10b981" />
+            <StatCell label="Void by design" value={data.totals.void_by_design} color="#64748b" />
+            <StatCell label="Gap (actionable)" value={data.totals.gap} color={data.totals.gap > 0 ? "#f59e0b" : "#10b981"} />
+            <StatCell label="Coverage vol." value={`${coveragePct}%`} color={coveragePct >= 95 ? "#10b981" : coveragePct >= 80 ? "#60a5fa" : "#f59e0b"} />
+          </div>
         )}
+      </div>
+
+      {loading && <div style={{ fontSize: 12, color: "var(--admin-text-muted, #94a3b8)" }}>Caricamento…</div>}
+      {err && <div style={{ padding: 8, background: "#ef444420", color: "#ef4444", borderRadius: 6, fontSize: 12 }}>{err}</div>}
+
+      {data && data.totals.gap > 0 && (
+        <>
+          <button
+            onClick={() => setShowGaps(!showGaps)}
+            aria-label={showGaps ? "Nascondi dettaglio gap" : "Mostra dettaglio gap"}
+            style={{
+              alignSelf: "flex-start",
+              padding: "4px 12px",
+              background: "transparent",
+              border: "1px solid #f59e0b66",
+              color: "#f59e0b",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {showGaps ? "▼" : "▶"} Top gap canonicals (primi 20 per volume)
+          </button>
+          {showGaps && (
+            <div style={{ border: "1px solid var(--admin-border, #1e3a5f)", borderRadius: 8, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "rgba(255,255,255,0.04)", textAlign: "left" }}>
+                    <th style={thGap}>canonical_key</th>
+                    <th style={thGap}>nome IT</th>
+                    <th style={{ ...thGap, textAlign: "right" }}>Tipo mappati</th>
+                    <th style={{ ...thGap, textAlign: "right" }}>Verificati</th>
+                    <th style={thGap}>Fonti</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gaps.map((g) => (
+                    <tr key={g.canonical_key} style={{ borderTop: "1px solid var(--admin-border, #1e3a5f)" }}>
+                      <td style={tdGap}><code style={{ color: "#8b5cf6" }}>{g.canonical_key}</code></td>
+                      <td style={tdGap}>{g.canonical_name_it ?? "—"}</td>
+                      <td style={{ ...tdGap, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{g.total_mappings}</td>
+                      <td style={{ ...tdGap, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{g.verified_mappings}</td>
+                      <td style={tdGap}>
+                        {Object.keys(g.by_source).map((s) => (
+                          <span key={s} style={{ display: "inline-block", marginRight: 6, fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(100,116,139,0.15)", color: "var(--admin-text-muted, #94a3b8)" }}>
+                            {s}:{g.by_source[s].total}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatCell({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)", letterSpacing: 0.5, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: color || "var(--admin-text, #e2e8f0)", fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>
+        {typeof value === "number" ? value.toLocaleString("it-IT") : value}
       </div>
     </div>
   );
 }
+
+const thGap: React.CSSProperties = { padding: "8px 10px", fontSize: 10, textTransform: "uppercase", color: "var(--admin-text-muted, #94a3b8)", fontWeight: 700, letterSpacing: 0.5 };
+const tdGap: React.CSSProperties = { padding: "6px 10px", color: "var(--admin-text, #e2e8f0)" };
