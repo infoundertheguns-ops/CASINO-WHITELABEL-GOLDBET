@@ -32,6 +32,7 @@ const NAVIGATION: AdminNavGroup[] = [
       { id: "kiosk-vouchers", icon: "💸", label: "Voucher Cashout" },
       { id: "financial", icon: "💹", label: "Financial" },
       { id: "home-content", icon: "🏠", label: "Home CMS" },
+      { id: "settlement-coverage", icon: "📊", label: "Settlement Coverage" },
     ],
   },
   {
@@ -63,6 +64,7 @@ const TITLES: Record<string, string> = {
   users: "Gestione Utenti",
   config: "Configurazione",
   audit: "Audit Log",
+  "settlement-coverage": "Settlement Coverage",
 };
 
 export default function AdminLayout({
@@ -96,6 +98,7 @@ export default function AdminLayout({
     if (parts[1] === "event-normalization") return "event-normalization";
     if (parts[1] === "canonical-markets") return "canonical-markets";
     if (parts[1] === "settlement-health") return "settlement-health";
+    if (parts[1] === "settlement-coverage") return "settlement-coverage";
     if (parts[1] === "kiosks") return "kiosks";
     if (parts[1] === "agent-kiosks") return "agent-kiosks";
     if (parts[1] === "agents") return "agents";
@@ -182,6 +185,7 @@ export default function AdminLayout({
       "home-content": "/admin/home-content",
       financial: "/admin/financial",
       "settlement-health": "/admin/settlement-health",
+      "settlement-coverage": "/admin/settlement-coverage",
       "market-coverage": "/admin/market-coverage",
       consensus: "/admin/consensus",
       "shade-monitor": "/admin/shade-monitor",
