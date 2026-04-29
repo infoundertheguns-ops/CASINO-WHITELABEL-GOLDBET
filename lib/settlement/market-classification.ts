@@ -3,16 +3,14 @@
 export type Category = 'score' | 'stats' | 'player' | 'special';
 
 /**
- * MARKET_CATEGORIES — single source of truth for market → category mapping.
+ * MARKET_CATEGORIES — sample dict of canonical IT market_type strings, used for
+ * `market_categories_seed` table seeding + observability KPI roll-up.
  *
- * Keys are Italian market_type strings as produced by derive_legacy_from_v2()
- * RPC (mig 146 + translations mig 149). Values are categories that drive
- * settlement routing and admin page display.
- *
- * NEVER mutate at runtime. Updates require:
- *   1. edit this dict
- *   2. run `npm run build:market-categories` to regenerate seed JSON
- *   3. include the regenerated JSON + a migration row insert in the same PR
+ * NOT the authoritative classifier — `classify()` below uses regex patterns
+ * because actual prod labels include lines/abbreviations/variants that no
+ * literal-key dict can enumerate (e.g. "U/O 2.75", "Handicap -1.5",
+ * "Totale 1° squadra 0.5", "1X2 - 1T", "DC", "P/D"). Patterns are the source
+ * of truth; the dict is a documented sample.
  */
 export const MARKET_CATEGORIES: Readonly<Record<string, Category>> = Object.freeze({
   // ========== 🟢 SCORE-ONLY (settable from events_v2.score_home/away + period_scores) ==========
@@ -94,10 +92,82 @@ export const MARKET_CATEGORIES: Readonly<Record<string, Category>> = Object.free
   'Specials': 'special',
 });
 
+/**
+ * Pattern-based classifier — handles real-world label variations that include
+ * unbounded lines (U/O 2.75, Handicap -1.5), abbreviations (DC, DNB, P/D),
+ * and embedded line suffixes (Totale 1° squadra 1.5, U/O - 2T 1.5).
+ *
+ * Order matters: special → player → stats → score → unknown.
+ *   - "Tiri Giocatore" must hit player BEFORE stats matches "Tiri".
+ *   - "Totale Corner" must hit stats BEFORE score matches "Totale".
+ *
+ * Patterns are case-sensitive; labels arrive already normalized in IT.
+ */
+const SPECIAL_PATTERNS = [
+  /^Metodo Goal\b/,
+  /^Primi 10 Minuti\b/,
+  /^First 10\b/i,
+  /^Specials?\b/,
+];
+
+const PLAYER_PATTERNS = [
+  /Marcator/i,                    // Marcatore, Multi Marcatori, Marcatore Squadra X
+  /\bGiocatore\b/i,               // Tiri Giocatore, Falli ... Giocatore, Tackles Giocatore
+  /\bMarca o Assist\b/i,
+  /\bAnytime\b/i,                 // English fallback
+  /\bPlayer\b/i,                  // English fallback
+];
+
+const STATS_PATTERNS = [
+  /\bCorner\b/i,                  // Corner, Totale Corner, U/O Corner X.X, Corner Squadra X
+  /\bCartellin/i,                 // Cartellini, Totale Cartellini, U/O Cartellini X.X
+  /\bTackles\b/i,                 // Tackles Totali, Tackles Squadra X (NOT Tackles Giocatore — caught by player above)
+  /\bSalvataggi\b/i,              // Salvataggi Portiere
+  /\bFalli\b/i,                   // Falli Totali, Falli Squadra X (NOT Falli ... Giocatore — caught above)
+  /\bTiri Totali\b/i,
+  /\bTiri in Porta\b/i,           // Tiri in Porta, Tiri in Porta Casa/Trasferta (NOT ... Giocatore)
+  /\bTiri Squadra\b/i,
+];
+
+const SCORE_PATTERNS = [
+  /^1X2\b/,
+  /^U\/O\b/,                      // U/O 2.5, U/O 3.25, U/O - 2T 1.5
+  /^GG\/NG\b/,
+  /^DC\b/,                        // Doppia Chance abbreviated
+  /^Doppia\b/i,                   // Doppia Chance full
+  /^DNB\b/,                       // Pareggio Escluso abbreviated
+  /^Pareggio\b/i,                 // Pareggio Escluso full
+  /^HT\/FT\b/,
+  /^Vincente\b/i,                 // Vincente Incontro / ML
+  /^P\/D\b/,                      // Pari/Dispari abbreviated
+  /^Pari\/Dispari\b/i,
+  /^Numero Goal\b/i,
+  /^Esatto\b/i,                   // Esatto / Risultato Esatto
+  /^Risultato\b/i,                // Risultato Esatto / Risultato Finale
+  /^Linea Goal\b/i,
+  /^Goal\/No Goal\b/i,
+  /^Totale\b/i,                   // Totale Goal Squadra X / Totale 1° squadra X.X
+  /^Handicap\b/i,                 // Handicap -1.5, Handicap 2 (asian/european both numeric line)
+  /^Spread\b/i,
+  /^Multigol\b/i,
+];
+
+function matchesAny(s: string, patterns: RegExp[]): boolean {
+  return patterns.some((p) => p.test(s));
+}
+
+/**
+ * classify(market_type) — pattern-based with strict ordering.
+ * Returns 'special' for unrecognized labels (fail-safe: derive filter excludes them).
+ */
 export function classify(market_type: string): Category {
-  // Trimmed lookup with fail-safe fallback to 'special' (filtered at derive — never exposed)
-  const trimmed = market_type.trim();
-  return MARKET_CATEGORIES[trimmed] ?? 'special';
+  const s = market_type.trim();
+  if (!s) return 'special';
+  if (matchesAny(s, SPECIAL_PATTERNS)) return 'special';
+  if (matchesAny(s, PLAYER_PATTERNS)) return 'player';
+  if (matchesAny(s, STATS_PATTERNS)) return 'stats';
+  if (matchesAny(s, SCORE_PATTERNS)) return 'score';
+  return 'special';
 }
 
 /**

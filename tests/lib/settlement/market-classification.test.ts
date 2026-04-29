@@ -115,4 +115,58 @@ describe('market-classification', () => {
       expect(isExposable('Some Future Brand New Market', false)).toBe(false);
     });
   });
+
+  describe('real-world prod labels (from baseline 2026-04-29)', () => {
+    // These labels come from actual prod `markets.market_type` rows.
+    // The literal-key dict can't enumerate them all (lines vary, abbreviations,
+    // separator inconsistencies). The pattern-based classifier handles them.
+    const scoreCases: string[] = [
+      'U/O 2.5', 'U/O 3.5', 'U/O 1.5', 'U/O 4.5',
+      'U/O 2.75', 'U/O 3.25', 'U/O 2.25',  // fractional non-half lines
+      '1X2 - 1T', '1X2 - 2T', '1X2 - 1T 1', '1X2 - 1T 2',  // dash separator
+      '1X2', 'GG/NG', 'DC', 'DNB', 'P/D',  // abbreviations
+      'Vincente Incontro', 'HT/FT',
+      'Handicap -1', 'Handicap 1', 'Handicap -1.5', 'Handicap 1.5',
+      'Handicap 2', 'Handicap -2',
+      'Totale 1° squadra 1.5', 'Totale 2° squadra 0.5', 'Totale 1° squadra 0.5',
+      'Totale 1° squadra 2.5', 'Totale 2° squadra 2.5', 'Totale 2° squadra 1.5',
+      'U/O - 2T 1.5',  // weird format: U/O with period marker between
+    ];
+    it.each(scoreCases)('classifies real prod label "%s" as score', (mt) => {
+      expect(classify(mt)).toBe('score');
+    });
+
+    const statsCases = [
+      'Corner', 'Totale Corner', 'U/O Corner 9.5', 'U/O Corner 11.5',
+      'Cartellini', 'Totale Cartellini', 'U/O Cartellini 4.5',
+      'Tiri Totali', 'Tiri in Porta', 'Tiri in Porta Casa', 'Tiri Squadra Casa',
+      'Salvataggi Portiere', 'Tackles Totali',
+    ];
+    it.each(statsCases)('classifies real prod label "%s" as stats', (mt) => {
+      expect(classify(mt)).toBe('stats');
+    });
+
+    const playerCases = [
+      'Marcatore', 'Primo Marcatore', 'Multi Marcatori',
+      'Marcatore Squadra Casa', 'Marcatore Squadra Trasferta',
+      'Tiri Giocatore', 'Tiri in Porta Giocatore',
+      'Falli Subiti Giocatore', 'Falli Commessi Giocatore',
+      'Tackles Giocatore', 'Marca o Assist',
+    ];
+    it.each(playerCases)('classifies real prod label "%s" as player', (mt) => {
+      expect(classify(mt)).toBe('player');
+    });
+
+    it('player keyword overrides stats: "Tiri Giocatore" → player not stats', () => {
+      expect(classify('Tiri Giocatore')).toBe('player');
+      expect(classify('Tiri in Porta Giocatore')).toBe('player');
+      expect(classify('Tackles Giocatore')).toBe('player');
+      expect(classify('Falli Subiti Giocatore')).toBe('player');
+    });
+
+    it('stats keyword overrides score: "Totale Corner" → stats not score', () => {
+      expect(classify('Totale Corner')).toBe('stats');
+      expect(classify('Totale Corner 1T')).toBe('stats');
+    });
+  });
 });
