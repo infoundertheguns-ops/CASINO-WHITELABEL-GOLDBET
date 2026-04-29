@@ -1,24 +1,13 @@
-# Plan D — Settlement Refactor Implementation Plan (v1 — superseded)
-
-> ⚠️ **PLAN v2 PENDING REWRITE — DO NOT EXECUTE v1**
->
-> This plan implements design v1 of Plan D. End-of-session 2026-04-29 the user proposed a structural design evolution that supersedes parts of this plan:
-> - Add filter at `derive_legacy_from_v2()` to hide stats/player/special markets on events without `flashscore_id`
-> - Remove Task 2.1c (SPECIAL_DISPATCHER), simplify settleLeg to drop `manual_required` path
-> - Rebalance 100-bet fixture from 60/20/15/5 to 60/20/20/0
-> - Confirm score-based legs ALWAYS settle via odds-api, never FS (already in v1 but worth being explicit)
->
-> **Authoritative source until rewrite**: `session-2026-04-29-plan-d-spec-and-plan.md` memory file ("Spec/Plan rewrite required next session" section has the full diff list).
->
-> Next session first task: rewrite this plan to v2 (~2h via Edit tool), then re-dispatch plan-document-reviewer.
-
----
+# Plan D — Settlement Refactor Implementation Plan (v2 — filter-at-exposure)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Refactor settlement engine to consume odds-api `events_v2.scores` as authoritative source for score-based markets while preserving Flashscore as stats source for corners/cards/players. Ship `/admin/settlement-coverage` page that classifies every market type and surfaces real bet metrics. Validate against ≥100 bet fixtures before cutover.
+**Goal:** Refactor settlement engine to consume odds-api `events_v2.scores` as authoritative source for score-based markets, with Flashscore as stats source for corners/cards/players. Achieve **100% settlement coverage by construction** via filter-at-exposure: events without `flashscore_id` expose only score-based markets in the legacy catalog. Ship `/admin/settlement-coverage` page that classifies every market type and surfaces real bet metrics. Validate against ≥100 bet fixtures before cutover.
 
-**Architecture:** Two coupled sub-components sharing a single source of truth. (1) `lib/settlement/market-classification.ts` is a TS dict (`MARKET_CATEGORIES`) exported to JSON and seeded into `market_categories_seed` table — used by both the page (for display) and the engine (for routing). (2) Settlement runs via two cooperating cron triggers: Trigger A (new, every 1 min) settles score-only legs from `events_v2.status='settled' + scores`; Trigger B (existing `verify-results`, scoped) settles stats/player legs from Flashscore. Cutover gated by 48h shadow observation + 100/100 fixture pass + env flag.
+**Architecture (v2):** Three coupled sub-components sharing a single source of truth.
+1. **D.0 — Filter at exposure** (NEW in v2): `derive_legacy_from_v2()` RPC reads `market_categories_seed` and applies the rule `expose iff classify(market_type)='score' OR (event.flashscore_id IS NOT NULL AND classify(market_type) IN ('stats','player'))`. Special markets always filtered.
+2. **D.1 — Settlement Coverage page**: `lib/settlement/market-classification.ts` is a TS dict (`MARKET_CATEGORIES`) exported to JSON and seeded into `market_categories_seed` table — used by the derive RPC, the page (for display), and the engine (for routing).
+3. **D.2 — Settlement engine**: Trigger A (new, every 1 min) settles score-only legs from `events_v2.status='settled' + scores`; Trigger B (existing `verify-results`, scoped) settles stats/player legs from Flashscore. **No SPECIAL_DISPATCHER, no `manual_required` verdict** — by construction the engine never receives a leg whose category lacks a settler with available data. Cutover gated by 48h shadow observation + 100/100 fixture pass + env flag.
 
 **Tech Stack:** TypeScript / Next.js 14 App Router / Supabase (PostgreSQL + RLS) / vitest / systemd timers on scraper-vps.
 
@@ -57,7 +46,6 @@ Before starting Phase 1, confirm:
 | `lib/settlement/odds-api-result.ts` | `buildResultFromOddsApi(events_v2.scores)` returning the same `Result` shape `buildResult()` produces today | ~100 |
 | `lib/settlement/stats-settlers.ts` | `STATS_SETTLERS` dispatch (corners, cards, shots, tackles), reading from `events.live_data.stats` | ~250 |
 | `lib/settlement/player-settlers.ts` | `PLAYER_SETTLERS` dispatch (anytime/multi/team goalscorer, player props), reading from `events.live_data.scorers` | ~200 |
-| `lib/settlement/special-dispatcher.ts` | `SPECIAL_DISPATCHER` that returns `verdict='manual_required'` for v1 — no auto-settle | ~50 |
 | `app/api/cron/odds-api-settle/route.ts` | New cron endpoint, every 1 min via systemd timer | ~250 |
 | `app/api/admin/settlement-coverage/list/route.ts` | GET → `{ kpis, markets[] }` with filter query params | ~100 |
 | `app/api/admin/settlement-coverage/drill-down/route.ts` | GET ?market_type=X → recent bets + events with that market | ~80 |
@@ -66,16 +54,17 @@ Before starting Phase 1, confirm:
 | `app/admin/settlement-coverage/components/catalog-table.tsx` | Sortable + filterable market catalog | ~250 |
 | `app/admin/settlement-coverage/components/drill-down-modal.tsx` | Modal showing bets + events per market | ~150 |
 | `scripts/build/export-market-categories.mjs` | Build-time script: TS dict → `market-categories-seed.json` + check vs DB seed | ~80 |
-| `supabase/migrations/152_settlement_coverage.sql` | `events_v2.last_settled_at` column + index, `market_categories_seed` table, 3 RPCs | ~200 |
+| `supabase/migrations/152_settlement_coverage.sql` | `events_v2.last_settled_at` column + index, `market_categories_seed` table, 4 RPCs (incl `settlement_coverage_filter_kpi`) | ~250 |
 | `supabase/migrations/153_settlement_log_shadow.sql` | `settlement_log_shadow` table for Phase 2 shadow comparison | ~50 |
+| `supabase/migrations/154_derive_legacy_filter.sql` | **(NEW v2)** Modifies `derive_legacy_from_v2()` to apply filter-at-exposure rule. Reads from `market_categories_seed`. | ~100 |
+| `tests/db/derive-filter.test.ts` | **(NEW v2)** Asserts derive filter behavior on synthetic events: score always passes, stats/player only on FS-mapped, special always filtered | ~200 |
 | `tests/lib/settlement/market-classification.test.ts` | Every dict entry covered, unknown-market fallback | ~200 |
 | `tests/lib/settlement/odds-api-result.test.ts` | All sport/period combos | ~150 |
 | `tests/lib/settlement/stats-settlers.test.ts` | Each stats market, edge cases (no stats → null verdict) | ~200 |
 | `tests/lib/settlement/player-settlers.test.ts` | Each player market, edge cases (own goal, sub minute) | ~150 |
-| `tests/lib/settlement/special-dispatcher.test.ts` | All specials return `manual_required` | ~50 |
 | `tests/api/cron/odds-api-settle.test.ts` | Shadow + live mode, dedup, mixed events | ~250 |
 | `tests/integration/100-bets-settlement.test.ts` | Loops over fixture, asserts verdict per bet | ~80 |
-| `tests/fixtures/settlement/100-bets.json` | 60 score / 20 stats / 15 player / 5 special fixture entries | ~auto |
+| `tests/fixtures/settlement/100-bets.json` | 60 score / 20 stats / 20 player / 0 special fixture entries (v2 — specials filtered at derive, not settled) | ~auto |
 | `tests/fixtures/settlement/100-bets.schema.json` | JSON Schema for fixture validation | ~50 |
 
 ### Modified files
@@ -375,16 +364,29 @@ export const MARKET_CATEGORIES: Readonly<Record<string, Category>> = Object.free
   'Falli Subiti Giocatore': 'player',
   'Tackles Giocatore': 'player',
 
-  // ========== ⚪ SPECIAL (case-by-case, v1 = manual_required) ==========
+  // ========== 🚫 SPECIAL (filtered at derive in v2 — never exposed to player) ==========
   'Metodo Goal': 'special',
   'Primi 10 Minuti': 'special',
   'Specials': 'special',
 });
 
 export function classify(market_type: string): Category {
-  // Trimmed lookup with fail-safe fallback to 'special' (manual handling)
+  // Trimmed lookup with fail-safe fallback to 'special' (filtered at derive — never exposed)
   const trimmed = market_type.trim();
   return MARKET_CATEGORIES[trimmed] ?? 'special';
+}
+
+/**
+ * isExposable — used by derive_legacy_from_v2() (via mig 154 SQL helper) to decide
+ * whether a market_v2 row should be projected to the legacy `markets` table.
+ *
+ * Rule: score always exposable; stats/player only on FS-mapped events; special always filtered.
+ */
+export function isExposable(market_type: string, eventHasFlashscoreId: boolean): boolean {
+  const cat = classify(market_type);
+  if (cat === 'score') return true;
+  if (cat === 'stats' || cat === 'player') return eventHasFlashscoreId;
+  return false;  // special or unclassified → fail-safe: don't expose
 }
 
 export function isScoreOnly(market_type: string): boolean {
@@ -678,6 +680,65 @@ $$;
 
 GRANT EXECUTE ON FUNCTION settlement_coverage_list(int) TO anon, authenticated, service_role;
 
+-- settlement_coverage_filter_kpi(window_days int) — 🚫 KPI for filter-at-exposure shrinkage.
+-- Note: this RPC depends on mig 154 functions (`is_market_exposable`, `derive_legacy_from_v2_filter_diff`).
+-- mig 152 ships a STUB returning zeros; the real body is replaced when mig 154 lands. This avoids
+-- a hard dependency that would force migs 152/154 to ship together.
+DROP FUNCTION IF EXISTS settlement_coverage_filter_kpi(int);
+CREATE FUNCTION settlement_coverage_filter_kpi(window_days int DEFAULT 7)
+RETURNS TABLE(
+  markets_filtered BIGINT, total_markets BIGINT, pct NUMERIC, reason TEXT
+)
+LANGUAGE sql STABLE
+AS $$
+  -- Stub — replaced post mig 154. Returns single row of zeros so frontend renders gracefully.
+  SELECT 0::BIGINT, 0::BIGINT, 0::NUMERIC, 'mig-154-pending'::TEXT;
+$$;
+
+GRANT EXECUTE ON FUNCTION settlement_coverage_filter_kpi(int) TO anon, authenticated, service_role;
+
+-- settlement_coverage_sla_kpi(window_days int) — ✅ SLA KPI: % bets settled within target latency.
+-- Targets: score legs ≤2 min from event status='settled', stats/player legs ≤24h from event finish.
+DROP FUNCTION IF EXISTS settlement_coverage_sla_kpi(int);
+CREATE FUNCTION settlement_coverage_sla_kpi(window_days int DEFAULT 7)
+RETURNS TABLE(
+  category TEXT, legs_settled BIGINT, legs_within_sla BIGINT, settled_within_sla_pct NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  WITH classified AS (
+    SELECT
+      COALESCE(mcs.category, 'unclassified') AS category,
+      bs.id,
+      bs.result,
+      e.starts_at,
+      e.settled_at,
+      e.updated_at
+    FROM bet_selections bs
+    JOIN bets b ON b.id = bs.bet_id
+    JOIN markets m ON m.id = bs.market_id
+    JOIN events e ON e.id = m.event_id
+    LEFT JOIN market_categories_seed mcs ON mcs.market_type = m.market_type
+    WHERE b.created_at > NOW() - (window_days || ' days')::interval
+      AND bs.result IN ('won','lost','void','push')
+  )
+  SELECT
+    category,
+    count(*) AS legs_settled,
+    count(*) FILTER (
+      WHERE (category = 'score' AND settled_at IS NOT NULL AND EXTRACT(EPOCH FROM (settled_at - starts_at)) <= 7200)
+         OR (category IN ('stats','player') AND settled_at IS NOT NULL AND EXTRACT(EPOCH FROM (settled_at - starts_at)) <= 86400)
+    ) AS legs_within_sla,
+    round(100.0 * count(*) FILTER (
+      WHERE (category = 'score' AND settled_at IS NOT NULL AND EXTRACT(EPOCH FROM (settled_at - starts_at)) <= 7200)
+         OR (category IN ('stats','player') AND settled_at IS NOT NULL AND EXTRACT(EPOCH FROM (settled_at - starts_at)) <= 86400)
+    ) / NULLIF(count(*), 0), 2) AS settled_within_sla_pct
+  FROM classified
+  GROUP BY category;
+$$;
+
+GRANT EXECUTE ON FUNCTION settlement_coverage_sla_kpi(int) TO anon, authenticated, service_role;
+
 -- next_unsettled_with_stats_legs(lim int) — Trigger B helper
 DROP FUNCTION IF EXISTS next_unsettled_with_stats_legs(int);
 CREATE FUNCTION next_unsettled_with_stats_legs(lim int DEFAULT 100)
@@ -807,8 +868,7 @@ vi.mock('@/lib/supabase/server', () => ({
           data: [
             { category: 'score', legs_total: 800, legs_won: 400, legs_lost: 350, legs_void: 50, legs_pending: 0, stake_total: 8000 },
             { category: 'stats', legs_total: 100, legs_won: 40, legs_lost: 50, legs_void: 5, legs_pending: 5, stake_total: 1000 },
-            { category: 'player', legs_total: 80, legs_won: 10, legs_lost: 60, legs_void: 5, legs_pending: 5, stake_total: 800 },
-            { category: 'special', legs_total: 20, legs_won: 0, legs_lost: 0, legs_void: 0, legs_pending: 20, stake_total: 200 },
+            { category: 'player', legs_total: 100, legs_won: 10, legs_lost: 80, legs_void: 5, legs_pending: 5, stake_total: 1000 },
           ],
           error: null,
         });
@@ -981,27 +1041,28 @@ describe('<KpiStrip>', () => {
   const sampleKpis = {
     score: { legs_total: 800, pct_of_total: 80, legs_pending: 0, stake_total: 8000 },
     stats: { legs_total: 100, pct_of_total: 10, legs_pending: 5, stake_total: 1000 },
-    player: { legs_total: 80, pct_of_total: 8, legs_pending: 5, stake_total: 800 },
-    special: { legs_total: 20, pct_of_total: 2, legs_pending: 20, stake_total: 200 },
+    player: { legs_total: 100, pct_of_total: 10, legs_pending: 5, stake_total: 1000 },
   } as any;
+  const sampleFilterKpi = { markets_filtered: 1520, total_markets: 99452, pct: 1.5 };
+  const sampleSlaKpi = { settled_within_sla_pct: 98.7 };
 
-  it('renders 4 cards', () => {
-    render(<KpiStrip kpis={sampleKpis} window={7} />);
+  it('renders 5 cards', () => {
+    render(<KpiStrip kpis={sampleKpis} filterKpi={sampleFilterKpi} slaKpi={sampleSlaKpi} window={7} />);
     expect(screen.getByText(/Score/i)).toBeInTheDocument();
     expect(screen.getByText(/Stats/i)).toBeInTheDocument();
     expect(screen.getByText(/Player/i)).toBeInTheDocument();
-    expect(screen.getByText(/Special/i)).toBeInTheDocument();
+    expect(screen.getByText(/filtered/i)).toBeInTheDocument();
+    expect(screen.getByText(/SLA/i)).toBeInTheDocument();
   });
 
   it('shows pct_of_total prominently', () => {
-    render(<KpiStrip kpis={sampleKpis} window={7} />);
+    render(<KpiStrip kpis={sampleKpis} filterKpi={sampleFilterKpi} slaKpi={sampleSlaKpi} window={7} />);
     expect(screen.getByText('80%')).toBeInTheDocument();
   });
 
-  it('shows pending count badge', () => {
-    render(<KpiStrip kpis={sampleKpis} window={7} />);
-    // special has 20 pending, should be most prominent
-    expect(screen.getByText(/20 pending/i)).toBeInTheDocument();
+  it('shows filter shrinkage badge', () => {
+    render(<KpiStrip kpis={sampleKpis} filterKpi={sampleFilterKpi} slaKpi={sampleSlaKpi} window={7} />);
+    expect(screen.getByText(/1\.5%/)).toBeInTheDocument();
   });
 });
 ```
@@ -1022,16 +1083,20 @@ type Kpi = {
 };
 
 type Props = {
-  kpis: Record<'score' | 'stats' | 'player' | 'special', Kpi | undefined>;
+  kpis: Record<'score' | 'stats' | 'player', Kpi | undefined>;
+  filterKpi: { markets_filtered: number; total_markets: number; pct: number };
+  slaKpi: { settled_within_sla_pct: number };
   window: number;
 };
 
-const CARDS: Array<{ key: keyof Props['kpis']; label: string; emoji: string; color: string }> = [
+const CARDS: Array<{ key: 'score' | 'stats' | 'player'; label: string; emoji: string; color: string }> = [
   { key: 'score', label: 'Score-only', emoji: '🟢', color: 'border-green-500' },
   { key: 'stats', label: 'Stats', emoji: '🟡', color: 'border-yellow-500' },
   { key: 'player', label: 'Player events', emoji: '🔴', color: 'border-red-500' },
-  { key: 'special', label: 'Special', emoji: '⚪', color: 'border-gray-400' },
 ];
+
+// 4th card 🚫: derive-filter shrinkage (target ≤2%, alarm ≥3%)
+// 5th card ✅: % bet settled within SLA (score ≤2min, stats/player ≤24h)
 
 export function KpiStrip({ kpis, window }: Props) {
   return (
@@ -1192,7 +1257,277 @@ Commit: `chore(plan-d): D.1 deployed prod, baseline numbers locked in spec`
 
 ---
 
+## Phase 1.5 — Filter at derive (D.0) — NEW in v2
+
+> **Why first**: filter-at-exposure is the architectural foundation of v2. By the time the engine cron starts settling (Phase 2), the catalog must already exclude unsettleable markets so the engine never sees a leg whose category lacks a settler with available data. This phase is the data-layer half of the by-construction guarantee.
+>
+> **Depends on**: Phase 1.3 (mig 152 — `market_categories_seed` exists) and Phase 1.10 (page deployed — 🚫 KPI observable).
+
+### Task 1.5.1: Migration 154 — modified `derive_legacy_from_v2()` with filter rule + dry-run sibling
+
+**Files:**
+- Create: `supabase/migrations/154_derive_legacy_filter.sql`
+- Create: `supabase/migrations/154_derive_legacy_filter_rollback.sql`
+
+- [ ] **Step 1: MANDATORY — capture the current `derive_legacy_from_v2()` body from prod into a working file BEFORE writing migrations**
+
+```bash
+ssh scraper-vps "PGPASSWORD=2MQhskawT3I6XVKW psql 'postgresql://postgres@aws-1-eu-central-1.pooler.supabase.com:5432/postgres' -At -c \"SELECT pg_get_functiondef(oid) FROM pg_proc WHERE proname='derive_legacy_from_v2';\"" \
+  > supabase/migrations/_captured/derive_legacy_from_v2_pre_v2_filter.sql
+```
+
+This file is the **rollback baseline** for 154b. Commit it BEFORE proceeding. Do NOT continue without it — `154b_derive_legacy_cutover.sql` (Step 6) wraps this exact body with the filter clause, and `154b_derive_legacy_cutover_rollback.sql` restores it byte-for-byte.
+
+Verify the capture is complete:
+```bash
+test -s supabase/migrations/_captured/derive_legacy_from_v2_pre_v2_filter.sql && \
+  echo "OK $(wc -l < supabase/migrations/_captured/derive_legacy_from_v2_pre_v2_filter.sql) lines captured"
+```
+
+If the file is empty or <50 lines, the SSH/psql command failed silently — investigate (perhaps function is in a non-public schema, or named differently — `\df *derive*` to find it).
+
+The filter must **wrap** (not replace) the existing logic to preserve all other behavior (translations, source_markets_count, etc).
+
+- [ ] **Step 2: Author migration 154**
+
+```sql
+-- supabase/migrations/154_derive_legacy_filter.sql
+-- Plan D Phase 1.5 — filter-at-exposure: hide stats/player markets on events without flashscore_id,
+-- and hide all special markets unconditionally. Reads from market_categories_seed (mig 152).
+--
+-- Strategy: define a sibling DRY-RUN function that returns the DIFF (markets the filter would remove)
+-- WITHOUT changing the live derive_legacy_from_v2() yet. The actual cutover (replacing the live body)
+-- is a separate ALTER step gated by 24h dry-run observation.
+
+BEGIN;
+
+-- ========== Part A: helper predicate ==========
+
+CREATE OR REPLACE FUNCTION is_market_exposable(
+  p_market_type TEXT,
+  p_event_has_flashscore_id BOOLEAN
+) RETURNS BOOLEAN
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT CASE
+    -- score markets always exposable (settable from odds-api scores)
+    WHEN COALESCE((SELECT category FROM market_categories_seed WHERE market_type = p_market_type), 'special') = 'score' THEN true
+    -- stats/player exposable only on FS-mapped events
+    WHEN COALESCE((SELECT category FROM market_categories_seed WHERE market_type = p_market_type), 'special') IN ('stats','player') THEN p_event_has_flashscore_id
+    -- special always filtered (v2 design)
+    -- unclassified treated as special (fail-safe: don't expose what we don't know how to settle)
+    ELSE false
+  END;
+$$;
+
+COMMENT ON FUNCTION is_market_exposable(TEXT, BOOLEAN) IS
+  'Plan D v2 filter-at-exposure predicate. Score markets always exposable; stats/player only on FS-mapped events; special and unclassified always filtered.';
+
+GRANT EXECUTE ON FUNCTION is_market_exposable(TEXT, BOOLEAN) TO anon, authenticated, service_role;
+
+-- ========== Part B: dry-run sibling RPC ==========
+-- Returns the diff: markets that the live derive_legacy_from_v2() currently produces but the new
+-- filter would remove. Used during 24h Phase 1.5 dry-run observation.
+
+DROP FUNCTION IF EXISTS derive_legacy_from_v2_filter_diff();
+CREATE FUNCTION derive_legacy_from_v2_filter_diff()
+RETURNS TABLE(
+  market_id UUID, event_id UUID, market_type TEXT,
+  event_has_flashscore_id BOOLEAN, would_remove BOOLEAN,
+  reason TEXT
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    m.id AS market_id,
+    e.id AS event_id,
+    m.market_type,
+    (e.flashscore_id IS NOT NULL) AS event_has_flashscore_id,
+    NOT is_market_exposable(m.market_type, e.flashscore_id IS NOT NULL) AS would_remove,
+    CASE
+      WHEN COALESCE((SELECT category FROM market_categories_seed WHERE market_type = m.market_type), 'special') = 'special'
+        THEN 'special-always-filtered'
+      WHEN e.flashscore_id IS NULL
+        THEN 'no-flashscore-id'
+      ELSE 'kept'
+    END AS reason
+  FROM markets m
+  JOIN events e ON e.id = m.event_id
+  WHERE m.is_active = true;
+$$;
+
+GRANT EXECUTE ON FUNCTION derive_legacy_from_v2_filter_diff() TO anon, authenticated, service_role;
+
+-- ========== Part C: replace settlement_coverage_filter_kpi STUB (from mig 152) with real body ==========
+
+DROP FUNCTION IF EXISTS settlement_coverage_filter_kpi(int);
+CREATE FUNCTION settlement_coverage_filter_kpi(window_days int DEFAULT 7)
+RETURNS TABLE(
+  markets_filtered BIGINT, total_markets BIGINT, pct NUMERIC, reason TEXT
+)
+LANGUAGE sql STABLE
+AS $$
+  -- Returns shrinkage breakdown by reason: 'special-always-filtered' | 'no-flashscore-id' | 'kept'
+  -- window_days currently ignored (catalog is a live snapshot, not time-windowed); param kept for API stability.
+  SELECT
+    count(*) FILTER (WHERE would_remove) AS markets_filtered,
+    count(*) AS total_markets,
+    round(100.0 * count(*) FILTER (WHERE would_remove) / NULLIF(count(*), 0), 2) AS pct,
+    reason
+  FROM derive_legacy_from_v2_filter_diff()
+  GROUP BY reason
+  ORDER BY count(*) DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION settlement_coverage_filter_kpi(int) TO anon, authenticated, service_role;
+
+-- ========== Part D: live derive_legacy_from_v2() — NOT yet modified ==========
+-- The live function continues unchanged at this point. The cutover (Step 6 below) replaces its body
+-- with a filtered version. We do this as a separate ALTER step (NOT in this migration) so the dry-run
+-- gate is enforceable.
+
+COMMIT;
+```
+
+- [ ] **Step 3: Author rollback file**
+
+```sql
+-- supabase/migrations/154_derive_legacy_filter_rollback.sql
+-- Use ONLY if 154 needs unwind (revert filter cutover too if applied — Step 5 below).
+BEGIN;
+DROP FUNCTION IF EXISTS derive_legacy_from_v2_filter_diff();
+DROP FUNCTION IF EXISTS is_market_exposable(TEXT, BOOLEAN);
+-- Note: live derive_legacy_from_v2() is NOT touched by this rollback because it's not modified by this
+-- mig in the first place. Cutover rollback handled separately in Step 5b.
+DELETE FROM _migrations WHERE filename = '154_derive_legacy_filter.sql';
+COMMIT;
+```
+
+- [ ] **Step 4: Apply on staging, verify dry-run output**
+
+```bash
+node scripts/db/apply-mig.mjs --target staging --file supabase/migrations/154_derive_legacy_filter.sql
+node scripts/db/apply-mig.mjs --target staging --query "
+  SELECT reason, count(*), 
+    round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS pct
+  FROM derive_legacy_from_v2_filter_diff()
+  GROUP BY reason
+  ORDER BY count(*) DESC;
+"
+```
+
+Expected output (approximate, depends on staging data):
+```
+reason                     | count | pct
+---------------------------+-------+------
+kept                       | 87000 | 87.5
+special-always-filtered    |   916 |  0.9
+no-flashscore-id           |  1376 |  1.4
+```
+
+If shrinkage (special-always-filtered + no-flashscore-id) > 3% or < 1.5%, halt and investigate before proceeding.
+
+- [ ] **Step 5: 24h staging observation**
+
+After Phase 1.10 deploys D.1 page to staging, monitor `/admin/settlement-coverage` 🚫 KPI for 24h. Confirm:
+- Predicted shrinkage matches dry-run (within ±0.5pp).
+- No spike or trend (means data layer is stable, filter rule is correct).
+
+If observation green → proceed to Step 6 (cutover). If red → root-cause and re-author migration if needed.
+
+- [ ] **Step 6: Cutover staging — replace live `derive_legacy_from_v2()` body**
+
+Author `supabase/migrations/154b_derive_legacy_cutover.sql` AND its rollback `supabase/migrations/154b_derive_legacy_cutover_rollback.sql` IN THE SAME COMMIT.
+
+Procedure:
+1. Open `supabase/migrations/_captured/derive_legacy_from_v2_pre_v2_filter.sql` (from Step 1).
+2. Copy its full body into both files.
+3. In `154b_derive_legacy_cutover.sql`: locate the `INSERT INTO markets ... SELECT ... FROM markets_v2 m_v2 JOIN events_v2 e_v2 ...` (or the equivalent merge/upsert) and add the filter to its WHERE clause:
+   ```sql
+   WHERE is_market_exposable(m_v2.market_type_translated, e_v2.flashscore_id IS NOT NULL)
+     AND <other existing conditions>
+   ```
+   If outcomes are derived in a separate INSERT inside the same function (or in `derive_legacy_from_v2_outcomes()` etc), apply the same filter at the outcome→market join.
+4. In `154b_derive_legacy_cutover_rollback.sql`: paste the captured body verbatim (no filter clause). This restores pre-cutover behavior in a single transaction if Step 7 monitoring fails.
+
+Apply staging:
+```bash
+node scripts/db/apply-mig.mjs --target staging --file supabase/migrations/154b_derive_legacy_cutover.sql
+```
+
+Run a smoke check immediately after apply:
+```sql
+-- Confirm filter is now active on staging: catalog count should drop by predicted shrinkage
+SELECT count(*) AS markets_post_cutover FROM markets WHERE is_active = true;
+-- Compare to pre-cutover snapshot: SELECT count(*) FROM markets WHERE is_active = true; recorded in Step 1.
+```
+
+Observe 24h on staging:
+- `/admin/settlement-coverage` 🚫 KPI matches dry-run prediction (within ±0.5pp).
+- No score-market false-positives (CI test gate, Step 8).
+- No regression on bet-placement page (sample 5 staging events: 1 with FS-id, 4 without — confirm score markets listed in all 5, stats/player only in the FS-mapped one).
+
+**Rollback procedure** (if monitoring red): `node scripts/db/apply-mig.mjs --target staging --file supabase/migrations/154b_derive_legacy_cutover_rollback.sql`. ~1 min, restores pre-cutover behavior atomically.
+
+- [ ] **Step 7: Cutover prod**
+
+Apply same `154b_derive_legacy_cutover.sql` to prod. Observe 24h via prod page.
+
+- [ ] **Step 8: CI test — derive filter behavior**
+
+Create `tests/db/derive-filter.test.ts`:
+
+```typescript
+import { describe, expect, it, beforeAll } from 'vitest';
+import { createServiceClient } from '@/lib/supabase/server';
+
+describe('derive_legacy_from_v2 filter', () => {
+  let supa: ReturnType<typeof createServiceClient>;
+  beforeAll(() => { supa = createServiceClient(); });
+
+  it('score market always exposable (FS or no FS)', async () => {
+    const { data: noFs } = await supa.rpc('is_market_exposable', { p_market_type: '1X2', p_event_has_flashscore_id: false });
+    const { data: withFs } = await supa.rpc('is_market_exposable', { p_market_type: '1X2', p_event_has_flashscore_id: true });
+    expect(noFs).toBe(true);
+    expect(withFs).toBe(true);
+  });
+
+  it('stats market only exposable when FS', async () => {
+    const { data: noFs } = await supa.rpc('is_market_exposable', { p_market_type: 'Corner', p_event_has_flashscore_id: false });
+    const { data: withFs } = await supa.rpc('is_market_exposable', { p_market_type: 'Corner', p_event_has_flashscore_id: true });
+    expect(noFs).toBe(false);
+    expect(withFs).toBe(true);
+  });
+
+  it('special market never exposable', async () => {
+    const { data: withFs } = await supa.rpc('is_market_exposable', { p_market_type: 'Metodo Goal', p_event_has_flashscore_id: true });
+    const { data: noFs } = await supa.rpc('is_market_exposable', { p_market_type: 'Metodo Goal', p_event_has_flashscore_id: false });
+    expect(withFs).toBe(false);
+    expect(noFs).toBe(false);
+  });
+
+  it('unclassified market never exposable (fail-safe)', async () => {
+    const { data: withFs } = await supa.rpc('is_market_exposable', { p_market_type: 'Brand New Future Market', p_event_has_flashscore_id: true });
+    expect(withFs).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add supabase/migrations/154_derive_legacy_filter.sql \
+        supabase/migrations/154_derive_legacy_filter_rollback.sql \
+        supabase/migrations/154b_derive_legacy_cutover.sql \
+        tests/db/derive-filter.test.ts
+git commit -m "feat(db): mig 154 — filter-at-exposure on derive_legacy_from_v2 (Plan D.0 v2)"
+```
+
+---
+
 ## Phase 2 — Settlement engine refactor in shadow mode (D.2)
+
+> **Parallelization note**: Phase 2 (shadow mode) MAY proceed in parallel with Phase 1.5 dry-run/cutover. The engine cron writes only to `settlement_log_shadow` and never touches `bet_selections.result` until the env flag flips in Phase 4. The two phases share no live mutation surface. Execute concurrently if subagent capacity allows; otherwise sequential is also safe.
 
 ### Task 2.0: Extract `settleLeg` from `settleEvent` + add category branching
 
@@ -1551,47 +1886,13 @@ describe('PLAYER_SETTLERS', () => {
 
 ---
 
-### Task 2.1c: `SPECIAL_DISPATCHER` (v1 = manual_required)
+### Task 2.1c: ~~`SPECIAL_DISPATCHER`~~ — **ELIMINATED in v2**
 
-**Files:**
-- Create: `lib/settlement/special-dispatcher.ts`
-- Create: `tests/lib/settlement/special-dispatcher.test.ts`
+Special markets are filtered at derive time (Phase 1.5, mig 154). The settlement engine never receives a leg with `category='special'` — by construction. Therefore no SPECIAL_DISPATCHER, no `manual_required` verdict, no operator queue.
 
-Per spec §10.3 note: v1 returns `'manual_required'` for every special market, no auto-settle. Future versions can add per-market handlers (Plan E).
+**Defensive handling**: the engine's category dispatch (Task 2.1d below) has a default branch that returns `'void'` and emits a structured warning log (`[settle] unclassified market reached engine`). This is a fail-safe for filter regressions, not a regular code path. The `settle.manual_required.count_24h` health metric (spec §11) tracks this — always 0 in v2.
 
-- [ ] **Step 1: Test**
-
-```typescript
-import { describe, expect, it } from 'vitest';
-import { SPECIAL_DISPATCHER } from '@/lib/settlement/special-dispatcher';
-
-describe('SPECIAL_DISPATCHER', () => {
-  it.each(['Metodo Goal', 'Primi 10 Minuti', 'Specials'])(
-    '%s returns manual_required',
-    (mt) => {
-      expect(SPECIAL_DISPATCHER(mt, {} as any, 'Header')).toBe('manual_required');
-    }
-  );
-});
-```
-
-- [ ] **Step 2: FAIL → implement → PASS**
-
-```typescript
-// lib/settlement/special-dispatcher.ts
-import type { Verdict } from './stats-settlers';
-
-export function SPECIAL_DISPATCHER(
-  market_type: string,
-  payload: any,
-  outcome_name: string
-): Verdict | 'manual_required' {
-  // v1: every special routed to operator queue. v2 (Plan E) adds per-market handlers.
-  return 'manual_required';
-}
-```
-
-- [ ] **Step 3: Commit** `feat(settlement): SPECIAL_DISPATCHER v1 manual-required (Plan D.2)`
+No file created, no tests authored. Skip directly to Task 2.1d.
 
 ---
 
@@ -1601,19 +1902,18 @@ export function SPECIAL_DISPATCHER(
 - Modify: `lib/settlement.ts` (`settleLeg` extracted in Task 2.0; add category dispatch)
 - Modify: `tests/lib/settlement/settle-leg.test.ts` (add stats/player/special cases)
 
-- [ ] **Step 1: Add category branching to `settleLeg`**
+- [ ] **Step 1: Add category branching to `settleLeg` (v2 — no special branch)**
 
 ```typescript
 import { classify } from '@/lib/settlement/market-classification';
 import { STATS_SETTLERS } from '@/lib/settlement/stats-settlers';
 import { PLAYER_SETTLERS } from '@/lib/settlement/player-settlers';
-import { SPECIAL_DISPATCHER } from '@/lib/settlement/special-dispatcher';
 
 export function settleLeg(
   result: Result,
   leg: Leg,
   context: { stats?: StatsPayload; scorers?: ScorerEvents } = {}
-): Verdict | 'manual_required' | null {
+): Verdict | null {
   const cat = classify(leg.markets.market_type);
 
   if (cat === 'score') {
@@ -1638,14 +1938,41 @@ export function settleLeg(
     return handler(context.scorers, leg.outcomes.name);
   }
 
-  // category === 'special'
-  return SPECIAL_DISPATCHER(leg.markets.market_type, context, leg.outcomes.name);
+  // Defensive: category === 'special' or unclassified.
+  // Per Phase 1.5 derive filter, these should NEVER reach the engine. If they do,
+  // it indicates a filter regression — emit a structured warning and refund the stake.
+  console.warn('[settle] unclassified market reached engine (filter regression?)', {
+    market_type: leg.markets.market_type,
+    leg_id: leg.id,
+    category: cat,
+  });
+  return 'void';
 }
 ```
 
-- [ ] **Step 2: Update tests for stats/player/special branches**
+Return type is now `Verdict | null` (not `Verdict | 'manual_required' | null`). The `'manual_required'` value is removed from the union throughout the codebase.
 
-- [ ] **Step 3: PASS, commit** `feat(settlement): settleLeg category dispatch (Plan D.2)`
+- [ ] **Step 2: Update tests for stats/player branches + defensive void case**
+
+```typescript
+it('unclassified market returns void with warning (defensive)', () => {
+  const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const verdict = settleLeg(buildResult({ home: 1, away: 0 }), {
+    id: 'l1', markets: { market_type: 'NotInDict', line: null }, outcomes: { name: 'foo' }
+  } as any);
+  expect(verdict).toBe('void');
+  expect(consoleSpy).toHaveBeenCalledWith(
+    expect.stringContaining('unclassified market reached engine'),
+    expect.any(Object)
+  );
+});
+```
+
+- [ ] **Step 3: Search-and-replace `'manual_required'` → remove**
+
+Run: `Grep -rn "manual_required" lib/ tests/` and remove every reference. Update `Verdict` type union if it exists.
+
+- [ ] **Step 4: PASS, commit** `feat(settlement): settleLeg category dispatch, drop manual_required (Plan D.2 v2)`
 
 ---
 
@@ -1674,7 +2001,7 @@ CREATE TABLE IF NOT EXISTS settlement_log_shadow (
   -- The verdict the new odds-api path WOULD have produced
   shadow_verdict TEXT NOT NULL,
   shadow_settled_at TIMESTAMPTZ DEFAULT NOW(),
-  shadow_source TEXT NOT NULL,  -- 'odds-api' | 'flashscore' | 'mixed' | 'manual_required'
+  shadow_source TEXT NOT NULL,  -- 'odds-api' | 'flashscore' | 'mixed'
   shadow_payload JSONB,  -- the source data used
   
   -- Mismatch flag (computed when both real & shadow set)
@@ -1850,6 +2177,15 @@ export async function POST(req: NextRequest) {
 
       for (const leg of scoreLegs) {
         const verdict = settleLeg(result, leg);  // pure function, no DB write
+                                                  // returns Verdict | null (null = data not yet available)
+
+        // Null-verdict guard: settleLeg returns null when source data isn't ready (e.g. for stats/player
+        // legs where context.stats is missing). Score legs should always produce a verdict — null here
+        // indicates an upstream issue (scores incomplete). Skip and increment counter; cron will retry next tick.
+        if (verdict === null) {
+          stats.score_legs_skipped_no_data = (stats.score_legs_skipped_no_data ?? 0) + 1;
+          continue;
+        }
 
         if (SHADOW_MODE) {
           await supa.from('settlement_log_shadow').insert({
@@ -2030,7 +2366,7 @@ Patterns:
     "required": ["id", "category", "sport", "market_type", "outcome_name", "expected_verdict", "notes"],
     "properties": {
       "id": { "type": "string", "pattern": "^(fb|bk|tn|bb|hk|am|rg|hb|vb|cr|es|dt|mma|bx|tt)-[a-z0-9-]+$" },
-      "category": { "enum": ["score", "stats", "player", "special"] },
+      "category": { "enum": ["score", "stats", "player"] },
       "sport": { "type": "string" },
       "market_type": { "type": "string" },
       "outcome_name": { "type": "string" },
@@ -2045,7 +2381,7 @@ Patterns:
       },
       "stats": { "type": "object" },
       "scorers": { "type": "array" },
-      "expected_verdict": { "enum": ["won", "lost", "void", "push", "manual_required", "skipped"] },
+      "expected_verdict": { "enum": ["won", "lost", "void", "push", "skipped"] },
       "notes": { "type": "string" }
     }
   }
@@ -2077,10 +2413,9 @@ const grouped = {
   score: fixtures.filter(f => f.category === 'score'),
   stats: fixtures.filter(f => f.category === 'stats'),
   player: fixtures.filter(f => f.category === 'player'),
-  special: fixtures.filter(f => f.category === 'special'),
 };
 
-describe('100-bet settlement validation gate', () => {
+describe('100-bet settlement validation gate (v2: 60/20/20/0)', () => {
   it.each(grouped.score)('🟢 score: $id $market_type / $outcome_name → $expected_verdict', async (bet) => {
     const verdict = await settleSyntheticBet(bet);
     expect(verdict, bet.notes).toBe(bet.expected_verdict);
@@ -2096,16 +2431,11 @@ describe('100-bet settlement validation gate', () => {
     expect(verdict, bet.notes).toBe(bet.expected_verdict);
   });
 
-  it.each(grouped.special)('⚪ special: $id $market_type / $outcome_name → $expected_verdict', async (bet) => {
-    const verdict = await settleSyntheticBet(bet);
-    expect(verdict, bet.notes).toBe(bet.expected_verdict);
-  });
-
-  it('FIXTURE COMPLETENESS: ≥60 score / ≥20 stats / ≥15 player / ≥5 special / total ≥100', () => {
+  it('FIXTURE COMPLETENESS (v2): ≥60 score / ≥20 stats / ≥20 player / 0 special / total ≥100', () => {
     expect(grouped.score.length).toBeGreaterThanOrEqual(60);
     expect(grouped.stats.length).toBeGreaterThanOrEqual(20);
-    expect(grouped.player.length).toBeGreaterThanOrEqual(15);
-    expect(grouped.special.length).toBeGreaterThanOrEqual(5);
+    expect(grouped.player.length).toBeGreaterThanOrEqual(20);
+    expect(fixtures.filter(f => f.category === 'special').length).toBe(0);
     expect(fixtures.length).toBeGreaterThanOrEqual(100);
   });
 });
@@ -2118,7 +2448,8 @@ describe('100-bet settlement validation gate', () => {
 import { classify } from '@/lib/settlement/market-classification';
 import { buildResultFromOddsApi } from '@/lib/settlement/odds-api-result';
 import { SETTLERS, resolveSettlerKey } from '@/lib/settlement';
-// + STATS_SETTLERS, PLAYER_SETTLERS, SPECIAL_DISPATCHER imports (Tasks 2.x)
+import { STATS_SETTLERS } from '@/lib/settlement/stats-settlers';
+import { PLAYER_SETTLERS } from '@/lib/settlement/player-settlers';
 
 export async function settleSyntheticBet(bet: any): Promise<string> {
   const cat = classify(bet.market_type);
@@ -2130,13 +2461,14 @@ export async function settleSyntheticBet(bet: any): Promise<string> {
     return SETTLERS[settler.key](result, bet.outcome_name, settler.line ?? bet.line);
   }
   if (cat === 'stats') {
-    // STATS_SETTLERS dispatcher (Task 2.x)
     return STATS_SETTLERS[bet.market_type]?.(bet.stats, bet.outcome_name, bet.line) ?? 'skipped';
   }
   if (cat === 'player') {
     return PLAYER_SETTLERS[bet.market_type]?.(bet.scorers, bet.outcome_name) ?? 'skipped';
   }
-  return 'manual_required';  // special
+  // Defensive: special or unclassified — should NEVER be in fixtures (filter ensures no specials reach engine).
+  // Returning 'void' matches the production fail-safe (Task 2.1d).
+  return 'void';
 }
 ```
 
@@ -2207,18 +2539,34 @@ After 5 iterations: 60 score entries total. Run `npx vitest run tests/integratio
 
 ### Task 3.3: Author 20 stats fixture entries
 
-Same pattern: 5-entry batches for Corners (8), Cards (4), Shots (4), Tackles (4). Each entry includes `stats` object:
-```json
-"stats": { "corners": { "home": 6, "away": 5 }, "total_corners": 11 }
-```
+Explicit breakdown (each row = one fixture entry):
 
-5 commits, 20 entries total. After this: 80 fixture entries.
+| # | market_type | line | stats payload (excerpt) | expected_verdict | edge case |
+|---|---|---|---|---|---|
+| 1-2 | U/O Corner 7.5 | 7.5 | total=8 / total=7 | won/lost | half-line |
+| 3-4 | U/O Corner 9.5 | 9.5 | total=9 / total=10 | lost/won | half-line |
+| 5 | U/O Corner 10.5 | 10.5 | total=10 | push (return stake) | push on integer-equiv |
+| 6-7 | Totale Corner | 9 | total=9 / total=10 | push/won | integer-line push |
+| 8 | Corner Squadra Casa | 5.5 | corners.home=6 | won | team split |
+| 9-10 | U/O Cartellini 4.5 | 4.5 | total=5 / total=4 | won/lost | half-line |
+| 11 | U/O Cartellini 5.5 | 5.5 | total=6 (1 red counted as 2) | won | red-card weighting |
+| 12 | Totale Cartellini | 6 | total=6 | push | integer-line push |
+| 13-14 | Tiri Totali | 24.5 | total=25 / total=22 | won/lost | half-line |
+| 15 | Tiri in Porta Casa | 5.5 | shots_on_target.home=4 | lost | team split |
+| 16 | Tiri Squadra Trasferta | 9.5 | shots.away=10 | won | team split |
+| 17 | Salvataggi Portiere | 4.5 | saves.home=5 | won | goalkeeper |
+| 18-19 | Tackles Totali | 30.5 | total=32 / total=29 | won/lost | half-line |
+| 20 | Tackles Squadra Casa | 14.5 | tackles.home=15 | won | team split |
+
+Plus a "no-stats" sanity case (not counted in the 20): stats payload is `null` → `STATS_SETTLERS` returns `null` (NOT `manual_required` — that doesn't exist in v2). The settler test in Task 2.1a covers this; this fixture is optional.
+
+5 commits (4-row batches). After this: 80 fixture entries.
 
 ---
 
-### Task 3.4: Author 15 player fixture entries
+### Task 3.4: Author 20 player fixture entries (v2 — 5 more than v1)
 
-3-entry batches for Anytime Goalscorer, Multi Scorers, Player Shots, Marca o Assist, Goalkeeper Saves player-prop. Each entry:
+5-entry batches for: Anytime Goalscorer (5), Multi Scorers (3), Player Shots (3), First/Last/Team Goalscorer (5), Marca o Assist (2), Goalkeeper Saves player-prop (2). Each entry:
 ```json
 "scorers": [
   { "player_id": "p123", "name": "Lautaro Martinez", "minute": 23, "type": "goal" },
@@ -2226,15 +2574,24 @@ Same pattern: 5-entry batches for Corners (8), Cards (4), Shots (4), Tackles (4)
 ]
 ```
 
-5 commits. After: 95 entries.
+6 commits. After: 100 entries.
+
+Edge cases to cover (at least one each):
+- Own goal NOT credited to scorer (`type: 'own_goal'`)
+- Substitute scoring (sub minute = entry time)
+- Player on bench (no minute) — Anytime should be 'lost'
+- Multiple goals from same player → Multi Scorers true; Anytime still 'won'
+- No-scorer-data fallback returns `null` (not `'lost'`) — settler should handle empty `scorers` array
 
 ---
 
-### Task 3.5: Author 5 special fixture entries
+### Task 3.5: ~~Author 5 special fixture entries~~ — **ELIMINATED in v2**
 
-All `expected_verdict: "manual_required"` per spec §10.3 note. 1 commit.
+In v2 special markets are filtered at derive time (Phase 1.5) — no bet ever lands on a special market. Therefore no special fixtures are needed in the engine validation gate.
 
-After: 100 entries → completeness test passes.
+The derive-filter behavior is tested in `tests/db/derive-filter.test.ts` (Task 1.5.1 Step 8) — that's the proper test surface for "specials are filtered." Mixing data-layer and engine-layer concerns in a single fixture would muddy the gate.
+
+After Task 3.4: **100 entries (60 score + 20 stats + 20 player)** → completeness test passes.
 
 ---
 
@@ -2321,16 +2678,20 @@ git commit -m "refactor(cron): verify-results scoped to stats/player legs only (
 
 ### Task 4.3: Flip env flag prod + 24h monitoring
 
-Same as 4.2 but on prod. **Explicit go/no-go thresholds** (mirror Phase 2 §10.4 shadow gate):
+Same as 4.2 but on prod. **Explicit go/no-go thresholds** (mirror Phase 2 §10.4 shadow gate + v2 by-construction gates):
 
 | Metric | 24h target | Failure → action |
 |---|---|---|
 | score-only mismatch vs shadow log | ≤0.5% | revert env flag, root-cause |
 | settlement latency p50 (score legs) | ≤2 min from `events_v2.status='settled'` | investigate cron timer/lag |
 | FS call volume reduction vs Phase 0.5 baseline | ≥40% | check verify-results scoping logic |
-| pending leg backlog age p99 | ≤24h | normal (some events lack flashscore_id, expected) |
+| pending leg backlog age p99 | ≤24h | with filter-at-exposure now LIVE (Phase 1.5), pending >24h is a signal of FS data delay or filter regression — investigate |
 | alert fires (`/api/cron/alerts`) | 0 net new | investigate alert source |
-| settlement_log_shadow.mismatch=true count for stats/player legs | unchanged from Phase 2 | confirms scoping didn't break FS path |
+| `settlement_log_shadow.mismatch=true` count for stats/player legs | unchanged from Phase 2 | confirms scoping didn't break FS path |
+| **`settle.manual_required.count_24h`** (NEW v2) | **= 0** | non-zero = filter regression, P1 incident, immediate revert |
+| **`derive.filter.score_false_positive_count`** (NEW v2) | **= 0** | non-zero = score market filtered, P1 incident, revert mig 154 |
+| **0 unsettleable bets at T+14d** (NEW v2) | bets placed before cutover, observed 14d later | by-construction guarantee — non-zero indicates a class of leg the engine couldn't resolve, likely filter gap |
+| **catalog shrinkage from filter** | within 1.5–3.0% range | drift outside window suggests FS coverage shifted — review odds-api ↔ FS league matching |
 
 Run: every 6h during the 24h window:
 ```bash
@@ -2355,16 +2716,39 @@ ALTER TABLE settlement_log_shadow RENAME TO _archived_settlement_log_shadow_2026
 ```
 Or `DROP` if disk space matters.
 
-### Task 5.2: Documentation update
+### Task 5.2: Verify catalog shrinkage actual vs predicted (NEW v2)
 
-- Update spec `docs/superpowers/specs/2026-04-29-plan-d-settlement-refactor-design.md` with actual measured success criteria values.
-- Add note in `CLAUDE.md` if needed describing settlement architecture for future sessions.
+Run on prod:
+```sql
+SELECT
+  reason,
+  count(*) AS markets,
+  round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS pct
+FROM derive_legacy_from_v2_filter_diff()
+GROUP BY reason
+ORDER BY count(*) DESC;
+```
 
-### Task 5.3: Memory note
+Compare to baseline (1.5% FS-rule + ~0.9% specials = ~2.45% total). Document the actual T+30d reading in a memory note.
 
-Save memory `feedback-plan-d-outcome.md` documenting: actual mismatch %, latency, FS reduction, any gotchas, decision-driver for future Plan E (alternate stats provider) based on coverage page data.
+| Outcome | Action |
+|---|---|
+| Actual within ±0.5pp of predicted | All good. Note in memory and move on. |
+| Actual ≥1pp higher | FS coverage regressed. Investigate matching engine or check if odds-api added new sports/leagues without FS counterparts. |
+| Actual ≥1pp lower | FS coverage improved (good!) OR classifier expanded (re-check seed table). |
 
-Commit: `docs(plan-d): cleanup post-cutover, success metrics locked (Plan D done)`
+Also confirm `settle.manual_required.count_24h` health metric reads `0` for the entire 30-day window (sanity check on by-construction guarantee). Any non-zero day → root-cause memo.
+
+### Task 5.3: Documentation update
+
+- Update spec `docs/superpowers/specs/2026-04-29-plan-d-settlement-refactor-design.md` §13 with actual measured success criteria values.
+- Add note in `CLAUDE.md` describing settlement architecture (3 categories, derive filter, no `manual_required`) for future sessions.
+
+### Task 5.4: Memory note
+
+Save memory `feedback-plan-d-outcome.md` documenting: actual mismatch %, latency, FS reduction, catalog shrinkage T+30d, any gotchas, recommendations for future plans (e.g. alt stats provider if shrinkage on stats markets is hurting volume).
+
+Commit: `docs(plan-d): cleanup post-cutover, success metrics locked (Plan D v2 done)`
 
 ---
 
@@ -2379,17 +2763,20 @@ Commit: `docs(plan-d): cleanup post-cutover, success metrics locked (Plan D done
 
 ---
 
-## Effort budget recap (calendar)
+## Effort budget recap (calendar — v2)
 
 | Phase | Task count | Working days | Calendar days |
 |---|---:|---:|---:|
 | 0.5 — Baseline | 1 | 0.5 | 0.5 |
 | 1 — D.1 page | 12 | 2.0 | 2-3 |
-| 2 — D.2 engine + shadow | 5 | 1.5 + 2 obs | 3-4 |
-| 3 — Fixture authoring | 6 | 1.0 | 1 |
+| **1.5 — D.0 filter at derive (NEW v2)** | 1 | 1.0 + 1 obs | 2 |
+| 2 — D.2 engine + shadow (simpler — no SPECIAL_DISPATCHER) | 4 | 1.0 + 2 obs | 3 |
+| 3 — Fixture authoring (no specials, +5 player) | 5 | 0.75 | 1 |
 | 4 — Cutover | 3 | 1.0 | 2 (24h staging + 24h prod) |
-| 5 — Cleanup | 3 | 0.5 (T+30d) | — |
-| **Total** | **30** | **6.5 + 2 obs** | **~10 calendar days** |
+| 5 — Cleanup (+catalog shrinkage verify) | 4 | 0.5 (T+30d) | — |
+| **Total** | **30** | **6.75 + 3 obs** | **~10 calendar days** |
+
+**Net delta vs v1**: −0.5 working days (fewer engine tasks, fewer fixtures) +1 day (Phase 1.5 derive filter) = **+0.5 working days** total. The trade-off buys 100% settlement by construction.
 
 ---
 
