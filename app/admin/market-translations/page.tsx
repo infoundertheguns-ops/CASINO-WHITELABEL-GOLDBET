@@ -21,7 +21,7 @@ interface TranslationData {
 
 export default function MarketTranslationsPage() {
   const [data, setData] = useState<TranslationData | null>(null);
-  const [source, setSource] = useState<"kambi">("kambi");
+  const [source, setSource] = useState<"odds-api">("odds-api");
   const [filter, setFilter] = useState<"all" | "italian" | "english">("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -94,7 +94,7 @@ export default function MarketTranslationsPage() {
                 textTransform: "uppercase",
               }}
             >
-              KAMBI
+              ODDS-API
             </span>
           <button
             onClick={fetchData}

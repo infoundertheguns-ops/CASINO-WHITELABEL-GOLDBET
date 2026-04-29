@@ -9,8 +9,8 @@ import IppicaCoverage from "@/components/admin/market-coverage/ippica-coverage";
 import { useAdminFilters } from "@/lib/hooks/use-admin-filters";
 
 const TABS = [
-  { key: "kambi", label: "Kambi Sport", icon: "⚽", color: "#f0b429" },
-  { key: "22bet", label: "22bet Sport", icon: "🎯", color: "#f97316" },
+  { key: "odds-api", label: "Odds API Sport", icon: "⚽", color: "#f0b429" },
+  { key: "flashscore", label: "Flashscore Sport", icon: "📊", color: "#22c55e" },
   { key: "ippica", label: "Ippica", icon: "🏇", color: "#f0b429" },
 ];
 
@@ -23,7 +23,7 @@ export default function MarketCoveragePage() {
 }
 
 function MarketCoverageInner() {
-  const { filters, updateFilter } = useAdminFilters({ tab: "kambi" });
+  const { filters, updateFilter } = useAdminFilters({ tab: "odds-api" });
   const activeTab = filters.tab;
   const setActiveTab = (v: string) => updateFilter("tab", v);
 

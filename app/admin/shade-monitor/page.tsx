@@ -88,7 +88,7 @@ export default async function ShadeMonitorPage({
           Shade Monitor
         </h1>
         <p style={{ fontSize: 13, color: "var(--admin-text-muted)", marginTop: 4, marginBottom: 0 }}>
-          Rolling view of <GlossaryTerm term="shade-to-min">shade-to-min</GlossaryTerm> activity across Kambi + 22bet + Betfair <GlossaryTerm term="canonical_verified">canonical</GlossaryTerm> outcomes.
+          Rolling view of <GlossaryTerm term="shade-to-min">shade-to-min</GlossaryTerm> activity across multi-source <GlossaryTerm term="canonical_verified">canonical</GlossaryTerm> outcomes (legacy 3-source debug view).
         </p>
       </div>
 
