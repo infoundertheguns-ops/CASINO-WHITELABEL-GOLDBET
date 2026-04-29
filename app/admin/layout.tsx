@@ -21,7 +21,6 @@ const NAVIGATION: AdminNavGroup[] = [
     items: [
       { id: "bets", icon: "🎯", label: "Scommesse", badge: 4 },
       { id: "risk", icon: "🛡️", label: "Risk & Trading", badge: 5 },
-      { id: "liability", icon: "📊", label: "Liability" },
     ],
   },
   {
