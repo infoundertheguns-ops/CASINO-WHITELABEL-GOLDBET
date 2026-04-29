@@ -12,7 +12,9 @@
     "normalize:markets": "tsx scripts/normalize-markets.ts",
     "start": "next start",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:market-categories": "tsx scripts/build/export-market-categories.mjs",
+    "prebuild": "npm run build:market-categories"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
