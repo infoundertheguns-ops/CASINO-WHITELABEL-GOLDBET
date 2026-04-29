@@ -15,7 +15,7 @@ function fakeSupabase(rpcResults: any[]) {
 
 describe('matchByTrigram (v2)', () => {
   const event = {
-    id: 'e1', source: 'kambi' as const,
+    id: 'e1', source: 'flashscore' as const,
     sport: 'Tennis',
     league: 'ATP Madrid',
     country: 'Spain',

@@ -75,7 +75,7 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
             outcomes(id, name, odds, previous_odds, is_active, is_suspended)
           )
         `)
-        .eq("source", "kambi")
+        .eq("source", "odds-api")
         .eq("league_id", leagueRow.id)
         .in("status", ["prematch", "live"])
         .or(`is_live.eq.true,starts_at.gte.${cutoff}`)

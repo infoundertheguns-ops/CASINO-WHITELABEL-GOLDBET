@@ -62,14 +62,14 @@ function makeFakeClient(opts: {
 describe("runEngine", () => {
   it("matches U/O via regex and upserts canonical_key + line", async () => {
     const { client, upserts } = makeFakeClient({
-      unmapped: [{ source: "kambi", market_type: "U/O 2.5" }],
+      unmapped: [{ source: "flashscore", market_type: "U/O 2.5" }],
       verified: [],
       twobetGroups: [],
     });
     const summary = await runEngine({ client: client as any, chunkSize: 100 });
     expect(summary.matched.regex).toBe(1);
     expect(upserts[0]).toMatchObject({
-      source: "kambi",
+      source: "flashscore",
       source_market_type: "U/O 2.5",
       canonical_key: "u_o_ft",
       canonical_line: 2.5,
@@ -83,7 +83,7 @@ describe("runEngine", () => {
 
   it("regex takes priority over dictionary when both could match", async () => {
     const { client, upserts } = makeFakeClient({
-      unmapped: [{ source: "22bet", market_type: "1X2" }],
+      unmapped: [{ source: "odds-api", market_type: "1X2" }],
       verified: [],
       twobetGroups: [{ twobet_g: 1, name_it: "1x2" }],
     });
@@ -94,7 +94,7 @@ describe("runEngine", () => {
   });
 
   it("respects chunk size and reports remaining", async () => {
-    const unmapped = Array.from({ length: 10 }, (_, i) => ({ source: "kambi", market_type: `U/O ${i}.5` }));
+    const unmapped = Array.from({ length: 10 }, (_, i) => ({ source: "flashscore", market_type: `U/O ${i}.5` }));
     const { client } = makeFakeClient({ unmapped, verified: [], twobetGroups: [], chunkSize: 3 });
     const summary = await runEngine({ client: client as any, chunkSize: 3 });
     expect(summary.processed).toBe(3);

@@ -21,7 +21,7 @@ function mockAnthropicResponse(matches: any[]) {
 describe("lookupLLM", () => {
   it("returns empty result for empty batch without calling API", async () => {
     const mockFetch = vi.fn();
-    const res = await lookupLLM({ batch: [], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any);
+    const res = await lookupLLM({ batch: [], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any);
     expect(res.matches).toEqual([]);
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -33,7 +33,7 @@ describe("lookupLLM", () => {
         { input: "U/O 2.5", canonical_key: "u_o_ft", canonical_line: 2.5, confidence: 75, reasoning: "Over/Under 2.5 goals" },
       ]),
     );
-    const res = await lookupLLM({ batch: ["1X2", "U/O 2.5"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any);
+    const res = await lookupLLM({ batch: ["1X2", "U/O 2.5"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any);
     expect(res.matches).toHaveLength(2);
     expect(res.matches[0]).toMatchObject({ input: "1X2", canonical_key: "1x2_ft", confidence: 80 });
     expect(res.matches[1]).toMatchObject({ input: "U/O 2.5", canonical_key: "u_o_ft", canonical_line: 2.5 });
@@ -46,7 +46,7 @@ describe("lookupLLM", () => {
         { input: "Mercato Strano", canonical_key: "invented_canonical_ft", confidence: 70, reasoning: "guessed" },
       ]),
     );
-    const res = await lookupLLM({ batch: ["Mercato Strano"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any);
+    const res = await lookupLLM({ batch: ["Mercato Strano"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any);
     expect(res.matches[0].canonical_key).toBeNull();
     expect(res.matches[0].confidence).toBe(0);
     expect(res.matches[0].reasoning).toContain("hallucinated");
@@ -58,7 +58,7 @@ describe("lookupLLM", () => {
         { input: "1X2", canonical_key: "1x2_ft", confidence: 99, reasoning: "sure" },
       ]),
     );
-    const res = await lookupLLM({ batch: ["1X2"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any);
+    const res = await lookupLLM({ batch: ["1X2"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any);
     expect(res.matches[0].confidence).toBe(MAX_LLM_CONFIDENCE);
   });
 
@@ -71,7 +71,7 @@ describe("lookupLLM", () => {
         { status: 200 },
       ),
     );
-    const res = await lookupLLM({ batch: ["1X2"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any);
+    const res = await lookupLLM({ batch: ["1X2"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any);
     expect(res.matches[0].canonical_key).toBe("1x2_ft");
   });
 
@@ -83,20 +83,20 @@ describe("lookupLLM", () => {
       ),
     );
     await expect(
-      lookupLLM({ batch: ["x"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any),
+      lookupLLM({ batch: ["x"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any),
     ).rejects.toThrow(/invalid JSON/);
   });
 
   it("throws on HTTP error", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("rate limited", { status: 429 }));
     await expect(
-      lookupLLM({ batch: ["x"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any),
+      lookupLLM({ batch: ["x"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any),
     ).rejects.toThrow(/LLM HTTP 429/);
   });
 
   it("throws when apiKey is missing", async () => {
     await expect(
-      lookupLLM({ batch: ["x"], canonicals: CANONICALS, source: "22bet", apiKey: "" } as any),
+      lookupLLM({ batch: ["x"], canonicals: CANONICALS, source: "odds-api", apiKey: "" } as any),
     ).rejects.toThrow(/apiKey is required/);
   });
 
@@ -106,7 +106,7 @@ describe("lookupLLM", () => {
         { input: "Segna Mario Rossi", canonical_key: null, canonical_line: null, confidence: 0, reasoning: "player prop, no canonical" },
       ]),
     );
-    const res = await lookupLLM({ batch: ["Segna Mario Rossi"], canonicals: CANONICALS, source: "kambi", apiKey: "sk-test" }, mockFetch as any);
+    const res = await lookupLLM({ batch: ["Segna Mario Rossi"], canonicals: CANONICALS, source: "flashscore", apiKey: "sk-test" }, mockFetch as any);
     expect(res.matches[0].canonical_key).toBeNull();
     expect(res.matches[0].confidence).toBe(0);
     expect(res.matches[0].canonical_line).toBeNull();
@@ -114,7 +114,7 @@ describe("lookupLLM", () => {
 
   it("forwards cache_control in the API request body", async () => {
     const mockFetch = vi.fn().mockResolvedValue(mockAnthropicResponse([]));
-    await lookupLLM({ batch: ["1X2"], canonicals: CANONICALS, source: "22bet", apiKey: "sk-test" }, mockFetch as any);
+    await lookupLLM({ batch: ["1X2"], canonicals: CANONICALS, source: "odds-api", apiKey: "sk-test" }, mockFetch as any);
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.system[0].cache_control).toEqual({ type: "ephemeral" });
   });

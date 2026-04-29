@@ -3,7 +3,7 @@ import { matchByRegex } from '@/lib/normalize/events/regex';
 import type { EventToNormalize, FlashscoreCandidate } from '@/lib/normalize/events/types';
 
 const baseEvent: EventToNormalize = {
-  id: 'e1', source: 'kambi', sport: 'Calcio', league: 'Serie A', country: 'Italy',
+  id: 'e1', source: 'flashscore', sport: 'Calcio', league: 'Serie A', country: 'Italy',
   home_team: 'Milan', away_team: 'Inter',
   starts_at: '2026-04-22T20:00:00Z', flashscore_id: null,
 };

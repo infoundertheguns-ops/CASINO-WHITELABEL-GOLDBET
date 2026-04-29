@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2c. Force-end prematch events already past start time ──
-  // Covers 22bet (and any other source) that fails to transition prematch → live
+  // Covers any source that fails to transition prematch → live
   // when the event starts and just keeps updating the stale prematch row.
   // 30min buffer after starts_at gives the scraper a reasonable window.
   let prematchPastStartEnded = 0;

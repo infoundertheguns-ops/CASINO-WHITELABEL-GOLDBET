@@ -41,7 +41,7 @@ describe("normalizePeriod", () => {
   });
 
   // Wave 20: 11T/12T are now basketball aggregate halves convention
-  // (Q1+Q2 = 11T = 1h, Q3+Q4 = 12T = 2h — 22bet NBA convention).
+  // (Q1+Q2 = 11T = 1h, Q3+Q4 = 12T = 2h — legacy NBA convention).
   it("maps basketball aggregate-halves 11T/12T to 1h/2h (Wave 20)", () => {
     expect(normalizePeriod("11T")).toBe("1h");
     expect(normalizePeriod("12T")).toBe("2h");

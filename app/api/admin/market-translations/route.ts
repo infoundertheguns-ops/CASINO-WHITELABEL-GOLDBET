@@ -98,7 +98,7 @@ function isItalian(marketType: string): boolean {
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  const source = sp.get("source") || "kambi";
+  const source = sp.get("source") || "odds-api";
 
   const supabase = createAdminClient();
 

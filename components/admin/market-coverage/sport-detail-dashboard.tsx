@@ -60,8 +60,8 @@ export default function SportDetailDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const source = searchParams.get("source") || "kambi";
-  const sourceLabel = source === "22bet" ? "22bet" : "Kambi";
+  const source = searchParams.get("source") || "odds-api";
+  const sourceLabel = source === "flashscore" ? "Flashscore" : "Odds API";
 
   const [sportName, setSportName] = useState<string>("");
   const [leagues, setLeagues] = useState<LeagueRow[]>([]);

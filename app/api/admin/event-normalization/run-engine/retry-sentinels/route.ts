@@ -16,8 +16,8 @@ import type { EventToNormalize } from '@/lib/normalize/events/types';
 // This endpoint targets exactly those rows, with safety filters to avoid
 // burning tokens on unmappable placeholders:
 //   - only rows created within the last `max_age_days` (default 7)
-//   - skip home_team IN ('Home', 'Home (Special bets)') — 22bet placeholder
-//   - skip home_team ending in ' +' — 22bet combined-team synthetic events
+//   - skip home_team IN ('Home', 'Home (Special bets)') — legacy source placeholder
+//   - skip home_team ending in ' +' — legacy combined-team synthetic events
 //
 // Auth: x-cron-key header OR any admin-cookie GET caller via same pattern as
 // run-engine (source='sentinel_retry_auto' or 'sentinel_retry_manual').

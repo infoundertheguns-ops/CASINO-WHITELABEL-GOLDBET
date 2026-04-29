@@ -75,7 +75,7 @@ interface LiveCoverageData {
 
 // ═══ MAIN COMPONENT ═══
 
-export default function CoverageDashboard({ source = "kambi" }: { source?: string } = {}) {
+export default function CoverageDashboard({ source = "odds-api" }: { source?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -94,7 +94,7 @@ export default function CoverageDashboard({ source = "kambi" }: { source?: strin
   const refreshRef = useRef<NodeJS.Timeout | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string>("");
 
-  const sourceLabel = source === "22bet" ? "22bet" : "Kambi";
+  const sourceLabel = source === "flashscore" ? "Flashscore" : "Odds API";
 
   // ─── Load stats ───
   const loadStats = useCallback(async () => {

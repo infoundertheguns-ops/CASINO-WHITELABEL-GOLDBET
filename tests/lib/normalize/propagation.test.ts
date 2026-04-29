@@ -3,7 +3,7 @@ import { propagate } from "@/lib/normalize/propagation";
 import type { NormalizationRow } from "@/lib/normalize/types";
 
 const KAMBI_VERIFIED: NormalizationRow = {
-  source: "kambi",
+  source: "flashscore",
   source_market_type: "Triple Chance",
   canonical_key: "triple_chance_ft",
   canonical_line: null,
@@ -15,9 +15,9 @@ const KAMBI_VERIFIED: NormalizationRow = {
 };
 
 describe("propagate — literal-string strategy", () => {
-  it("propagates from verified kambi row to unmapped 22bet row with same string", () => {
+  it("propagates from verified flashscore row to unmapped odds-api row with same string", () => {
     const result = propagate({
-      source: "22bet",
+      source: "odds-api",
       source_market_type: "Triple Chance",
       verifiedRows: [KAMBI_VERIFIED],
     });
@@ -32,7 +32,7 @@ describe("propagate — literal-string strategy", () => {
 
   it("returns null when no verified row matches literally", () => {
     const result = propagate({
-      source: "22bet",
+      source: "odds-api",
       source_market_type: "Another Market",
       verifiedRows: [KAMBI_VERIFIED],
     });
@@ -42,7 +42,7 @@ describe("propagate — literal-string strategy", () => {
   it("does not propagate from unverified rows", () => {
     const unverified: NormalizationRow = { ...KAMBI_VERIFIED, verified: false };
     const result = propagate({
-      source: "22bet",
+      source: "odds-api",
       source_market_type: "Triple Chance",
       verifiedRows: [unverified],
     });
@@ -51,7 +51,7 @@ describe("propagate — literal-string strategy", () => {
 
   it("skips self-source (would only match literally on itself)", () => {
     const result = propagate({
-      source: "kambi",
+      source: "flashscore",
       source_market_type: "Triple Chance",
       verifiedRows: [KAMBI_VERIFIED],
     });

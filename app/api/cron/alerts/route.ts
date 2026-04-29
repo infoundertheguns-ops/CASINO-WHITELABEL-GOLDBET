@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ alerts, error: "health_data_missing" });
     }
 
-    // ── Check 1: Kambi Live ──
-    const scraperLiveScore = scores.subsystems?.kambi_live?.score ?? 100;
+    // ── Check 1: Odds-API Live ──
+    const scraperLiveScore = scores.subsystems?.oddsapi_live?.score ?? scores.subsystems?.kambi_live?.score ?? 100;
     const sent1 = await checkAndTransition(
       "scraper_live",
       scraperLiveScore,
@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
     );
     if (sent1) alerts.push(`scraper_live: ${scraperLiveScore}`);
 
-    // ── Check 2: Kambi Prematch ──
-    const scraperPrematchScore = scores.subsystems?.kambi_prematch?.score ?? 100;
+    // ── Check 2: Odds-API Prematch ──
+    const scraperPrematchScore = scores.subsystems?.oddsapi_prematch?.score ?? scores.subsystems?.kambi_prematch?.score ?? 100;
     const sent2 = await checkAndTransition(
       "scraper_prematch",
       scraperPrematchScore,
@@ -90,18 +90,18 @@ export async function POST(req: NextRequest) {
     );
     if (sent4) alerts.push(`redis_pipeline: ${redisScore}`);
 
-    // ── Check 5: Kambi Scraper ──
-    const kambiPrematch = metrics.events?.kambi_prematch ?? 0;
-    const kambiLive = metrics.events?.kambi_live ?? 0;
-    const kambiTotal = kambiPrematch + kambiLive;
+    // ── Check 5: Odds-API Ingester ──
+    const oddsApiPrematch = metrics.events?.oddsapi_prematch ?? metrics.events?.kambi_prematch ?? 0;
+    const oddsApiLive = metrics.events?.oddsapi_live ?? metrics.events?.kambi_live ?? 0;
+    const oddsApiTotal = oddsApiPrematch + oddsApiLive;
     const sent5 = await checkBinaryTransition(
-      "kambi_scraper",
-      kambiTotal > 0,
-      "KAMBI SCRAPER",
-      `Nessun evento Kambi in DB (prematch: ${kambiPrematch}, live: ${kambiLive})`,
-      `Kambi dati tornati: ${kambiTotal} eventi`
+      "odds_api_ingester",
+      oddsApiTotal > 0,
+      "ODDS-API INGESTER",
+      `Nessun evento Odds-API in DB (prematch: ${oddsApiPrematch}, live: ${oddsApiLive})`,
+      `Odds-API dati tornati: ${oddsApiTotal} eventi`
     );
-    if (sent5) alerts.push(`kambi_scraper: ${kambiTotal > 0 ? "up" : "down"}`);
+    if (sent5) alerts.push(`odds_api_ingester: ${oddsApiTotal > 0 ? "up" : "down"}`);
 
     // ── Check 6: Flashscore Scraper ──
     const supabase = createClient(
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
       scraper_live: scraperLiveScore,
       scraper_prematch: scraperPrematchScore,
       redis: redisScore,
-      kambi_events: kambiTotal,
+      odds_api_events: oddsApiTotal,
       flashscore_recent: fsCount,
       settlement_backlog: backlog,
       market_coverage: coverageScores,

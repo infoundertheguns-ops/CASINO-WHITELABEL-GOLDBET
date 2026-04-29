@@ -70,7 +70,7 @@ function fakeSupabase(config: {
 
 describe('normalizeEvent', () => {
   const base = {
-    id: 'evt1', source: 'kambi' as const,
+    id: 'evt1', source: 'flashscore' as const,
     sport: 'Calcio', league: 'Serie A', country: 'Italy',
     home_team: 'Milan', away_team: 'Inter', starts_at: '2026-04-22T20:00:00Z',
     flashscore_id: null,

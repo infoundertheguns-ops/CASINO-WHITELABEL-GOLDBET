@@ -667,7 +667,7 @@ const MARKET_PATTERNS: MarketPattern[] = [
 // Dispatch order:
 //   1. Auto-VOID regex (unchanged) — fast path for unsettlable markets.
 //   2. MARKET_PATTERNS regex (unchanged) — fast path for Kambi Italian naming
-//      and known 22bet verbose forms.
+//      and known legacy verbose forms.
 //   3. Canonical fallback (Phase B) — looks up (source, market_type) in
 //      market_normalization. If a trusted mapping exists and its canonical_key
 //      is registered in CANONICAL_TO_SETTLER, dispatch to that settler.
@@ -1844,7 +1844,7 @@ export async function settleEvent(
       } else {
         const line = resolved.line ?? market.line ?? undefined;
         // If dispatch came through canonical fallback, translate the outcome
-        // name into a form the settler recognises (e.g. 22bet "Si" → "Sì").
+        // name into a form the settler recognises (e.g. legacy "Si" → "Sì").
         // For regex-resolved markets (Kambi Italian) we pass the raw name —
         // those settlers already understand the native verbose strings.
         const outcomeInput = resolved.canonicalKey

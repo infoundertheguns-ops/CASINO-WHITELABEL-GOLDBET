@@ -33,14 +33,14 @@ export async function GET() {
     const { count: backlog } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "finished");
 
     // ── 2. Stuck events: finished > 30 min ago ──
     const { data: stuckEvents } = await supabase
       .from("events")
       .select("id, home_team, away_team, starts_at, updated_at, sport_id, sports!inner(name)")
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "finished")
       .lt("updated_at", thirtyMinAgo)
       .order("updated_at", { ascending: true })
@@ -50,21 +50,21 @@ export async function GET() {
     const { count: settled1h } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .gte("updated_at", oneHourAgo);
 
     const { count: settled6h } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .gte("updated_at", sixHoursAgo);
 
     const { count: settled24h } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .gte("updated_at", twentyFourHoursAgo);
 
@@ -81,7 +81,7 @@ export async function GET() {
     const { count: fsMatched24h } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .not("flashscore_id", "is", null)
       .gte("updated_at", twentyFourHoursAgo);
@@ -90,7 +90,7 @@ export async function GET() {
     const { data: recentSettled } = await supabase
       .from("events")
       .select("id, home_team, away_team, score_home, score_away, updated_at, sports!inner(name)")
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .order("updated_at", { ascending: false })
       .limit(20);
@@ -99,7 +99,7 @@ export async function GET() {
     const { data: backlogBySport } = await supabase
       .from("events")
       .select("id, sports!inner(name)")
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "finished");
 
     const sportBacklog: Record<string, number> = {};
@@ -112,7 +112,7 @@ export async function GET() {
     const { data: recentEnded } = await supabase
       .from("events")
       .select("starts_at, updated_at")
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .order("updated_at", { ascending: false })
       .limit(100);
@@ -153,7 +153,7 @@ export async function GET() {
     const { data: latestEnded } = await supabase
       .from("events")
       .select("updated_at")
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .eq("status", "ended")
       .order("updated_at", { ascending: false })
       .limit(1)

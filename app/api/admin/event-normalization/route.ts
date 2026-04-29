@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   }
   if (action === 'coverage') {
     // Review #4 P2-E + Sprint 1: overall + per-source coverage % via mig 117 RPC.
-    // Default counts active events only (prematch+live) and excludes 22bet
+    // Default counts active events only (prematch+live) and excludes legacy synthetics
     // placeholder synthetics. ?include_ended=true brings back historical view.
     const windowDays = Math.min(90, Math.max(1, Number(url.searchParams.get('window_days') ?? 7)));
     const includeEnded = url.searchParams.get('include_ended') === 'true';

@@ -3,7 +3,7 @@
 // Shared types for event normalization 5-stage pipeline.
 // Mirrors lib/normalize/types.ts (markets) conventions.
 
-export type EventSource = 'kambi' | '22bet';
+export type EventSource = 'flashscore' | 'odds-api';
 
 export type MatchStage =
   | 'flashscore_native'

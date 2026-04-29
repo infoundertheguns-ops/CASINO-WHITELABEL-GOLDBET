@@ -7,9 +7,8 @@ import React from "react";
 // but live under the shared admin/ui package so they can be used everywhere.
 
 export const SOURCE_COLORS: Record<string, string> = {
-  kambi: "#8b5cf6",
-  "22bet": "#f97316",
-  betfair: "#eab308",
+  flashscore: "#8b5cf6",
+  "odds-api": "#f97316",
 };
 
 export function SourceBadge({ source, size = "sm" }: { source: string; size?: "sm" | "md" }) {

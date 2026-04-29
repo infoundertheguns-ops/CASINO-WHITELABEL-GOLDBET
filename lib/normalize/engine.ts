@@ -19,6 +19,7 @@ export async function runEngine(args: RunEngineArgs): Promise<EngineSummary> {
   const chunkSize = args.chunkSize ?? 500;
   const start = Date.now();
 
+  // Legacy: twobet_market_groups DB table, retained for historical normalization rows.
   const { data: canonicals } = await client.from("canonical_markets").select("*");
   const { data: twobetGroups } = await client.from("twobet_market_groups").select("twobet_g, name_it");
   const { data: verifiedRows } = await client

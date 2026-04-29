@@ -3,7 +3,7 @@ import { buildPrompt, parseResponse, toMatchResult } from '@/lib/normalize/event
 
 describe('llm-core', () => {
   const event = {
-    id: 'e1', source: 'kambi' as const, sport: 'Tennis', league: 'ATP', country: 'Spain',
+    id: 'e1', source: 'flashscore' as const, sport: 'Tennis', league: 'ATP', country: 'Spain',
     home_team: 'Djokovic', away_team: 'Alcaraz',
     starts_at: '2026-04-22T15:00:00Z', flashscore_id: null,
   };

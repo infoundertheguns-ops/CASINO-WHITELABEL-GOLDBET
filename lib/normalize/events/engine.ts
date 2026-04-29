@@ -159,8 +159,8 @@ export async function normalizeEvent(
   // Errors are intentionally swallowed: this is an opportunistic enrichment,
   // not a load-bearing step in the normalization pipeline.
   //
-  // TODO: integrate to scraper push pipeline (kambi-scraper /
-  // 22bet-scraper / betfair-scraper) so freshly-ingested events get linked
+  // TODO: integrate to scraper push pipeline (flashscore /
+  // odds-api ingester) so freshly-ingested events get linked
   // before the next engine run.
   try {
     await supabase.rpc('assign_event_cross_source_canonical_id', {

@@ -2,7 +2,7 @@
 // Parallel to lib/normalize/types.ts but targets outcome canonicalization
 // (source_outcome_name → canonical_outcome_key within a canonical_key).
 
-export type OutcomeSource = "kambi" | "22bet" | "betfair";
+export type OutcomeSource = "flashscore" | "odds-api";
 
 export interface OutcomeRow {
   id: number;

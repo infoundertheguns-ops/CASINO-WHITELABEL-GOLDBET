@@ -445,7 +445,7 @@ export function useSportsbook() {
           markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
             outcomes(id, name, odds, previous_odds, is_active, is_suspended))
         `)
-        .eq("source", "kambi")
+        .eq("source", "odds-api")
         .in("status", ["prematch", "live"]);
 
       const { data, error: fetchErr } = await query

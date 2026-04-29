@@ -1,7 +1,7 @@
 // Canonical-driven settlement dispatcher (Phase B + C).
 //
 // When the regex-based MARKET_PATTERNS in settlement.ts fail to match a
-// source-specific market name (e.g. 22bet "1X2 - 1T" vs Kambi "1X2 - 1° Tempo"),
+// source-specific market name (e.g. legacy variants "1X2 - 1T" vs "1X2 - 1° Tempo"),
 // this module provides a fallback lookup via market_normalization +
 // outcome_normalization / outcome_dictionary.
 //

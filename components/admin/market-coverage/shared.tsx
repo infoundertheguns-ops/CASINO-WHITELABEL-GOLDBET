@@ -87,7 +87,7 @@ export function ExportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export async function fetchApi(action: string, params: Record<string, string> = {}, source: string = "kambi") {
+export async function fetchApi(action: string, params: Record<string, string> = {}, source: string = "odds-api") {
   const sp = new URLSearchParams({ action, source, ...params });
   const res = await fetch(`/api/admin/market-coverage?${sp}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);

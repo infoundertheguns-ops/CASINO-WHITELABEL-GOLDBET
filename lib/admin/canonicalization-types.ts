@@ -14,7 +14,7 @@ export type SignalState =
 export type LevelColor = 'green' | 'yellow' | 'red' | 'gray';
 
 export interface SourceEventCard {
-  source: 'kambi' | '22bet' | 'betfair' | 'unknown';
+  source: string; // legacy: kambi|22bet|betfair|unknown; current: flashscore|odds-api
   external_id: string;
   home_team: string;
   away_team: string;
@@ -83,11 +83,7 @@ export interface OverviewResponse {
   level_2_leagues: LevelOverview & {
     identified: number;
     unknown: number;
-    per_source: {
-      kambi: { unknown: number };
-      '22bet': { unknown: number };
-      betfair: { unknown: number };
-    };
+    per_source: Record<string, { unknown: number }>;
   };
   level_3_events: LevelOverview & {
     total_active_7d: number;
@@ -105,7 +101,7 @@ export interface OverviewResponse {
     // meaningful coverage number, undiluted by structural source-only events.
     mappable_total: number;
     coverage_among_mappable_pct: number;
-    per_source: Record<'kambi' | '22bet' | 'betfair', { total: number; mapped: number; pct: number }>;
+    per_source: Record<string, { total: number; mapped: number; pct: number }>;
   };
   level_4_markets: LevelOverview & { canonical: number };
   level_5_outcomes: LevelOverview & { total_distinct: number; canonical_seed: number };

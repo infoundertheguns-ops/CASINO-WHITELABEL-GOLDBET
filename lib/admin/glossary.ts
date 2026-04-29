@@ -25,19 +25,19 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   candidate_delta: {
     label: "candidate delta",
     description:
-      "Differenza percentuale tra la quota Kambi e la quota consenso (22bet/Betfair). Se > soglia, l'outcome è un outlier da rivedere.",
+      "Differenza percentuale tra la quota di una fonte e la quota consenso calcolata sulle altre. Se > soglia, l'outcome è un outlier da rivedere.",
     seeAlso: ["consensus"],
   },
   consensus: {
     label: "consensus",
     description:
-      "Quota di riferimento calcolata come mediana di 22bet e Betfair (o solo di uno se l'altro manca). Non include Kambi per evitare feedback loop.",
+      "Quota di riferimento calcolata come mediana fra le fonti disponibili (escluso il provider valutato per evitare feedback loop).",
     seeAlso: ["candidate_delta"],
   },
   "shade-to-min": {
     label: "shade-to-min",
     description:
-      "Strategia di risk management: quando una quota Kambi è outlier (candidate_delta sopra soglia e canonical_verified), la sostituisce con il minimo tra le altre fonti.",
+      "Strategia di risk management: quando una quota è outlier (candidate_delta sopra soglia e canonical_verified), la sostituisce con il minimo tra le altre fonti.",
     seeAlso: ["candidate_delta", "canonical_verified"],
   },
   extracted_by: {
@@ -48,7 +48,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   canonical_key: {
     label: "canonical_key",
     description:
-      "Chiave canonica unificata di un mercato. Tutti i source_market_type equivalenti (Kambi, 22bet, Betfair) puntano allo stesso canonical_key.",
+      "Chiave canonica unificata di un mercato. Tutti i source_market_type equivalenti delle varie fonti puntano allo stesso canonical_key.",
     seeAlso: ["canonical_verified"],
   },
   canonical_verified: {
@@ -79,7 +79,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   source_market_type: {
     label: "source_market_type",
     description:
-      "Stringa grezza del tipo di mercato come restituita dalla fonte (es: 'Vincente Incontro' per Kambi, 'Team Total - Over/Under' per 22bet).",
+      "Stringa grezza del tipo di mercato come restituita dalla fonte (es: 'Vincente Incontro' o 'Team Total - Over/Under').",
   },
   period: {
     label: "period",

@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 // ═══════════════════════════════════════════════════
-// CRON: Consensus snapshot — Kambi vs 22bet outlier detection
+// CRON: Consensus snapshot — cross-source outlier detection
 // - Matches cross-source event pairs by normalized team names + hour
 // - Compares current odds on common (market_type, outcome_name)
 // - Upserts outliers exceeding threshold (default 15%) to consensus_snapshots

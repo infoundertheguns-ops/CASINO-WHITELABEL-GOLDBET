@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
         const buf = snapshots?.[source];
         if (buf && buf.length > 0) {
           const latest = buf[buf.length - 1];
-          const gb = latest?.kambi;
+          const gb = latest?.["odds-api"] ?? latest?.kambi; // legacy fallback
           if (gb) {
             const cycleField = type === "live" ? gb.last_live_cycle : gb.last_prematch_cycle;
             const cycleAge = cycleField
@@ -240,8 +240,8 @@ export async function POST(req: NextRequest) {
         return { connected: scraperAlive };
       };
 
-      const scraperLive = buildScraperInfo("kambi", "live");
-      const scraperPrematch = buildScraperInfo("kambi", "prematch");
+      const scraperLive = buildScraperInfo("odds-api", "live");
+      const scraperPrematch = buildScraperInfo("odds-api", "prematch");
 
       // Redis info
       let redisInfo: RedisInfo = { connected: false };

@@ -17,12 +17,12 @@ import { isItalian } from "@/lib/admin/market-language-heuristic";
 //  - dead `suggest` endpoint removed (spec O).
 // ═══════════════════════════════════════════════════
 
-const VALID_SOURCES = ["kambi", "22bet", "betfair"];
+const VALID_SOURCES = ["flashscore", "odds-api"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const action = sp.get("action") || "list";
-  const source = sp.get("source") || "kambi";
+  const source = sp.get("source") || "odds-api";
 
   if (source !== "all" && !VALID_SOURCES.includes(source)) {
     return NextResponse.json({ error: "Invalid source" }, { status: 400 });

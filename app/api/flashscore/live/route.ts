@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     .select(
       "id, external_id, home_team, away_team, score_home, score_away, starts_at, period, live_data, flashscore_id, sports!inner(name)"
     )
-    .eq("source", "kambi")
+    .eq("source", "odds-api")
     .eq("is_live", true)
     .eq("status", "live");
 
@@ -198,17 +198,17 @@ async function applyEnrichment(
   }
   if (ldChanged) update.live_data = mergedLd;
 
-  // score overwrite (only if Kambi missing or clearly game-points for tennis)
+  // score overwrite (only if upstream missing or clearly game-points for tennis)
   const isTennisLike = ["tennis", "tennis_tavolo", "tennis tavolo", "volley", "volleyball", "badminton"].includes(
     sport.toLowerCase()
   );
-  const kambiLikelyWrong =
+  const upstreamLikelyWrong =
     isTennisLike &&
     ev.score_home != null &&
     (ev.score_home >= 15 || ev.score_away! >= 15); // tennis sets rarely >= 15
 
   if (fs.scoreHome != null && fs.scoreAway != null) {
-    if (ev.score_home == null || ev.score_away == null || kambiLikelyWrong) {
+    if (ev.score_home == null || ev.score_away == null || upstreamLikelyWrong) {
       if (fs.scoreHome !== ev.score_home) update.score_home = fs.scoreHome;
       if (fs.scoreAway !== ev.score_away) update.score_away = fs.scoreAway;
     }

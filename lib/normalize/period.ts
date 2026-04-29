@@ -9,7 +9,7 @@ import type { Period } from "./types";
 // because JS regex is leftmost-first for alternations at the same position.
 const HALF_1 = /\b11\s*T\b|\b1\s*T\b|\b1°\s*tempo\b|\bprimo\s*tempo\b|\b1°\s*quarto\b|\bprimo\s*quarto\b|\b1°\s*periodo\b|\bprimo\s*periodo\b/i;
 const HALF_2 = /\b12\s*T\b|\b2\s*T\b|\b2°\s*tempo\b|\bsecondo\s*tempo\b|\b2°\s*quarto\b|\bsecondo\s*quarto\b|\b2°\s*periodo\b|\bsecondo\s*periodo\b/i;
-// Periods 3 and 4 are used by basketball / hockey / volleyball via 22bet "3T","4T" suffixes.
+// Periods 3 and 4 are used by basketball / hockey / volleyball via legacy "3T","4T" suffixes.
 const HALF_3 = /\b3\s*T\b|\b3°\s*tempo\b|\bterzo\s*tempo\b|\b3°\s*quarto\b|\bterzo\s*quarto\b|\b3°\s*periodo\b|\bterzo\s*periodo\b/i;
 const HALF_4 = /\b4\s*T\b|\b4°\s*tempo\b|\bquarto\s*tempo\b|\b4°\s*quarto\b|\bquarto\s*quarto\b|\b4°\s*periodo\b|\bquarto\s*periodo\b/i;
 

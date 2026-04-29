@@ -29,7 +29,7 @@ function fakeSupabase(opts: {
 
 describe('matchByPropagation', () => {
   const base = {
-    id: 'e1', source: 'kambi' as const, sport: 'Calcio', league: null,
+    id: 'e1', source: 'flashscore' as const, sport: 'Calcio', league: null,
     starts_at: '2026-04-22T20:00:00Z', flashscore_id: null,
   };
 

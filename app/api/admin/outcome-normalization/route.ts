@@ -15,8 +15,8 @@ import { runOutcomeEngine } from "@/lib/normalize/outcome/engine";
 //  - canonicals action uses mig 113 RPC (in-use canonicals + count)
 // ═══════════════════════════════════════════════════
 
-const VALID_SOURCES = ["kambi", "22bet", "betfair", "all"];
-const VALID_WRITABLE_SOURCES = ["kambi", "22bet", "betfair"];
+const VALID_SOURCES = ["flashscore", "odds-api", "all"];
+const VALID_WRITABLE_SOURCES = ["flashscore", "odds-api"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;

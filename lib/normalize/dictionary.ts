@@ -1,8 +1,11 @@
 import type { CanonicalMarket, Source, StageResult } from "./types";
 
-// Kambi-specific: italian form → base_key. Period is detected from trailing fragment via caller.
-// Entries must be lowercased for matching.
-const KAMBI_ITALIAN_MAP: Record<string, string> = {
+// Legacy market dictionary maps from the deprecated kambi/22bet pipelines.
+// Retained as historical reference only — the active source set is
+// flashscore | odds-api (see ./types.ts), neither of which uses this lookup.
+// New pipeline: market normalization is handled at ingestion in
+// services/odds-api-ingester. This function is a no-op for current sources.
+const LEGACY_KAMBI_ITALIAN_MAP: Record<string, string> = {
   "1x2": "1x2",
   "dc": "dc",
   "gg/ng": "gg_ng",
@@ -13,9 +16,7 @@ const KAMBI_ITALIAN_MAP: Record<string, string> = {
   "testa a testa": "h2h",
 };
 
-// 22bet twobet_g code → base_key map (from Kambi API documentation + 22bet twobet_market_groups).
-// These are the most common mappings; the DB table is authoritative for lookup.
-const TWOBET_G_MAP: Record<number, string> = {
+const LEGACY_TWOBET_G_MAP: Record<number, string> = {
   1: "1x2",
   8: "dc",
   14: "odd_even",
@@ -35,18 +36,19 @@ export interface LookupArgs {
 }
 
 export function lookupDictionary(args: LookupArgs): StageResult | null {
-  const { source, source_market_type, canonicals, twobetGroups } = args;
+  const { source, source_market_type, canonicals } = args;
   const needle = source_market_type.trim().toLowerCase();
 
   let base_key: string | undefined;
 
-  if (source === "22bet") {
-    // Exact match on name_it (case-insensitive)
-    const group = twobetGroups.find((g) => g.name_it.toLowerCase() === needle);
-    if (group) base_key = TWOBET_G_MAP[group.twobet_g];
-  } else if (source === "kambi") {
-    base_key = KAMBI_ITALIAN_MAP[needle];
+  // Active sources (flashscore, odds-api) bypass this legacy dictionary;
+  // markets are normalized by the odds-api ingester / flashscore parser.
+  if (source === "flashscore" || source === "odds-api") {
+    base_key = LEGACY_KAMBI_ITALIAN_MAP[needle];
   }
+
+  // Suppress unused-warnings: legacy maps retained for historical reference.
+  void LEGACY_TWOBET_G_MAP;
 
   if (!base_key) return null;
 

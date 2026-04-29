@@ -237,13 +237,8 @@ export async function POST(req: NextRequest) {
   const action = sp.get("action");
 
   if (action === "sync") {
-    // Proxy to the cron endpoint
-    const resp = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/cron/sync-twobet-catalog`, {
-      method: "POST",
-      headers: { "x-cron-key": process.env.CRON_SECRET || "" },
-    });
-    const body = await resp.json().catch(() => ({}));
-    return NextResponse.json(body, { status: resp.status });
+    // Legacy sync proxy removed (cron sync-twobet-catalog deleted in T3 cleanup).
+    return NextResponse.json({ error: "sync action no longer supported" }, { status: 410 });
   }
 
   // Upsert normalization row

@@ -1,4 +1,4 @@
-export type Source = 'kambi' | '22bet';
+export type Source = 'flashscore' | 'odds-api';
 export type Period = 'ft' | '1h' | '2h' | '3h' | '4h' | 'et' | 'etp' | 'regular_time';
 export type ExtractedBy = 'manual' | 'regex' | 'dictionary' | 'propagation' | 'fuzzy' | 'llm';
 

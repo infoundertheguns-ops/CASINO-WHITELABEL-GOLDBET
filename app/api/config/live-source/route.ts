@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 const CONFIG_KEY = "active_live_source";
-const VALID_SOURCES = ["kambi"];
+const VALID_SOURCES = ["odds-api"];
 
 function getServiceClient() {
   return createClient(
@@ -22,10 +22,10 @@ export async function GET() {
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ source: "kambi" });
+    return NextResponse.json({ source: "odds-api" });
   }
 
-  const source = typeof data.value === "string" ? data.value : "kambi";
+  const source = typeof data.value === "string" ? data.value : "odds-api";
   return NextResponse.json({ source });
 }
 

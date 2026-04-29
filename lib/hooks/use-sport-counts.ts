@@ -69,7 +69,7 @@ export function useSportCounts(timeFilter: TimeFilter = "all") {
       let query = supabase
         .from("events")
         .select("sport_id, sports(id, name, slug, icon, sort_order)", { count: "exact" })
-        .eq("source", "kambi")
+        .eq("source", "odds-api")
         .in("status", ["prematch", "live"]);
 
       const range = getTimeFilterRange(timeFilter);
@@ -142,7 +142,7 @@ export function useSportCounts(timeFilter: TimeFilter = "all") {
     query = supabase
       .from("events")
       .select("league_id, leagues(id, name, slug, country)")
-      .eq("source", "kambi")
+      .eq("source", "odds-api")
       .in("status", ["prematch", "live"])
       .eq("sport_id", sport.id);
 

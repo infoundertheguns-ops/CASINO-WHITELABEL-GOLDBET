@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // ═══ GET — Market Coverage Report ═══
-// Query params: action=stats|event-detail|sport-leagues|league-events|live-summary, source=kambi
+// Query params: action=stats|event-detail|sport-leagues|league-events|live-summary, source=odds-api
 
-const VALID_SOURCES = ["kambi", "22bet"];
+const VALID_SOURCES = ["flashscore", "odds-api"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const action = sp.get("action") || "stats";
-  const source = sp.get("source") || "kambi";
+  const source = sp.get("source") || "odds-api";
 
   if (!VALID_SOURCES.includes(source)) {
     return NextResponse.json({ error: "Invalid source" }, { status: 400 });
