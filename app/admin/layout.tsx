@@ -32,7 +32,6 @@ const NAVIGATION: AdminNavGroup[] = [
       { id: "kiosk-vouchers", icon: "💸", label: "Voucher Cashout" },
       { id: "financial", icon: "💹", label: "Financial" },
       { id: "home-content", icon: "🏠", label: "Home CMS" },
-      { id: "fixtures", icon: "📅", label: "Fixtures" },
     ],
   },
   {
@@ -58,7 +57,6 @@ const TITLES: Record<string, string> = {
   financial: "Financial Report",
   "canonical-markets": "Catalogo Canonical Markets",
   "home-content": "Home CMS",
-  fixtures: "Fixtures",
   "agent-bets": "Scommesse",
   "agent-wallet": "Wallet",
   "agent-network": "Rete Agenti",
