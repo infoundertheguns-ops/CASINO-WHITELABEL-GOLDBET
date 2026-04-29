@@ -71,6 +71,7 @@ if (ENABLED_BOOKMAKERS.length === 0) {
   // Fallback default — matches the verified-working selection from POC Day 2.
   ENABLED_BOOKMAKERS.push(
     'Bet365', 'BetWinner', 'BetUK', 'Stoiximan', 'Pamestoixima',
-    '18bet', 'paf', 'Stake',
+    '18bet', 'paf', 'Stake', 'LeoVegas', 'Unibet',
+    'DraftKings', '1xbet', 'Coral', 'Ladbrokes', '888Sport',
   );
 }
