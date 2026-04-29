@@ -3,6 +3,8 @@ import type { ApiEvent } from './types.js';
 export type ClientConfig = {
   apiKey: string;
   baseUrl: string;
+  /** TTL for /events list cache in ms. Default 60_000 (60s). 0 = disabled. */
+  eventsCacheTtlMs?: number;
 };
 
 export type RateLimitInfo = {
@@ -27,21 +29,53 @@ export type FetchOddsMultiParams = {
   bookmakers: string[];
 };
 
+type CacheEntry = { data: ApiEvent[]; expiresAt: number };
+
 export class OddsApiClient {
   private apiKey: string;
   private baseUrl: string;
   private lastRl: RateLimitInfo | null = null;
+  private eventsCacheTtlMs: number;
+  private eventsCache = new Map<string, CacheEntry>();
+  private cacheHits = 0;
+  private cacheMisses = 0;
 
   constructor(cfg: ClientConfig) {
     this.apiKey = cfg.apiKey;
     this.baseUrl = cfg.baseUrl.replace(/\/$/, '');
+    this.eventsCacheTtlMs = cfg.eventsCacheTtlMs ?? 60_000;
   }
 
   lastRateLimit(): RateLimitInfo | null {
     return this.lastRl;
   }
 
+  /** Returns { hits, misses } for the /events cache since process start. */
+  cacheStats(): { hits: number; misses: number } {
+    return { hits: this.cacheHits, misses: this.cacheMisses };
+  }
+
   async fetchEvents(params: FetchEventsParams): Promise<ApiEvent[]> {
+    // Cache key includes sport, status, league; cached because the same
+    // /events list is requested by every tier (live, imminent, mid, slow,
+    // discovery) at different cadences. Without the cache, the live tier
+    // (30s interval) and imminent tier (120s) call the same /events endpoint
+    // 30+30=60 times per hour per sport. With a 60s TTL most live calls hit
+    // the cache, halving /events list cost.
+    if (this.eventsCacheTtlMs > 0) {
+      const key = `${params.sport}:${params.status ?? '*'}:${params.league ?? '*'}`;
+      const now = Date.now();
+      const cached = this.eventsCache.get(key);
+      if (cached && cached.expiresAt > now) {
+        this.cacheHits++;
+        return cached.data;
+      }
+      this.cacheMisses++;
+      const url = this.buildUrl('/events', { ...params, apiKey: this.apiKey });
+      const data = await this.get<ApiEvent[]>(url);
+      this.eventsCache.set(key, { data, expiresAt: now + this.eventsCacheTtlMs });
+      return data;
+    }
     const url = this.buildUrl('/events', { ...params, apiKey: this.apiKey });
     return this.get<ApiEvent[]>(url);
   }
