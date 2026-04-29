@@ -3,10 +3,23 @@ name: Plan D — Settlement Refactor (odds-api primary + Flashscore stats fallba
 description: Refactor settlement engine to consume odds-api scores as primary source for score-based markets, keeping Flashscore as stats source for corners/cards/players. Includes /admin/settlement-coverage observability page and 100-bet validation gate.
 type: design-spec
 date: 2026-04-29
-status: draft
+status: design-v2-pending-rewrite
 ---
 
-# Plan D — Settlement Refactor Design
+> ⚠️ **DESIGN v2 PENDING REWRITE — DO NOT IMPLEMENT v1**
+>
+> This spec describes Plan D **design v1**. End-of-session 2026-04-29 the user proposed a structural evolution: **filter-at-exposure inverse approach** that achieves 100% settlement BY CONSTRUCTION instead of by recovery. The new design:
+> - Hides stats/player/special markets on events without `flashscore_id` (1.5% catalog shrinkage measured live on prod)
+> - Eliminates operator queue, Plan E alt-stats-provider, `manual_required` verdict, SPECIAL_DISPATCHER
+> - Settlement priority confirmed: score-based markets ALWAYS via odds-api scores, never FS, even when `flashscore_id` exists
+>
+> **Authoritative source until rewrite is the memory file**: `session-2026-04-29-plan-d-spec-and-plan.md` (sections "ARCHITECTURAL EVOLUTION" and "Spec/Plan rewrite required next session").
+>
+> Next session first task: rewrite this spec and the corresponding plan to design v2. ~2h work, then re-dispatch spec/plan reviewer subagent.
+
+---
+
+# Plan D — Settlement Refactor Design (v1 — superseded)
 
 ## 1. Context
 

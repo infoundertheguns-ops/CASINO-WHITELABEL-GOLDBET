@@ -1,4 +1,18 @@
-# Plan D — Settlement Refactor Implementation Plan
+# Plan D — Settlement Refactor Implementation Plan (v1 — superseded)
+
+> ⚠️ **PLAN v2 PENDING REWRITE — DO NOT EXECUTE v1**
+>
+> This plan implements design v1 of Plan D. End-of-session 2026-04-29 the user proposed a structural design evolution that supersedes parts of this plan:
+> - Add filter at `derive_legacy_from_v2()` to hide stats/player/special markets on events without `flashscore_id`
+> - Remove Task 2.1c (SPECIAL_DISPATCHER), simplify settleLeg to drop `manual_required` path
+> - Rebalance 100-bet fixture from 60/20/15/5 to 60/20/20/0
+> - Confirm score-based legs ALWAYS settle via odds-api, never FS (already in v1 but worth being explicit)
+>
+> **Authoritative source until rewrite**: `session-2026-04-29-plan-d-spec-and-plan.md` memory file ("Spec/Plan rewrite required next session" section has the full diff list).
+>
+> Next session first task: rewrite this plan to v2 (~2h via Edit tool), then re-dispatch plan-document-reviewer.
+
+---
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
