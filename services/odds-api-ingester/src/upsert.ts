@@ -12,6 +12,19 @@ export type UpsertSummary = {
   outcomes_upserted: number;
 };
 
+// Per-table chunk sizes. All three tables are chunked so that no single
+// upsert statement holds row-level locks for more than a few seconds —
+// this prevents the slow tier (1500 events/sport × ~50 markets/event ×
+// ~5 outcomes/market) from blocking the independent derive_legacy_from_v2
+// loop, which otherwise saw occasional lock_timeout under heavy load.
+//
+// Sizes balance HTTP roundtrip overhead vs lock duration. Empirically the
+// slow tier was 75-168s as a single batch; chunked it should be 10-30s
+// total wall-clock with each individual statement <2s.
+const CHUNK_EVENTS = 500;
+const CHUNK_MARKETS = 1000;
+const CHUNK_OUTCOMES = 1000;
+
 export class Upserter {
   private sb: SupabaseClient;
 
@@ -26,20 +39,22 @@ export class Upserter {
       return { events_upserted: 0, markets_upserted: 0, outcomes_upserted: 0 };
     }
 
-    // 1) events_v2 -> get id by odds_api_id
+    // 1) events_v2 -> chunked, accumulate id by odds_api_id.
     const eventRows = results.map(r => r.event);
-    const { data: eventsData, error: eventsErr } = await this.sb
-      .from('events_v2')
-      .upsert(eventRows, { onConflict: 'odds_api_id' })
-      .select('id, odds_api_id');
-    if (eventsErr) throw new Error(`events_v2 upsert failed: ${eventsErr.message}`);
-
     const idByOddsApiId = new Map<number, string>();
-    for (const row of eventsData ?? []) {
-      idByOddsApiId.set(row.odds_api_id as number, row.id as string);
+    for (let i = 0; i < eventRows.length; i += CHUNK_EVENTS) {
+      const chunk = eventRows.slice(i, i + CHUNK_EVENTS);
+      const { data, error } = await this.sb
+        .from('events_v2')
+        .upsert(chunk, { onConflict: 'odds_api_id' })
+        .select('id, odds_api_id');
+      if (error) throw new Error(`events_v2 upsert failed: ${error.message}`);
+      for (const row of data ?? []) {
+        idByOddsApiId.set(row.odds_api_id as number, row.id as string);
+      }
     }
 
-    // 2) markets_v2 -> resolve event_id, get id by composite key
+    // 2) markets_v2 -> chunked, accumulate id by composite key.
     const marketRows = results.flatMap(r =>
       r.markets
         .map(m => ({
@@ -52,20 +67,21 @@ export class Upserter {
           m.event_id != null,
         ),
     );
-    let marketIdByKey = new Map<string, string>();
-    if (marketRows.length > 0) {
-      const { data: marketsData, error: marketsErr } = await this.sb
+    const marketIdByKey = new Map<string, string>();
+    for (let i = 0; i < marketRows.length; i += CHUNK_MARKETS) {
+      const chunk = marketRows.slice(i, i + CHUNK_MARKETS);
+      const { data, error } = await this.sb
         .from('markets_v2')
-        .upsert(marketRows, { onConflict: 'event_id,bookmaker,market_name' })
+        .upsert(chunk, { onConflict: 'event_id,bookmaker,market_name' })
         .select('id, event_id, bookmaker, market_name');
-      if (marketsErr) throw new Error(`markets_v2 upsert failed: ${marketsErr.message}`);
-      for (const row of marketsData ?? []) {
+      if (error) throw new Error(`markets_v2 upsert failed: ${error.message}`);
+      for (const row of data ?? []) {
         const key = `${row.event_id}|${row.bookmaker}|${row.market_name}`;
         marketIdByKey.set(key, row.id as string);
       }
     }
 
-    // 3) outcomes_v2 -> resolve market_id
+    // 3) outcomes_v2 -> resolve market_id, dedup, chunk.
     const outcomeRows = results.flatMap(r =>
       r.outcomes
         .map(o => {
@@ -98,14 +114,12 @@ export class Upserter {
       }
       const dedupedRows = Array.from(dedup.values());
 
-      // Chunk to avoid overly large payloads. Supabase POST body cap is ~1MB.
-      const CHUNK = 1000;
-      for (let i = 0; i < dedupedRows.length; i += CHUNK) {
-        const chunk = dedupedRows.slice(i, i + CHUNK);
-        const { error: outcomesErr } = await this.sb
+      for (let i = 0; i < dedupedRows.length; i += CHUNK_OUTCOMES) {
+        const chunk = dedupedRows.slice(i, i + CHUNK_OUTCOMES);
+        const { error } = await this.sb
           .from('outcomes_v2')
           .upsert(chunk, { onConflict: 'market_id,outcome_key,line_norm' });
-        if (outcomesErr) throw new Error(`outcomes_v2 upsert failed: ${outcomesErr.message}`);
+        if (error) throw new Error(`outcomes_v2 upsert failed: ${error.message}`);
       }
     }
 
@@ -123,6 +137,19 @@ export class Upserter {
    */
   async callDeriveLegacy(): Promise<{ data: any; error: { message: string } | null }> {
     const { data, error } = await this.sb.rpc('derive_legacy_from_v2');
+    return { data, error: error ? { message: error.message } : null };
+  }
+
+  /**
+   * Trigger mark_stale_lives_settled(): flips events_v2.status='live' rows
+   * whose starts_at is older than the threshold (default 6h) to 'settled',
+   * and propagates to legacy events.is_live=false. Cleans up ghost-live
+   * entries when odds-api stops returning a finished event.
+   */
+  async callMarkStaleLives(maxLiveHours = 6): Promise<{ data: any; error: { message: string } | null }> {
+    const { data, error } = await this.sb.rpc('mark_stale_lives_settled', {
+      p_max_live_hours: maxLiveHours,
+    });
     return { data, error: error ? { message: error.message } : null };
   }
 }

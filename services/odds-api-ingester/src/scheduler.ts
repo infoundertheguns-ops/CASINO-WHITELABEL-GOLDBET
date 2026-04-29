@@ -84,6 +84,11 @@ const tierConfigs: TierConfig[] = [
  *  windows, (b) lock contention with concurrent tier upsertBatch ops. */
 const DERIVE_HEARTBEAT_MS = 60_000;
 
+/** Stale-lives heartbeat: every 5 min, settle events_v2 rows that are still
+ *  status='live' but past the safety threshold (default 6h after kickoff).
+ *  Handles the case where odds-api stops returning an event we believed live. */
+const STALE_LIVES_HEARTBEAT_MS = 300_000;
+
 type TierState = {
   busy: boolean;
   lastRunMs: number;
@@ -150,6 +155,29 @@ async function runDerive(deps: IngesterDeps): Promise<void> {
   }
 }
 
+let staleBusy = false;
+async function runMarkStaleLives(deps: IngesterDeps): Promise<void> {
+  if (staleBusy) {
+    console.warn('[stale-lives] busy, skipping');
+    return;
+  }
+  staleBusy = true;
+  const t0 = Date.now();
+  try {
+    const { data, error } = await deps.upserter.callMarkStaleLives();
+    const dt = Date.now() - t0;
+    if (error) {
+      console.warn(`[stale-lives] failed: ${error.message}`);
+    } else {
+      console.log(`[stale-lives] ${(dt / 1000).toFixed(1)}s ${JSON.stringify(data)}`);
+    }
+  } catch (err) {
+    console.warn(`[stale-lives] threw: ${(err as Error).message}`);
+  } finally {
+    staleBusy = false;
+  }
+}
+
 async function main() {
   const apiKey = requireEnv('ODDS_API_KEY');
   const baseUrl = process.env.ODDS_API_BASE ?? 'https://api.odds-api.io/v3';
@@ -179,6 +207,11 @@ async function main() {
   // by tier ticks. First fire after 10s so tiers have data to derive from.
   setTimeout(() => { void runDerive(deps); }, 10_000);
   setInterval(() => { if (!shouldStop) void runDerive(deps); }, DERIVE_HEARTBEAT_MS);
+
+  // Stale-lives loop — runs every STALE_LIVES_HEARTBEAT_MS. First fire after
+  // 60s to avoid colliding with the initial derive burst.
+  setTimeout(() => { void runMarkStaleLives(deps); }, 60_000);
+  setInterval(() => { if (!shouldStop) void runMarkStaleLives(deps); }, STALE_LIVES_HEARTBEAT_MS);
 
   // Keep process alive
   while (!shouldStop) {
