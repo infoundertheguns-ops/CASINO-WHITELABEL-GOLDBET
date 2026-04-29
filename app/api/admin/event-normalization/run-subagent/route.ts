@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const prompts = await Promise.all((events as any[]).map(async (e) => {
     const eventShape = {
-      id: e.id, source: e.source as any, sport: e.sport_name, league: null,
+      id: e.id, source: e.source as any, sport: e.sport_name, league: null, country: e.country_name ?? null,
       home_team: e.home_team, away_team: e.away_team,
       starts_at: e.starts_at, flashscore_id: null,
     };

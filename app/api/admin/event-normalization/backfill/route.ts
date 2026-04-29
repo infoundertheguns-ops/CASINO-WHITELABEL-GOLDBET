@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       const r = await normalizeEvent(sb, {
         id: e.id, source: e.source, sport: e.sport_name,
         league: e.league_name ?? null,
+        country: e.country_name ?? null,
         home_team: e.home_team, away_team: e.away_team,
         starts_at: e.starts_at,
         flashscore_id: e.flashscore_id ?? null,
