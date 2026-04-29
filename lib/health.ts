@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// System Health Scoring Engine — Kambi-centric
-// 7 subsystems with weighted scores → overall 0-100 + traffic light
+// System Health Scoring Engine
+// Source-agnostic subsystem scoring → overall 0-100 + traffic light
 // ═══════════════════════════════════════════════════════════════
 
 // ═══ TYPES ═══
@@ -16,7 +16,7 @@ export interface FreshnessBuckets {
 }
 
 export interface SystemHealthRPC {
-  events: Record<string, number>; // "kambi_live": N, "kambi_prematch": N, etc.
+  events: Record<string, number>;
   active_by_source: {
     markets: Record<string, number> | null;
     outcomes_total: number;
@@ -41,7 +41,7 @@ export interface SystemHealthRPC {
     events_no_markets: number;
     unsettled_bets: number;
   };
-  generated_at: string; // ISO timestamp from RPC
+  generated_at: string;
 }
 
 export interface ScraperInfo {
@@ -57,7 +57,7 @@ export interface RedisInfo {
 }
 
 export interface SubsystemScore {
-  score: number; // 0-100
+  score: number;
   weight: number;
   label: string;
   details?: string;
@@ -90,14 +90,13 @@ function bucketTotal(b: FreshnessBuckets | null | undefined): number {
   );
 }
 
-/** Percent of outcomes within a threshold (sum of first N buckets / total) */
 function freshPercent(
   b: FreshnessBuckets | null | undefined,
   bucketKeys: (keyof FreshnessBuckets)[]
 ): number {
   if (!b) return 0;
   const total = bucketTotal(b);
-  if (total === 0) return 100; // no data = no problems
+  if (total === 0) return 100;
   const within = bucketKeys.reduce((sum, k) => sum + (b[k] || 0), 0);
   return (within / total) * 100;
 }
@@ -172,61 +171,6 @@ function scoreFreshnessPrematch(
     weight,
     label,
     details: `${Math.round(pctFresh)}% entro 1h`,
-  };
-}
-
-// Consensus snapshot pipeline: cron runs every 20min, acceptable up to 30min, critical > 60min
-function scoreConsensus(lastRefreshAgeSec: number | null, totalSnapshots: number): SubsystemScore {
-  if (lastRefreshAgeSec == null) {
-    return { score: 0, weight: 20, label: "Consensus", details: "Mai eseguito" };
-  }
-  if (totalSnapshots === 0) {
-    return { score: 40, weight: 20, label: "Consensus", details: "0 outliers — threshold alto?" };
-  }
-
-  let score: number;
-  if (lastRefreshAgeSec <= 30 * 60) score = 100;
-  else if (lastRefreshAgeSec >= 60 * 60) score = 0;
-  else score = 100 - ((lastRefreshAgeSec - 30 * 60) / (30 * 60)) * 100;
-
-  const ageMin = Math.round(lastRefreshAgeSec / 60);
-  return {
-    score: clamp(score),
-    weight: 20,
-    label: "Consensus",
-    details: `${totalSnapshots} outlier, ${ageMin}min fa`,
-  };
-}
-
-// 22bet-specific data quality: markets-per-event ratio + stale prematch count
-function scoreTwobetQuality(
-  marketsPerEvent: number,
-  staleTwobetPrematch: number,
-): SubsystemScore {
-  let score = 100;
-  const issues: string[] = [];
-
-  // mkt/ev: 22bet typical is 80-120 (from deep enrichment pipeline). Below 30 = suspect.
-  if (marketsPerEvent < 30) {
-    const penalty = Math.min(60, Math.round((30 - marketsPerEvent) * 2));
-    score -= penalty;
-    issues.push(`${marketsPerEvent.toFixed(0)} mkt/ev bassi`);
-  } else if (marketsPerEvent < 60) {
-    score -= 20;
-    issues.push(`${marketsPerEvent.toFixed(0)} mkt/ev`);
-  }
-
-  if (staleTwobetPrematch > 0) {
-    const penalty = Math.min(40, Math.floor(staleTwobetPrematch / 20) * 10);
-    score -= penalty;
-    issues.push(`${staleTwobetPrematch} stale`);
-  }
-
-  return {
-    score: clamp(score),
-    weight: 15,
-    label: "Qualita Dati",
-    details: issues.length > 0 ? issues.join(", ") : `${marketsPerEvent.toFixed(0)} mkt/ev, OK`,
   };
 }
 
@@ -321,8 +265,6 @@ function scoreSettlement(quality: SystemHealthRPC["quality"]): SubsystemScore {
   };
 }
 
-// ═══ SCRAPER SCORING (Kambi + 22bet share thresholds) ═══
-
 function scoreScraperLive(scraper: ScraperInfo, label: string, weight: number): SubsystemScore {
   if (!scraper.connected) {
     return { score: 0, weight, label, details: "Disconnesso" };
@@ -331,7 +273,6 @@ function scoreScraperLive(scraper: ScraperInfo, label: string, weight: number): 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
   const errors = scraper.errorsLastHour ?? 0;
 
-  // OK if cycle < 120s, degraded up to 600s
   let score: number;
   if (cycle <= 120) score = 100;
   else if (cycle >= 600) score = 0;
@@ -355,7 +296,6 @@ function scoreScraperPrematch(scraper: ScraperInfo, label: string, weight: numbe
 
   const cycle = scraper.lastCycleSeconds ?? Infinity;
 
-  // OK if cycle < 600s (10min), degraded up to 7200s (2h)
   let score: number;
   if (cycle <= 600) score = 100;
   else if (cycle >= 7200) score = 0;
@@ -389,90 +329,28 @@ function computeOverall(subsystems: Record<string, SubsystemScore>): HealthScore
   return { overall, level, subsystems };
 }
 
-// ═══ KAMBI HEALTH (primary — player-facing) ═══
-// Kambi-only freshness (filters out 22bet buckets from the merged RPC map).
+// ═══ HEALTH SCORES ═══
+// Source-agnostic primary health scoring.
 // Weights: Live 20, Prematch 12, Freshness Live 18, Freshness Prematch 10,
 //          Data Quality 10, Redis 10, Settlement 10
 
 export function computeHealthScores(
   rpc: SystemHealthRPC,
-  kambiScraper: { live: ScraperInfo; prematch: ScraperInfo },
+  scraper: { live: ScraperInfo; prematch: ScraperInfo },
   redis: RedisInfo,
 ): HealthScores {
   const subsystems: Record<string, SubsystemScore> = {
-    kambi_live: scoreScraperLive(kambiScraper.live, "Kambi Live", 20),
-    kambi_prematch: scoreScraperPrematch(kambiScraper.prematch, "Kambi Prematch", 12),
+    scraper_live: scoreScraperLive(scraper.live, "Live", 20),
+    scraper_prematch: scoreScraperPrematch(scraper.prematch, "Prematch", 12),
     freshness_live: scoreFreshnessLive(
-      mergeFreshness(rpc.outcome_freshness?.live, "kambi"),
+      mergeFreshness(rpc.outcome_freshness?.live),
     ),
     freshness_prematch: scoreFreshnessPrematch(
-      mergeFreshness(rpc.outcome_freshness?.prematch, "kambi"),
+      mergeFreshness(rpc.outcome_freshness?.prematch),
     ),
     data_quality: scoreDataQuality(rpc.quality),
     redis_pipeline: scoreRedisPipeline(redis),
     settlement: scoreSettlement(rpc.quality),
-  };
-  return computeOverall(subsystems);
-}
-
-// ═══ 22BET HEALTH (secondary — consensus focus) ═══
-// No settlement / redis (those concern Kambi player-facing flows).
-// Weights: Live 20, Prematch 10, Freshness Live 15, Freshness Prematch 10,
-//          Qualita Dati 20, Consensus 25
-
-export function computeTwobetHealth(
-  twobetScraper: { live: ScraperInfo; prematch: ScraperInfo },
-  rpc: SystemHealthRPC,
-  consensusInfo: { lastRefreshAgeSec: number | null; totalSnapshots: number },
-  qualityInfo: { marketsPerEvent: number; stalePrematch: number },
-): HealthScores {
-  const subsystems: Record<string, SubsystemScore> = {
-    twobet_live: scoreScraperLive(twobetScraper.live, "22bet Live", 20),
-    twobet_prematch: scoreScraperPrematch(twobetScraper.prematch, "22bet Prematch", 10),
-    freshness_live: scoreFreshnessLive(
-      mergeFreshness(rpc.outcome_freshness?.live, "22bet"),
-      "Freshness Live",
-      15,
-    ),
-    freshness_prematch: scoreFreshnessPrematch(
-      mergeFreshness(rpc.outcome_freshness?.prematch, "22bet"),
-      "Freshness Prematch",
-      10,
-    ),
-    data_quality: scoreTwobetQuality(qualityInfo.marketsPerEvent, qualityInfo.stalePrematch),
-    consensus: scoreConsensus(consensusInfo.lastRefreshAgeSec, consensusInfo.totalSnapshots),
-  };
-  return computeOverall(subsystems);
-}
-
-// ═══ BETFAIR HEALTH (third consensus source — exchange) ═══
-// Same 6-subsystem shape as 22bet — Betfair contributes to consensus too,
-// no settlement/redis (Kambi-only concerns).
-// Weights: Live 20, Prematch 10, Freshness Live 15, Freshness Prematch 10,
-//          Qualita Dati 20, Consensus 25 — identical to 22bet so the banner
-//          weighting is consistent across consensus sources.
-
-export function computeBetfairHealth(
-  betfairScraper: { live: ScraperInfo; prematch: ScraperInfo },
-  rpc: SystemHealthRPC,
-  consensusInfo: { lastRefreshAgeSec: number | null; totalSnapshots: number },
-  qualityInfo: { marketsPerEvent: number; stalePrematch: number },
-): HealthScores {
-  const subsystems: Record<string, SubsystemScore> = {
-    betfair_live: scoreScraperLive(betfairScraper.live, "Betfair Live", 20),
-    betfair_prematch: scoreScraperPrematch(betfairScraper.prematch, "Betfair Prematch", 10),
-    freshness_live: scoreFreshnessLive(
-      mergeFreshness(rpc.outcome_freshness?.live, "betfair"),
-      "Freshness Live",
-      15,
-    ),
-    freshness_prematch: scoreFreshnessPrematch(
-      mergeFreshness(rpc.outcome_freshness?.prematch, "betfair"),
-      "Freshness Prematch",
-      10,
-    ),
-    data_quality: scoreTwobetQuality(qualityInfo.marketsPerEvent, qualityInfo.stalePrematch),
-    consensus: scoreConsensus(consensusInfo.lastRefreshAgeSec, consensusInfo.totalSnapshots),
   };
   return computeOverall(subsystems);
 }

@@ -1,6 +1,5 @@
 import type { ParsedMarketType } from "./types";
 import { normalizePeriod } from "./period";
-import { betfairRules } from "./regex-patterns-betfair";
 
 // Rule: each entry has a regex. First capture group is the period fragment (optional),
 // second capture group (if present) is a numeric line. base_key is fixed per rule.
@@ -11,41 +10,41 @@ const RULES: Array<{
   linePos?: number;
   periodPos?: number;
 }> = [
-  // --- Asian U/O (quarter lines .25/.75) — Kambi emits plain "U/O" even for asian
+  // --- Asian U/O (quarter lines .25/.75) — legacy emits plain "U/O" even for asian
   // lines, so route explicitly to asian_total canonical for cross-source consensus
-  // with 22bet's "Totale Asiatico N". Rules must precede the generic U/O rules. ---
+  // with legacy's "Totale Asiatico N". Rules must precede the generic U/O rules. ---
   { base_key: "asian_total",  pattern: /^U\/O(?:\s+(\d\s*T|\d°\s*Tempo))?\s+(\d+\.(?:25|75))$/i, periodPos: 1, linePos: 2 },
   { base_key: "asian_total",  pattern: /^U\/O\s+(\d+\.(?:25|75))(?:\s+-?\s*(.+))?$/i,          linePos: 1, periodPos: 2 },
 
   // --- U/O (explicit: period can come before or after line) ---
-  // Wave 14: "U/O Incl. Supp. N" Kambi OT abbreviated form → u_o_et.
+  // Wave 14: "U/O Incl. Supp. N" legacy OT abbreviated form → u_o_et.
   // Must precede the plain U/O rules so "Incl. Supp." isn't eaten by `([\d.]+)`.
   { base_key: "u_o",          pattern: /^U\/O\s+(Incl\.\s*Supp\.)\s+([\d.]+)$/i, periodPos: 1, linePos: 2 },
   { base_key: "u_o",          pattern: /^U\/O(?:\s+(\d\s*T|\d°\s*Tempo))?\s+([\d.]+)$/i, periodPos: 1, linePos: 2 },
   { base_key: "u_o",          pattern: /^U\/O\s+([\d.]+)(?:\s+-?\s*(.+))?$/i,         linePos: 1, periodPos: 2 },
 
-  // Wave 14: Kambi "Totale gol - <period> N.5" (period = "Supplementari inclusi" /
+  // Wave 14: legacy "Totale gol - <period> N.5" (period = "Supplementari inclusi" /
   // "1° Periodo" / "1° tempo" / etc.) → u_o_{ft|1h|2h|3h|4h|et}.
-  // Covers OT totals AND hockey period totals (kambi slice 300-400 patterns).
+  // Covers OT totals AND hockey period totals (legacy slice 300-400 patterns).
   { base_key: "u_o",          pattern: /^Totale\s+gol\s+-\s+(.+?)\s+([\d.]+)$/i, periodPos: 1, linePos: 2 },
 
-  // --- 22bet 1X2 Asian Handicap: "1X2 Asian H (-1)", "1X2 Asian H (-1) - 2T" ---
+  // --- legacy 1X2 Asian Handicap: "1X2 Asian H (-1)", "1X2 Asian H (-1) - 2T" ---
   // NB: must precede the plain "1X2 H" rule so "Asian" isn't mis-parsed by it.
   { base_key: "asian_handicap", pattern: /^1X2\s+Asian\s+H\s+\(([+-]?[\d.]+)\)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
 
   // --- 1X2 Handicap: "1X2 H (-1.5)", "1X2 H (-1) - 2T", "1X2 H (0) 1° Tempo" ---
   { base_key: "1x2_handicap", pattern: /^1X2\s+H\s+\(([+-]?[\d.]+)\)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
 
-  // --- Kambi-Italian 1X2 Handicap: "1x2 con Handicap (-1)", "1x2 con Handicap - 1° tempo (-1)" ---
+  // --- legacy-Italian 1X2 Handicap: "1x2 con Handicap (-1)", "1x2 con Handicap - 1° tempo (-1)" ---
   { base_key: "1x2_handicap", pattern: /^1x2\s+con\s+Handicap(?:\s+-\s+(.+?))?\s+\(([+-]?[\d.]+)\)$/i, linePos: 2, periodPos: 1 },
 
-  // --- Asian handicap (Kambi Italian form "Handicap Asiatico (...)" + optional period suffix) ---
+  // --- Asian handicap (legacy Italian form "Handicap Asiatico (...)" + optional period suffix) ---
   { base_key: "asian_handicap", pattern: /^Handicap\s+Asiatico\s+\(([+-]?[\d.]+)\)(?:\s+(.+))?$/i, linePos: 1, periodPos: 2 },
 
-  // --- Asian handicap Kambi period-in-middle: "Handicap Asiatico - 1° tempo (-0.5)" ---
+  // --- Asian handicap legacy period-in-middle: "Handicap Asiatico - 1° tempo (-0.5)" ---
   { base_key: "asian_handicap", pattern: /^Handicap\s+Asiatico\s+-\s+(.+?)\s+\(([+-]?[\d.]+)\)$/i, periodPos: 1, linePos: 2 },
 
-  // --- Asian total Kambi period-in-middle: "Totale Asiatico - 1° tempo 1.5" (line without parens) ---
+  // --- Asian total legacy period-in-middle: "Totale Asiatico - 1° tempo 1.5" (line without parens) ---
   // Must precede generic "Totale Asiatico N" rule.
   { base_key: "asian_total", pattern: /^Totale\s+Asiatico\s+-\s+(.+?)\s+([\d.]+)$/i, periodPos: 1, linePos: 2 },
 
@@ -55,19 +54,19 @@ const RULES: Array<{
   // Explicit "Quarto" anchor; "tempo"/"Periodo" variants fall through to 1x2_handicap.
   { base_key: "2way_handicap", pattern: /^Handicap\s+-\s+(\d°\s*Quarto|(?:primo|secondo|terzo|quarto)\s+quarto)\s+\(([+-]?[\d.]+)\)$/i, periodPos: 1, linePos: 2 },
 
-  // --- Kambi plain handicap "Handicap (-0.5)" / "Handicap - 1° tempo (-0.5)" ---
+  // --- legacy plain handicap "Handicap (-0.5)" / "Handicap - 1° tempo (-0.5)" ---
   // Placed after Asiatico rules so they don't get absorbed. Must come before the generic 1X2 rule.
   { base_key: "1x2_handicap", pattern: /^Handicap\s+-\s+(.+?)\s+\(([+-]?[\d.]+)\)$/i, periodPos: 1, linePos: 2 },
   { base_key: "1x2_handicap", pattern: /^Handicap\s+\(([+-]?[\d.]+)\)(?:\s+-\s+(.+))?$/i, linePos: 1, periodPos: 2 },
 
-  // ═══ Wave 13: kambi basket "Punti totali - N° Quarto X.5" → u_o_{1h-4h} ═══
+  // ═══ Wave 13: legacy basket "Punti totali - N° Quarto X.5" → u_o_{1h-4h} ═══
   // "Punti totali - 1° Quarto 40.5" / "Punti totali - 4° Quarto 41.5"
   { base_key: "u_o", pattern: /^Punti\s+totali\s+-\s+(.+?)\s+([\d.]+)$/i, periodPos: 1, linePos: 2 },
 
-  // --- Kambi verbose "Gol segnato in entrambi i tempi" (alias of both_halves_score) ---
+  // --- legacy verbose "Gol segnato in entrambi i tempi" (alias of both_halves_score) ---
   { base_key: "both_halves_score", pattern: /^Gol\s+segnato\s+in\s+entrambi\s+i\s+tempi$/i },
 
-  // --- Kambi verbose BTTS with optional period + optional "(Gol/No Gol)" suffix ---
+  // --- legacy verbose BTTS with optional period + optional "(Gol/No Gol)" suffix ---
   // e.g. "Entrambe le squadre segnano - 2° tempo (Gol/No Gol)", "Entrambe le squadre segnano - 1° tempo", plain "Entrambe le squadre segnano"
   { base_key: "gg_ng", pattern: /^Entrambe\s+le\s+squadre\s+segnano(?:\s+-\s+([^()]+?))?(?:\s+\(Gol\/No\s+Gol\))?$/i, periodPos: 1 },
 
@@ -81,30 +80,30 @@ const RULES: Array<{
   { base_key: "coin_toss_winner",     pattern: /^Chi\s+Vincerà\s+il\s+Lancio\s+Della\s+Monetina$/i },
   { base_key: "red_card_given",       pattern: /^Cartellino\s+rosso\s+assegnato$/i },
   { base_key: "penalty_awarded",      pattern: /^Almeno\s+un\s+calcio\s+di\s+rigore\s+assegnato$/i },
-  // Both accents tolerate: "Piú" (acute, kambi variant) and "Più" (grave, standard italian).
+  // Both accents tolerate: "Piú" (acute, legacy variant) and "Più" (grave, standard italian).
   { base_key: "more_cards",           pattern: /^Pi[úù]\s+cartellini$/i },
   { base_key: "more_games",           pattern: /^Pi[úù]\s+giochi$/i },
   { base_key: "draw_and_btts",        pattern: /^Pareggio\s+ed\s+entrambe\s+le\s+squadre\s+a\s+segno(?:\s+\(Gol\/No\s+Gol\))?$/i },
   { base_key: "qualification",        pattern: /^Qualificazione$/i },
   { base_key: "cs_map",               pattern: /^Risultato\s+esatto[:]?\s+Mappa$/i },
 
-  // ── Kambi 1X2 aliases → 1x2_ft ──
+  // ── legacy 1X2 aliases → 1x2_ft ──
   { base_key: "1x2", pattern: /^Esito\s+Finale\s+1x2\s+-\s+Tempo\s+regolamentare$/i },
   { base_key: "1x2", pattern: /^Esito\s+dell['']incontro$/i },
   { base_key: "1x2", pattern: /^Match\s+Odds$/i },
   { base_key: "1x2", pattern: /^Tempi\s+regolamentari\s+-\s+1X2$/i },
 
-  // ── Kambi DC alias ──
+  // ── legacy DC alias ──
   { base_key: "dc", pattern: /^Doppia\s+Chance\s+-\s+Tempo\s+regolamentare$/i },
 
-  // ── Kambi basketball "1° Quarto" / "1° Periodo" (standalone, outcomes 1/X/2) → 1X2 per quarter ──
+  // ── legacy basketball "1° Quarto" / "1° Periodo" (standalone, outcomes 1/X/2) → 1X2 per quarter ──
   // NB: do NOT include "Set" here — 1° Set outcomes are tennis player names (Phase 3 Part 2a).
   { base_key: "1x2", pattern: /^(\d°\s*(?:Quarto|Periodo)|(?:primo|secondo|terzo|quarto)\s+(?:quarto|periodo))$/i, periodPos: 1 },
 
-  // ── Kambi basketball "Risultato al termine del N° Quarto" → winner_{1h-4h} ──
+  // ── legacy basketball "Risultato al termine del N° Quarto" → winner_{1h-4h} ──
   { base_key: "winner", pattern: /^Risultato\s+al\s+termine\s+del\s+(\d°\s*Quarto|(?:primo|secondo|terzo|quarto)\s+quarto)$/i, periodPos: 1 },
 
-  // ── Kambi DNB per quarter "Draw No Bet - N° Quarto" ──
+  // ── legacy DNB per quarter "Draw No Bet - N° Quarto" ──
   { base_key: "dnb", pattern: /^Draw\s+No\s+Bet\s+-\s+(\d°\s*Quarto|(?:primo|secondo|terzo|quarto)\s+quarto)$/i, periodPos: 1 },
 
   // ── Maps family (esports) ──
@@ -229,9 +228,9 @@ const RULES: Array<{
 
   // ═══ (end wave 18) ═══
 
-  // ═══ Wave 19: Kambi Opta + 22bet esports/tennis/tournament/corners (2026-04-21) ═══
+  // ═══ Wave 19: legacy Opta + legacy esports/tennis/tournament/corners (2026-04-21) ═══
 
-  // ── Kambi Opta player scorer props ──
+  // ── legacy Opta player scorer props ──
   { base_key: "player_scores_goals", pattern: /^Segna\s+almeno\s+(\d+)\s+gol\s+\d+$/i, linePos: 1 },
   { base_key: "player_scores_goals", pattern: /^Segna\s+(\d+)$/i, linePos: 1 },
   { base_key: "player_scores_header", pattern: /^Segna\s+di\s+testa\s+(\d+)$/i, linePos: 1 },
@@ -245,7 +244,7 @@ const RULES: Array<{
   { base_key: "more_shots_on_target", pattern: /^Pi[úù]\s+tiri\s+in\s+porta(?:\s+\([^)]+\))?$/i },
   { base_key: "woodwork_hit", pattern: /^Woodwork\s+to\s+be\s+Hit\s+in\s+the\s+Match(?:\s+\([^)]+\))?$/i },
 
-  // ── 22bet esports ──
+  // ── legacy esports ──
   { base_key: "first_blood", pattern: /^Primo\s+Sangue(?:\s+-\s+(1T|2T|3T))?$/i, periodPos: 1 },
   { base_key: "nashor", pattern: /^Chi\s+Batterà\s+Nashor\s+\((\d+)\)(?:\s+-\s+(1T|2T))?$/i, linePos: 1, periodPos: 2 },
   { base_key: "inhibitor_destroyed", pattern: /^Totale\s+Inhibitor\s+Distrutti\.?\s+\(([\d.]+)\)(?:\s+-\s+(1T|2T))?$/i, linePos: 1, periodPos: 2 },
@@ -253,12 +252,12 @@ const RULES: Array<{
   { base_key: "frag_total_oe", pattern: /^Frag,\s+Totale\s+Pari\/Dispari(?:\s+-\s+(1T|2T))?$/i, periodPos: 1 },
   { base_key: "round_total_oe", pattern: /^Totale\s+Round\s+Pari\s*\/\s*Dispari(?:\s+-\s+(1T|2T))?$/i, periodPos: 1 },
 
-  // ── 22bet tennis compound ──
+  // ── legacy tennis compound ──
   { base_key: "point_score_first_serve", pattern: /^Giocatore\s+[12],\s+Punteggio\s+Del\s+1°\s+Servizio\s+\(([\d.]+)\)\s+-\s+(1T|2T)$/i, linePos: 1, periodPos: 2 },
   { base_key: "serve_hold_with_score", pattern: /^Vince\s+Il\s+Suo\s+Primo\s+Turno\s+Di\s+Servizio\s+Col\s+Punteggio(?:\s+-\s+(1T|2T))?$/i, periodPos: 1 },
   { base_key: "games_race", pattern: /^Sfida\s+Al\s+\((\d+)\)\s+-\s+(1T|2T)$/i, linePos: 1, periodPos: 2 },
 
-  // ── 22bet tournament-level ──
+  // ── legacy tournament-level ──
   { base_key: "tournament_most_scoring_match", pattern: /^Partita\s+Con\s+il\s+Maggior\s+Numero\s+Di\s+Marcature\s*Totale\s+\(([\d.]+)\)$/i, linePos: 1 },
   { base_key: "tournament_least_scoring_match", pattern: /^Partita\s+Con\s+il\s+Minor\s+Numero\s+di\s+Marcature\s+Totale\s+\(([\d.]+)\)$/i, linePos: 1 },
   { base_key: "tournament_most_scoring_team", pattern: /^Squadra\s+Che\s+Realizza\s+il\s+Maggior\s+Numero\s+Di\s+Marcature\s+Totale\s+\(([\d.]+)\)$/i, linePos: 1 },
@@ -266,7 +265,7 @@ const RULES: Array<{
   { base_key: "tournament_highest_away_score", pattern: /^Punteggio\s+Più\s+Alto\s+Della\s+Squadra\s+In\s+Trasferta\s+Totale\s+\(([\d.]+)\)$/i, linePos: 1 },
   { base_key: "tournament_matches_overunder", pattern: /^Totale\s+Partite\s+Con\s+Over\/Under$/i },
 
-  // ── 22bet corner intervals ──
+  // ── legacy corner intervals ──
   { base_key: "corner_interval", pattern: /^Calcio\s+D['']angolo\s+Dal\s+Minuto\s+Al\s+Minuto(?:\s+\([\d.]+\))?(?:\s+-\s*)?$/i },
   { base_key: "team1_corner_interval", pattern: /^Squadra\s+1,\s+Calcio\s+D['']angolo\s+Dal\s+Minuto\s+Al\s+Minuto(?:\s+\([\d.]+\))?(?:\s+-\s*)?$/i },
   { base_key: "team2_corner_interval", pattern: /^Squadra\s+2,\s+Calcio\s+D['']angolo\s+Dal\s+Minuto\s+Al\s+Minuto(?:\s+\([\d.]+\))?(?:\s+-\s*)?$/i },
@@ -415,25 +414,25 @@ const RULES: Array<{
 
   // ═══ Wave 9: alias regex for existing canonicals (patterns emerged from LLM batches) ═══
 
-  // 22bet "Tempo Regolamentare Doppia Chance" → dc_ft
+  // legacy "Tempo Regolamentare Doppia Chance" → dc_ft
   { base_key: "dc", pattern: /^Tempo\s+Regolamentare\s+Doppia\s+Chance$/i },
 
-  // 22bet "Quale Squadra Segnerà Punti Per Prima?" → first_team_to_score_ft
+  // legacy "Quale Squadra Segnerà Punti Per Prima?" → first_team_to_score_ft
   { base_key: "first_team_to_score", pattern: /^Quale\s+Squadra\s+Segnerà\s+Punti\s+Per\s+Prima\?$/i },
 
-  // 22bet "Vittoria (2 Opzioni)" → winner_ft (2-way moneyline alias)
+  // legacy "Vittoria (2 Opzioni)" → winner_ft (2-way moneyline alias)
   { base_key: "winner", pattern: /^Vittoria\s+\(2\s+Opzioni\)$/i },
 
-  // Wave 15: 22bet "Vittoria Squadra" (post scraper-fix consolidated, outcomes "Squadra 1 Vince"/"Squadra 2 Vince") → winner_ft
+  // Wave 15: legacy "Vittoria Squadra" (post scraper-fix consolidated, outcomes "Squadra 1 Vince"/"Squadra 2 Vince") → winner_ft
   { base_key: "winner", pattern: /^Vittoria\s+Squadra$/i },
 
-  // Wave 15: kambi "Autogol" (Sì/No own-goal market) → own_goal_ft (new canonical, mig 064)
+  // Wave 15: legacy "Autogol" (Sì/No own-goal market) → own_goal_ft (new canonical, mig 064)
   { base_key: "own_goal", pattern: /^Autogol$/i },
 
-  // 22bet "Risultato Ed Entrambe Le Squadre Segnano [- period]" → 1x2_btts_*
+  // legacy "Risultato Ed Entrambe Le Squadre Segnano [- period]" → 1x2_btts_*
   { base_key: "1x2_btts", pattern: /^Risultato\s+Ed\s+Entrambe\s+Le\s+Squadre\s+Segnano(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
 
-  // Kambi "Gol totali - Pari/Dispari - period" (verbose oe_1h/2h form)
+  // legacy "Gol totali - Pari/Dispari - period" (verbose oe_1h/2h form)
   { base_key: "odd_even", pattern: /^Gol\s+totali\s+-\s+Pari\/Dispari\s+-\s+(.+)$/i, periodPos: 1 },
 
   // ═══ Wave 10: new canonicals (T/T handicap, set family, team win-to-nil) ═══
@@ -446,7 +445,7 @@ const RULES: Array<{
   { base_key: "team1_win_to_nil", pattern: /^Squadra\s+1\s+Vince\s+A\s+Zero(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
   { base_key: "team2_win_to_nil", pattern: /^Squadra\s+2\s+Vince\s+A\s+Zero(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
 
-  // 22bet "Vince a Zero [- period]" — now permissive (replaces strict FT rule)
+  // legacy "Vince a Zero [- period]" — now permissive (replaces strict FT rule)
   { base_key: "win_to_nil", pattern: /^Vince\s+a\s+Zero(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
 
   // Tennis set family
@@ -460,7 +459,7 @@ const RULES: Array<{
   { base_key: "team1_both_halves_score", pattern: /^Squadra\s+1\s+Segna\s+Un\s+Goal\s+In\s+Entrambi\s+I\s+Tempi$/i },
   { base_key: "team2_both_halves_score", pattern: /^Squadra\s+2\s+Segna\s+Un\s+Goal\s+In\s+Entrambi\s+I\s+Tempi$/i },
 
-  // ═══ Wave 12a: team win + team total combo (22bet "V1 + Totale 1 (N)" / "V2 + Totale 2 (N)") ═══
+  // ═══ Wave 12a: team win + team total combo (legacy "V1 + Totale 1 (N)" / "V2 + Totale 2 (N)") ═══
   { base_key: "team1_win_and_team_total", pattern: /^V1\s+\+\s+Totale\s+1\s+\(([\d.]+)\)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
   { base_key: "team2_win_and_team_total", pattern: /^V2\s+\+\s+Totale\s+2\s+\(([\d.]+)\)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
 
@@ -481,7 +480,7 @@ const RULES: Array<{
   // "Almeno Una Delle Due Squadre Non Segna + Totale (N) [- period]" → no_btts_and_total (BTTS=No + U/O)
   { base_key: "no_btts_and_total", pattern: /^Almeno\s+Una\s+Delle\s+Due\s+Squadre\s+Non\s+Segna\s+\+\s+Totale\s+\(([\d.]+)\)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
 
-  // ═══ Wave 7: corner markets (Kambi) ═══
+  // ═══ Wave 7: corner markets (legacy) ═══
   // Tollera sia apostrofo ASCII ' che tipografico ' in "d'angolo".
 
   // Totale calci d'angolo period-in-middle: "Totale calci d'angolo - 1° tempo 4.5"
@@ -502,48 +501,48 @@ const RULES: Array<{
 
   // ═══ (end wave 7) ═══
 
-  // --- 22bet combo: "1X2 + Ogni Squadra Segna" (1X2 + BTTS), optional period suffix ---
+  // --- legacy combo: "1X2 + Ogni Squadra Segna" (1X2 + BTTS), optional period suffix ---
   { base_key: "1x2_btts",     pattern: /^1X2\s+\+\s+Ogni\s+Squadra\s+Segna(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
 
   // --- Totale Squadra ---
   { base_key: "total_team",   pattern: /^Totale\s+Squadra\s+([\d.]+)$/i, linePos: 1 },
 
-  // ═══ Wave 13: 22bet "Totale Home/Away N [- period]" → total_team_{ft|1h|2h} ═══
+  // ═══ Wave 13: legacy "Totale Home/Away N [- period]" → total_team_{ft|1h|2h} ═══
   // Home/Away distinction is lost (maps to generic total_team canonical), as the
   // catalog uses a single base_key=total_team. Period 1T/2T requires total_team_1h/2h
   // canonicals added in migration 062.
   { base_key: "total_team",   pattern: /^Totale\s+(?:Home|Away)\s+([\d.]+)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
 
-  // --- 22bet Totale Asiatico (over/under with asian push/refund, period optional) ---
+  // --- legacy Totale Asiatico (over/under with asian push/refund, period optional) ---
   // Wave 13: permissive trailing dash (allow "Totale Asiatico 12.25 - " with empty period).
   { base_key: "asian_total",  pattern: /^Totale\s+Asiatico\s+([\d.]+)(?:\s+-?\s*(.*))?$/i, linePos: 1, periodPos: 2 },
 
-  // --- 22bet Squadra 1/2 Totale Asiatico (team asian total, period optional) ---
+  // --- legacy Squadra 1/2 Totale Asiatico (team asian total, period optional) ---
   // Wave 13: permissive trailing dash for "Squadra 1 Totale Asiatico (4.75) - ".
   { base_key: "total_team_asian", pattern: /^Squadra\s+[12]\s+Totale\s+Asiatico\s+\(([\d.]+)\)(?:\s+-?\s*(.*))?$/i, linePos: 1, periodPos: 2 },
 
-  // ═══ Wave 13: 22bet "Multicalci d'angolo (N.5) [- period]" → total_corners_{ft|1h|2h} ═══
+  // ═══ Wave 13: legacy "Multicalci d'angolo (N.5) [- period]" → total_corners_{ft|1h|2h} ═══
   // Tollera entrambi apostrofi (ASCII U+0027 ' e tipografico U+2019 '). Trailing-dash permissive.
   { base_key: "total_corners", pattern: /^Multicalci\s+d['’]angolo\s+\(([\d.]+)\)(?:\s+-?\s*(.*))?$/i, linePos: 1, periodPos: 2 },
 
-  // ═══ Wave 13: 22bet "Chi Segnerà il L'ultimo Goal Della Partita?" → last_scorer ═══
+  // ═══ Wave 13: legacy "Chi Segnerà il L'ultimo Goal Della Partita?" → last_scorer ═══
   // last_scorer canonical period=ft only. Apostrofo ASCII U+0027 o tipografico U+2019. Trailing-dash permissive.
   { base_key: "last_scorer", pattern: /^Chi\s+Segnerà\s+il\s+L['’]ultimo\s+Goal\s+Della\s+Partita\??(?:\s+-?\s*(.*))?$/i, periodPos: 1 },
 
-  // --- 22bet "Vincente Incontro" (2-way moneyline for no-draw sports: tennis/basket/volley), optional period ---
+  // --- legacy "Vincente Incontro" (2-way moneyline for no-draw sports: tennis/basket/volley), optional period ---
   { base_key: "winner",       pattern: /^Vincente\s+Incontro(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
 
-  // --- Both halves score (Kambi "Segna Entrambi i Tempi" + 22bet "Segna/Goal In Entrambi i Tempi") ---
+  // --- Both halves score (legacy "Segna Entrambi i Tempi" + legacy "Segna/Goal In Entrambi i Tempi") ---
   { base_key: "both_halves_score", pattern: /^(?:Segna|Goal)\s+(?:In\s+)?Entrambi\s+i\s+Tempi$/i },
 
-  // --- 22bet "Numero Esatto (N)" (exact goals count), with optional period ---
+  // --- legacy "Numero Esatto (N)" (exact goals count), with optional period ---
   // (N) is the exact goal count (usually 2, 3, 4); treated as canonical_line.
   { base_key: "exact_goals", pattern: /^Numero\s+Esatto\s+\((\d+)\)(?:\s+-?\s*(.+))?$/i, linePos: 1, periodPos: 2 },
 
   // ═══ Wave A+ patterns (fixed-string, team-specific, no line) ═══
 
   // Squadra X Segna Nei Tempi — 3-way goal compare 1T vs 2T per team
-  // (22bet name "Segna Nei Tempi" is misleading: outcomes are 1T</>/=2T)
+  // (legacy name "Segna Nei Tempi" is misleading: outcomes are 1T</>/=2T)
   { base_key: "team1_halves_goal_compare", pattern: /^Squadra\s+1\s+Segna\s+Nei\s+Tempi$/i },
   { base_key: "team2_halves_goal_compare", pattern: /^Squadra\s+2\s+Segna\s+Nei\s+Tempi$/i },
 
@@ -562,7 +561,7 @@ const RULES: Array<{
   { base_key: "team2_wins_any_half", pattern: /^Squadra\s+2\s+Vince\s+Uno\s+Dei\s+Due\s+Tempi$/i },
 
   // Ultimo Goal [- period] — last scorer per half OR full match (home/away/none).
-  // Wave 15: period optional (was required) so plain "Ultimo Goal" (22bet post-fix
+  // Wave 15: period optional (was required) so plain "Ultimo Goal" (legacy post-fix
   // emission) maps to last_goal_ft. New canonical last_goal_ft added in mig 064.
   { base_key: "last_goal",    pattern: /^Ultimo\s+Goal(?:\s+-?\s*(.+))?$/i, periodPos: 1 },
 
@@ -602,14 +601,14 @@ const RULES: Array<{
   // --- Esito 1T/Finale (must precede 1X2 rule to avoid it consuming the string) ---
   { base_key: "htft",         pattern: /^Esito\s+1T\/Finale$/i },
 
-  // --- 22bet "PT-F" (HT/FT alias: outcomes V1V1/V1X/V1V2/XV1/XX/XV2/V2V1/V2X/V2V2) ---
+  // --- legacy "PT-F" (HT/FT alias: outcomes V1V1/V1X/V1V2/XV1/XX/XV2/V2V1/V2X/V2V2) ---
   // Exact match anchor to avoid eating combo variants like "PT-F + Totale (2.5)".
   { base_key: "htft",         pattern: /^PT-F$/i },
 
-  // --- 22bet "Tempo/Tempo" (HT/FT alias: outcomes spelled out "Squadra X Vince il 1°Tempo/..." etc.) ---
+  // --- legacy "Tempo/Tempo" (HT/FT alias: outcomes spelled out "Squadra X Vince il 1°Tempo/..." etc.) ---
   { base_key: "htft",         pattern: /^Tempo\/Tempo$/i },
 
-  // --- Kambi "Segna Goal" (First Team to Score: outcomes 1/X/2, avg odds X≈11 confirms X=neither) ---
+  // --- legacy "Segna Goal" (First Team to Score: outcomes 1/X/2, avg odds X≈11 confirms X=neither) ---
   // Needs new canonical "first_team_to_score_ft" (migration 052).
   { base_key: "first_team_to_score", pattern: /^Segna\s+Goal$/i },
 
@@ -631,41 +630,30 @@ const RULES: Array<{
   // --- Pari/Dispari ---
   { base_key: "odd_even",     pattern: /^Pari\/Dispari(?:\s+(.+))?$/i, periodPos: 1 },
 
-  // ═══ Wave 35.1 — Betfair compact aliases (Task 10 market expansion residue) ═══
-  // Betfair transform emits `DNB` (DRAW_NO_BET) and `1T/FT` (HALF_TIME_FULL_TIME)
-  // in compact form. Kambi/22bet use verbose "Draw No Bet" / "Esito 1T/Finale" /
-  // "PT-F" / "Tempo/Tempo" which existing rules already cover. These two short
-  // aliases plug the last remaining betfair coverage gap.
-  { base_key: "dnb",  pattern: /^DNB$/i },
-  { base_key: "htft", pattern: /^1T\/FT$/i },
-
   // ═══ Wave 35 — set winners, set handicap, consecutive goals, extra time (2026-04-23) ═══
 
-  // --- Set winner "N° Set" (Kambi tennis) → set_n_winner_ft line=N ---
+  // --- Set winner "N° Set" (legacy tennis) → set_n_winner_ft line=N ---
   // Outcomes are player names (tennis) — Phase 3 Part 2a canonicalizes
   // via events.home_team/away_team matching.
   { base_key: "set_n_winner", pattern: /^(\d+)°\s+Set$/i, linePos: 1 },
 
-  // --- Alternative form "Set N" (Kambi variant) → set_n_winner_ft line=N ---
+  // --- Alternative form "Set N" (legacy variant) → set_n_winner_ft line=N ---
   { base_key: "set_n_winner", pattern: /^Set\s+(\d+)$/i, linePos: 1 },
 
-  // --- Kambi "Handicap sui Set (±L)" → set_handicap_ft line=L ---
+  // --- legacy "Handicap sui Set (±L)" → set_handicap_ft line=L ---
   // Distinct canonical from 1x2_handicap: tennis set spread, not goal spread.
   { base_key: "set_handicap", pattern: /^Handicap\s+sui\s+Set\s+\(([+-]?[\d.]+)\)$/i, linePos: 1 },
 
-  // --- 22bet "Goal Di Seguito Di Una Squadra (N)" → any_team_consecutive_goals_ft line=N ---
+  // --- legacy "Goal Di Seguito Di Una Squadra (N)" → any_team_consecutive_goals_ft line=N ---
   // Distinct from team1_/team2_consecutive_goals (those are team-specific).
   // "Di Una Squadra" = "of any team" — 2-outcome Sì/No market.
   { base_key: "any_team_consecutive_goals", pattern: /^Goal\s+Di\s+Seguito\s+Di\s+Una\s+Squadra\s+\((\d+)\)$/i, linePos: 1 },
 
-  // --- 22bet "Ci Saranno i Supplementari - Sì/No [- NT]" → extra_time_yn_{ft,1h,2h,3h} ---
+  // --- legacy "Ci Saranno i Supplementari - Sì/No [- NT]" → extra_time_yn_{ft,1h,2h,3h} ---
   // Tolerates Sì (accented) and Si (ASCII) — scraper has mixed emissions.
   // Period fragment optional (bare form → ft).
   { base_key: "extra_time_yn", pattern: /^Ci\s+Saranno\s+i\s+Supplementari\s+-\s+S[iì]\s*\/\s*No(?:\s+-\s+(\d\s*T))?$/i, periodPos: 1 },
 
-  // --- Betfair: UPPERCASE English constant keys (appended last — zero overlap risk
-  //     with Kambi/22bet Italian strings; first-match-wins order is safe) ---
-  ...betfairRules,
 ];
 
 export function parseMarketType(input: string): ParsedMarketType | null {

@@ -6,11 +6,11 @@ describe("parseMarketType — base markets", () => {
     expect(parseMarketType("1X2")).toEqual({ base_key: "1x2", period: "ft", line: null });
   });
 
-  it("parses 1X2 first half (Kambi '1X2 1T' form)", () => {
+  it("parses 1X2 first half (legacy '1X2 1T' form)", () => {
     expect(parseMarketType("1X2 1T")).toEqual({ base_key: "1x2", period: "1h", line: null });
   });
 
-  it("parses 1X2 second half (22bet '1X2 - 2T' form)", () => {
+  it("parses 1X2 second half (legacy '1X2 - 2T' form)", () => {
     expect(parseMarketType("1X2 - 2T")).toEqual({ base_key: "1x2", period: "2h", line: null });
   });
 
@@ -28,15 +28,15 @@ describe("parseMarketType — base markets", () => {
 });
 
 describe("parseMarketType — U/O parametric", () => {
-  it("parses Kambi 'U/O 2.5'", () => {
+  it("parses legacy 'U/O 2.5'", () => {
     expect(parseMarketType("U/O 2.5")).toEqual({ base_key: "u_o", period: "ft", line: 2.5 });
   });
 
-  it("parses Kambi 'U/O 1T 1.5'", () => {
+  it("parses legacy 'U/O 1T 1.5'", () => {
     expect(parseMarketType("U/O 1T 1.5")).toEqual({ base_key: "u_o", period: "1h", line: 1.5 });
   });
 
-  it("parses 22bet 'U/O 1.5 - 1T'", () => {
+  it("parses legacy 'U/O 1.5 - 1T'", () => {
     expect(parseMarketType("U/O 1.5 - 1T")).toEqual({ base_key: "u_o", period: "1h", line: 1.5 });
   });
 
@@ -58,56 +58,56 @@ describe("parseMarketType — handicap parametric", () => {
     expect(parseMarketType("1X2 H (0)")).toEqual({ base_key: "1x2_handicap", period: "ft", line: 0 });
   });
 
-  it("parses 22bet '1X2 H (-1) - 1T' (handicap first half)", () => {
+  it("parses legacy '1X2 H (-1) - 1T' (handicap first half)", () => {
     expect(parseMarketType("1X2 H (-1) - 1T")).toEqual({ base_key: "1x2_handicap", period: "1h", line: -1 });
   });
 
-  it("parses 22bet '1X2 H (-1.5) - 2T' (handicap second half)", () => {
+  it("parses legacy '1X2 H (-1.5) - 2T' (handicap second half)", () => {
     expect(parseMarketType("1X2 H (-1.5) - 2T")).toEqual({ base_key: "1x2_handicap", period: "2h", line: -1.5 });
   });
 
-  it("parses 22bet '1X2 H (0) - 2T' (handicap pickem second half)", () => {
+  it("parses legacy '1X2 H (0) - 2T' (handicap pickem second half)", () => {
     expect(parseMarketType("1X2 H (0) - 2T")).toEqual({ base_key: "1x2_handicap", period: "2h", line: 0 });
   });
 
-  it("parses Kambi-style '1X2 H (-1) 1T' (no hyphen)", () => {
+  it("parses legacy-style '1X2 H (-1) 1T' (no hyphen)", () => {
     expect(parseMarketType("1X2 H (-1) 1T")).toEqual({ base_key: "1x2_handicap", period: "1h", line: -1 });
   });
 
-  it("parses 22bet '1X2 Asian H (-1)' (Bug B)", () => {
+  it("parses legacy '1X2 Asian H (-1)' (Bug B)", () => {
     expect(parseMarketType("1X2 Asian H (-1)")).toEqual({ base_key: "asian_handicap", period: "ft", line: -1 });
   });
 
-  it("parses 22bet '1X2 Asian H (-1) - 2T' (Bug B with period)", () => {
+  it("parses legacy '1X2 Asian H (-1) - 2T' (Bug B with period)", () => {
     expect(parseMarketType("1X2 Asian H (-1) - 2T")).toEqual({ base_key: "asian_handicap", period: "2h", line: -1 });
   });
 
-  it("parses 22bet '1X2 Asian H (+1.5) - 1T'", () => {
+  it("parses legacy '1X2 Asian H (+1.5) - 1T'", () => {
     expect(parseMarketType("1X2 Asian H (+1.5) - 1T")).toEqual({ base_key: "asian_handicap", period: "1h", line: 1.5 });
   });
 
-  it("parses Kambi '1x2 con Handicap (-1)' (Bug C full time)", () => {
+  it("parses legacy '1x2 con Handicap (-1)' (Bug C full time)", () => {
     expect(parseMarketType("1x2 con Handicap (-1)")).toEqual({ base_key: "1x2_handicap", period: "ft", line: -1 });
   });
 
-  it("parses Kambi '1x2 con Handicap - 1° tempo (-1)' (Bug C first half)", () => {
+  it("parses legacy '1x2 con Handicap - 1° tempo (-1)' (Bug C first half)", () => {
     expect(parseMarketType("1x2 con Handicap - 1° tempo (-1)")).toEqual({ base_key: "1x2_handicap", period: "1h", line: -1 });
   });
 
-  it("parses Kambi '1x2 con Handicap - 2° tempo (+1.5)' (Bug C second half)", () => {
+  it("parses legacy '1x2 con Handicap - 2° tempo (+1.5)' (Bug C second half)", () => {
     expect(parseMarketType("1x2 con Handicap - 2° tempo (+1.5)")).toEqual({ base_key: "1x2_handicap", period: "2h", line: 1.5 });
   });
 
-  it("parses Kambi 'Handicap Asiatico (-1)' with optional period support", () => {
+  it("parses legacy 'Handicap Asiatico (-1)' with optional period support", () => {
     expect(parseMarketType("Handicap Asiatico (-1)")).toEqual({ base_key: "asian_handicap", period: "ft", line: -1 });
   });
 
-  it("parses Kambi 'Handicap Asiatico (-1) 1T'", () => {
+  it("parses legacy 'Handicap Asiatico (-1) 1T'", () => {
     expect(parseMarketType("Handicap Asiatico (-1) 1T")).toEqual({ base_key: "asian_handicap", period: "1h", line: -1 });
   });
 });
 
-describe("parseMarketType — 22bet combo", () => {
+describe("parseMarketType — legacy combo", () => {
   it("parses '1X2 + Ogni Squadra Segna' (Bug D: 1X2 + BTTS combo)", () => {
     expect(parseMarketType("1X2 + Ogni Squadra Segna")).toEqual({ base_key: "1x2_btts", period: "ft", line: null });
   });
@@ -117,7 +117,7 @@ describe("parseMarketType — 22bet combo", () => {
   });
 });
 
-describe("parseMarketType — 22bet asian totals and 2-way moneyline", () => {
+describe("parseMarketType — legacy asian totals and 2-way moneyline", () => {
   it("parses 'Totale Asiatico 2.5'", () => {
     expect(parseMarketType("Totale Asiatico 2.5")).toEqual({ base_key: "asian_total", period: "ft", line: 2.5 });
   });
@@ -152,27 +152,27 @@ describe("parseMarketType — 22bet asian totals and 2-way moneyline", () => {
 });
 
 describe("parseMarketType — both halves + exact goals", () => {
-  it("parses Kambi 'Segna Entrambi i Tempi'", () => {
+  it("parses legacy 'Segna Entrambi i Tempi'", () => {
     expect(parseMarketType("Segna Entrambi i Tempi")).toEqual({ base_key: "both_halves_score", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Segna In Entrambi i Tempi'", () => {
+  it("parses legacy 'Segna In Entrambi i Tempi'", () => {
     expect(parseMarketType("Segna In Entrambi i Tempi")).toEqual({ base_key: "both_halves_score", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Goal In Entrambi i Tempi'", () => {
+  it("parses legacy 'Goal In Entrambi i Tempi'", () => {
     expect(parseMarketType("Goal In Entrambi i Tempi")).toEqual({ base_key: "both_halves_score", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Numero Esatto (2)' (exact goals count)", () => {
+  it("parses legacy 'Numero Esatto (2)' (exact goals count)", () => {
     expect(parseMarketType("Numero Esatto (2)")).toEqual({ base_key: "exact_goals", period: "ft", line: 2 });
   });
 
-  it("parses 22bet 'Numero Esatto (2) - 1T'", () => {
+  it("parses legacy 'Numero Esatto (2) - 1T'", () => {
     expect(parseMarketType("Numero Esatto (2) - 1T")).toEqual({ base_key: "exact_goals", period: "1h", line: 2 });
   });
 
-  it("parses 22bet 'Numero Esatto (3) - 2T'", () => {
+  it("parses legacy 'Numero Esatto (3) - 2T'", () => {
     expect(parseMarketType("Numero Esatto (3) - 2T")).toEqual({ base_key: "exact_goals", period: "2h", line: 3 });
   });
 });
@@ -198,11 +198,11 @@ describe("parseMarketType — special", () => {
     expect(parseMarketType("Esito 1T/Finale")).toEqual({ base_key: "htft", period: "ft", line: null });
   });
 
-  it("parses 22bet 'PT-F' (HT/FT alias with 9 V1/X/V2 outcomes)", () => {
+  it("parses legacy 'PT-F' (HT/FT alias with 9 V1/X/V2 outcomes)", () => {
     expect(parseMarketType("PT-F")).toEqual({ base_key: "htft", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Tempo/Tempo' (HT/FT alias with 9 half-by-half outcomes)", () => {
+  it("parses legacy 'Tempo/Tempo' (HT/FT alias with 9 half-by-half outcomes)", () => {
     expect(parseMarketType("Tempo/Tempo")).toEqual({ base_key: "htft", period: "ft", line: null });
   });
 
@@ -213,61 +213,61 @@ describe("parseMarketType — special", () => {
       .toEqual({ base_key: "htft_and_total", period: "ft", line: 2.5 });
   });
 
-  it("parses kambi 'Segna Goal' (first team to score 1/X/2)", () => {
+  it("parses legacy 'Segna Goal' (first team to score 1/X/2)", () => {
     expect(parseMarketType("Segna Goal")).toEqual({ base_key: "first_team_to_score", period: "ft", line: null });
   });
 });
 
 describe("parseMarketType — wave A+ no-line patterns", () => {
-  it("parses 22bet 'Squadra 1 Segna Nei Tempi' (goal halves compare team 1)", () => {
+  it("parses legacy 'Squadra 1 Segna Nei Tempi' (goal halves compare team 1)", () => {
     expect(parseMarketType("Squadra 1 Segna Nei Tempi")).toEqual({ base_key: "team1_halves_goal_compare", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Squadra 2 Segna Nei Tempi'", () => {
+  it("parses legacy 'Squadra 2 Segna Nei Tempi'", () => {
     expect(parseMarketType("Squadra 2 Segna Nei Tempi")).toEqual({ base_key: "team2_halves_goal_compare", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Doppia Chance + Entrambe Le Squadre Segnano'", () => {
+  it("parses legacy 'Doppia Chance + Entrambe Le Squadre Segnano'", () => {
     expect(parseMarketType("Doppia Chance + Entrambe Le Squadre Segnano")).toEqual({ base_key: "dc_btts", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Doppia Chance + Entrambe Le Squadre Segnano - 1T'", () => {
+  it("parses legacy 'Doppia Chance + Entrambe Le Squadre Segnano - 1T'", () => {
     expect(parseMarketType("Doppia Chance + Entrambe Le Squadre Segnano - 1T")).toEqual({ base_key: "dc_btts", period: "1h", line: null });
   });
 
-  it("parses 22bet 'Doppia Chance + Entrambe Le Squadre Segnano - 2T'", () => {
+  it("parses legacy 'Doppia Chance + Entrambe Le Squadre Segnano - 2T'", () => {
     expect(parseMarketType("Doppia Chance + Entrambe Le Squadre Segnano - 2T")).toEqual({ base_key: "dc_btts", period: "2h", line: null });
   });
 
-  it("parses 22bet 'Pareggio In Almeno Un Tempo'", () => {
+  it("parses legacy 'Pareggio In Almeno Un Tempo'", () => {
     expect(parseMarketType("Pareggio In Almeno Un Tempo")).toEqual({ base_key: "draw_any_half", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Individuale Totale 1 Pari /Dispari' (note: space after 'Pari')", () => {
+  it("parses legacy 'Individuale Totale 1 Pari /Dispari' (note: space after 'Pari')", () => {
     expect(parseMarketType("Individuale Totale 1 Pari /Dispari")).toEqual({ base_key: "team1_total_oe", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Individuale Totale 2 Pari /Dispari'", () => {
+  it("parses legacy 'Individuale Totale 2 Pari /Dispari'", () => {
     expect(parseMarketType("Individuale Totale 2 Pari /Dispari")).toEqual({ base_key: "team2_total_oe", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Individuale Totale 1 Pari/Dispari' (no space variant)", () => {
+  it("parses legacy 'Individuale Totale 1 Pari/Dispari' (no space variant)", () => {
     expect(parseMarketType("Individuale Totale 1 Pari/Dispari")).toEqual({ base_key: "team1_total_oe", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Squadra 1 Vince Uno Dei Due Tempi'", () => {
+  it("parses legacy 'Squadra 1 Vince Uno Dei Due Tempi'", () => {
     expect(parseMarketType("Squadra 1 Vince Uno Dei Due Tempi")).toEqual({ base_key: "team1_wins_any_half", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Squadra 2 Vince Uno Dei Due Tempi'", () => {
+  it("parses legacy 'Squadra 2 Vince Uno Dei Due Tempi'", () => {
     expect(parseMarketType("Squadra 2 Vince Uno Dei Due Tempi")).toEqual({ base_key: "team2_wins_any_half", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Ultimo Goal - 1T'", () => {
+  it("parses legacy 'Ultimo Goal - 1T'", () => {
     expect(parseMarketType("Ultimo Goal - 1T")).toEqual({ base_key: "last_goal", period: "1h", line: null });
   });
 
-  it("parses 22bet 'Ultimo Goal - 2T'", () => {
+  it("parses legacy 'Ultimo Goal - 2T'", () => {
     expect(parseMarketType("Ultimo Goal - 2T")).toEqual({ base_key: "last_goal", period: "2h", line: null });
   });
 });
@@ -417,155 +417,155 @@ describe("parseMarketType — wave 12c BTTS combos", () => {
 });
 
 describe("parseMarketType — wave 12a team win + team total combo", () => {
-  it("parses 22bet 'V1 + Totale 1 (1.5)' → team1_win_and_team_total_ft", () => {
+  it("parses legacy 'V1 + Totale 1 (1.5)' → team1_win_and_team_total_ft", () => {
     expect(parseMarketType("V1 + Totale 1 (1.5)")).toEqual({ base_key: "team1_win_and_team_total", period: "ft", line: 1.5 });
   });
 
-  it("parses 22bet 'V1 + Totale 1 (1.5) - 1T' → team1_win_and_team_total_1h", () => {
+  it("parses legacy 'V1 + Totale 1 (1.5) - 1T' → team1_win_and_team_total_1h", () => {
     expect(parseMarketType("V1 + Totale 1 (1.5) - 1T")).toEqual({ base_key: "team1_win_and_team_total", period: "1h", line: 1.5 });
   });
 
-  it("parses 22bet 'V1 + Totale 1 (1.5) - 2T' → team1_win_and_team_total_2h", () => {
+  it("parses legacy 'V1 + Totale 1 (1.5) - 2T' → team1_win_and_team_total_2h", () => {
     expect(parseMarketType("V1 + Totale 1 (1.5) - 2T")).toEqual({ base_key: "team1_win_and_team_total", period: "2h", line: 1.5 });
   });
 
-  it("parses 22bet 'V2 + Totale 2 (2.5)' → team2_win_and_team_total_ft", () => {
+  it("parses legacy 'V2 + Totale 2 (2.5)' → team2_win_and_team_total_ft", () => {
     expect(parseMarketType("V2 + Totale 2 (2.5)")).toEqual({ base_key: "team2_win_and_team_total", period: "ft", line: 2.5 });
   });
 
-  it("parses 22bet 'V2 + Totale 2 (1.5) - 2T' → team2_win_and_team_total_2h", () => {
+  it("parses legacy 'V2 + Totale 2 (1.5) - 2T' → team2_win_and_team_total_2h", () => {
     expect(parseMarketType("V2 + Totale 2 (1.5) - 2T")).toEqual({ base_key: "team2_win_and_team_total", period: "2h", line: 1.5 });
   });
 });
 
 describe("parseMarketType — wave 11 team both-halves score", () => {
-  it("parses 22bet 'Squadra 1 Segna Un Goal In Entrambi I Tempi' → team1_both_halves_score_ft", () => {
+  it("parses legacy 'Squadra 1 Segna Un Goal In Entrambi I Tempi' → team1_both_halves_score_ft", () => {
     expect(parseMarketType("Squadra 1 Segna Un Goal In Entrambi I Tempi")).toEqual({ base_key: "team1_both_halves_score", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Squadra 2 Segna Un Goal In Entrambi I Tempi' → team2_both_halves_score_ft", () => {
+  it("parses legacy 'Squadra 2 Segna Un Goal In Entrambi I Tempi' → team2_both_halves_score_ft", () => {
     expect(parseMarketType("Squadra 2 Segna Un Goal In Entrambi I Tempi")).toEqual({ base_key: "team2_both_halves_score", period: "ft", line: null });
   });
 });
 
 describe("parseMarketType — wave 9 alias regex", () => {
-  it("parses 22bet 'Tempo Regolamentare Doppia Chance' → dc_ft", () => {
+  it("parses legacy 'Tempo Regolamentare Doppia Chance' → dc_ft", () => {
     expect(parseMarketType("Tempo Regolamentare Doppia Chance")).toEqual({ base_key: "dc", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Quale Squadra Segnerà Punti Per Prima?' → first_team_to_score", () => {
+  it("parses legacy 'Quale Squadra Segnerà Punti Per Prima?' → first_team_to_score", () => {
     expect(parseMarketType("Quale Squadra Segnerà Punti Per Prima?")).toEqual({ base_key: "first_team_to_score", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Vittoria (2 Opzioni)' → winner_ft", () => {
+  it("parses legacy 'Vittoria (2 Opzioni)' → winner_ft", () => {
     expect(parseMarketType("Vittoria (2 Opzioni)")).toEqual({ base_key: "winner", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Risultato Ed Entrambe Le Squadre Segnano' → 1x2_btts_ft", () => {
+  it("parses legacy 'Risultato Ed Entrambe Le Squadre Segnano' → 1x2_btts_ft", () => {
     expect(parseMarketType("Risultato Ed Entrambe Le Squadre Segnano")).toEqual({ base_key: "1x2_btts", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Risultato Ed Entrambe Le Squadre Segnano - 2T' → 1x2_btts_2h", () => {
+  it("parses legacy 'Risultato Ed Entrambe Le Squadre Segnano - 2T' → 1x2_btts_2h", () => {
     expect(parseMarketType("Risultato Ed Entrambe Le Squadre Segnano - 2T")).toEqual({ base_key: "1x2_btts", period: "2h", line: null });
   });
 
-  it("parses kambi 'Gol totali - Pari/Dispari - Primo tempo' → oe_1h", () => {
+  it("parses legacy 'Gol totali - Pari/Dispari - Primo tempo' → oe_1h", () => {
     expect(parseMarketType("Gol totali - Pari/Dispari - Primo tempo")).toEqual({ base_key: "odd_even", period: "1h", line: null });
   });
 });
 
 describe("parseMarketType — wave 10 new canonicals (T/T handicap, set, team win-to-nil)", () => {
   // T/T Handicap (2-way handicap for esports / tennis / volley)
-  it("parses 22bet 'T/T Handicap (-1.5)' → 2way_handicap_ft", () => {
+  it("parses legacy 'T/T Handicap (-1.5)' → 2way_handicap_ft", () => {
     expect(parseMarketType("T/T Handicap (-1.5)")).toEqual({ base_key: "2way_handicap", period: "ft", line: -1.5 });
   });
 
-  it("parses 22bet 'T/T Handicap (+2.5) - 1T' → 2way_handicap_1h", () => {
+  it("parses legacy 'T/T Handicap (+2.5) - 1T' → 2way_handicap_1h", () => {
     expect(parseMarketType("T/T Handicap (+2.5) - 1T")).toEqual({ base_key: "2way_handicap", period: "1h", line: 2.5 });
   });
 
-  it("parses 22bet 'T/T Handicap (-3.5) - 2T' → 2way_handicap_2h", () => {
+  it("parses legacy 'T/T Handicap (-3.5) - 2T' → 2way_handicap_2h", () => {
     expect(parseMarketType("T/T Handicap (-3.5) - 2T")).toEqual({ base_key: "2way_handicap", period: "2h", line: -3.5 });
   });
 
-  it("parses 22bet 'T/T Handicap (0)' pickem", () => {
+  it("parses legacy 'T/T Handicap (0)' pickem", () => {
     expect(parseMarketType("T/T Handicap (0)")).toEqual({ base_key: "2way_handicap", period: "ft", line: 0 });
   });
 
   // Vince a Zero periods
-  it("parses 22bet 'Vince a Zero - 1T' → win_to_nil_1h", () => {
+  it("parses legacy 'Vince a Zero - 1T' → win_to_nil_1h", () => {
     expect(parseMarketType("Vince a Zero - 1T")).toEqual({ base_key: "win_to_nil", period: "1h", line: null });
   });
 
-  it("parses 22bet 'Vince a Zero - 2T' → win_to_nil_2h", () => {
+  it("parses legacy 'Vince a Zero - 2T' → win_to_nil_2h", () => {
     expect(parseMarketType("Vince a Zero - 2T")).toEqual({ base_key: "win_to_nil", period: "2h", line: null });
   });
 
-  it("still parses 22bet 'Vince a Zero' (no period) → win_to_nil_ft", () => {
+  it("still parses legacy 'Vince a Zero' (no period) → win_to_nil_ft", () => {
     expect(parseMarketType("Vince a Zero")).toEqual({ base_key: "win_to_nil", period: "ft", line: null });
   });
 
   // Squadra X Vince A Zero (team-specific)
-  it("parses 22bet 'Squadra 1 Vince A Zero' → team1_win_to_nil_ft", () => {
+  it("parses legacy 'Squadra 1 Vince A Zero' → team1_win_to_nil_ft", () => {
     expect(parseMarketType("Squadra 1 Vince A Zero")).toEqual({ base_key: "team1_win_to_nil", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Squadra 1 Vince A Zero - 1T' → team1_win_to_nil_1h", () => {
+  it("parses legacy 'Squadra 1 Vince A Zero - 1T' → team1_win_to_nil_1h", () => {
     expect(parseMarketType("Squadra 1 Vince A Zero - 1T")).toEqual({ base_key: "team1_win_to_nil", period: "1h", line: null });
   });
 
-  it("parses 22bet 'Squadra 2 Vince A Zero - 2T' → team2_win_to_nil_2h", () => {
+  it("parses legacy 'Squadra 2 Vince A Zero - 2T' → team2_win_to_nil_2h", () => {
     expect(parseMarketType("Squadra 2 Vince A Zero - 2T")).toEqual({ base_key: "team2_win_to_nil", period: "2h", line: null });
   });
 
   // Tennis set family
-  it("parses 22bet 'Set Handicap (-1.5)' → set_handicap_ft", () => {
+  it("parses legacy 'Set Handicap (-1.5)' → set_handicap_ft", () => {
     expect(parseMarketType("Set Handicap (-1.5)")).toEqual({ base_key: "set_handicap", period: "ft", line: -1.5 });
   });
 
-  it("parses 22bet 'Set Handicap (1.5)' unsigned positive", () => {
+  it("parses legacy 'Set Handicap (1.5)' unsigned positive", () => {
     expect(parseMarketType("Set Handicap (1.5)")).toEqual({ base_key: "set_handicap", period: "ft", line: 1.5 });
   });
 
-  it("parses 22bet 'Totale Set (2.5)' → total_sets_ft", () => {
+  it("parses legacy 'Totale Set (2.5)' → total_sets_ft", () => {
     expect(parseMarketType("Totale Set (2.5)")).toEqual({ base_key: "total_sets", period: "ft", line: 2.5 });
   });
 
-  it("parses 22bet 'Risultato Set' → set_result_ft", () => {
+  it("parses legacy 'Risultato Set' → set_result_ft", () => {
     expect(parseMarketType("Risultato Set")).toEqual({ base_key: "set_result", period: "ft", line: null });
   });
 });
 
-describe("parseMarketType — wave 8 trailing-dash tolerance (22bet scraper bug)", () => {
-  it("parses 22bet 'U/O 9.5 - ' (trailing dash + space) → u_o_ft line 9.5", () => {
+describe("parseMarketType — wave 8 trailing-dash tolerance (legacy scraper bug)", () => {
+  it("parses legacy 'U/O 9.5 - ' (trailing dash + space) → u_o_ft line 9.5", () => {
     expect(parseMarketType("U/O 9.5 - ")).toEqual({ base_key: "u_o", period: "ft", line: 9.5 });
   });
 
-  it("parses 22bet 'U/O 10 -' (trailing dash no space) → u_o_ft line 10", () => {
+  it("parses legacy 'U/O 10 -' (trailing dash no space) → u_o_ft line 10", () => {
     expect(parseMarketType("U/O 10 -")).toEqual({ base_key: "u_o", period: "ft", line: 10 });
   });
 
-  it("parses 22bet 'Totale 3Opzioni (9) - ' → total_3way_ft line 9", () => {
+  it("parses legacy 'Totale 3Opzioni (9) - ' → total_3way_ft line 9", () => {
     expect(parseMarketType("Totale 3Opzioni (9) - ")).toEqual({ base_key: "total_3way", period: "ft", line: 9 });
   });
 
-  it("parses 22bet 'Goal Successivo (2) - ' → next_goal_ft line 2", () => {
+  it("parses legacy 'Goal Successivo (2) - ' → next_goal_ft line 2", () => {
     expect(parseMarketType("Goal Successivo (2) - ")).toEqual({ base_key: "next_goal", period: "ft", line: 2 });
   });
 
-  it("parses 22bet 'Numero Esatto (3) - ' → exact_goals_ft line 3", () => {
+  it("parses legacy 'Numero Esatto (3) - ' → exact_goals_ft line 3", () => {
     expect(parseMarketType("Numero Esatto (3) - ")).toEqual({ base_key: "exact_goals", period: "ft", line: 3 });
   });
 
-  it("parses 22bet '1, Risultato + Totale (2.5) - ' → team1_result_total_ft line 2.5", () => {
+  it("parses legacy '1, Risultato + Totale (2.5) - ' → team1_result_total_ft line 2.5", () => {
     expect(parseMarketType("1, Risultato + Totale (2.5) - ")).toEqual({ base_key: "team1_result_total", period: "ft", line: 2.5 });
   });
 
-  it("parses 22bet 'Vincente Incontro - ' → winner_ft", () => {
+  it("parses legacy 'Vincente Incontro - ' → winner_ft", () => {
     expect(parseMarketType("Vincente Incontro - ")).toEqual({ base_key: "winner", period: "ft", line: null });
   });
 
-  it("parses 22bet '1X2 + Ogni Squadra Segna - ' → 1x2_btts_ft", () => {
+  it("parses legacy '1X2 + Ogni Squadra Segna - ' → 1x2_btts_ft", () => {
     expect(parseMarketType("1X2 + Ogni Squadra Segna - ")).toEqual({ base_key: "1x2_btts", period: "ft", line: null });
   });
 
@@ -581,111 +581,111 @@ describe("parseMarketType — wave 8 trailing-dash tolerance (22bet scraper bug)
 });
 
 describe("parseMarketType — wave 7 corner markets", () => {
-  it("parses kambi 'Totale calci d'angolo 9.5' → total_corners_ft", () => {
+  it("parses legacy 'Totale calci d'angolo 9.5' → total_corners_ft", () => {
     expect(parseMarketType("Totale calci d'angolo 9.5")).toEqual({ base_key: "total_corners", period: "ft", line: 9.5 });
   });
 
-  it("parses kambi 'Totale calci d'angolo 10.5' integer-like", () => {
+  it("parses legacy 'Totale calci d'angolo 10.5' integer-like", () => {
     expect(parseMarketType("Totale calci d'angolo 10.5")).toEqual({ base_key: "total_corners", period: "ft", line: 10.5 });
   });
 
-  it("parses kambi 'Totale calci d'angolo - 1° tempo 4.5' → total_corners_1h", () => {
+  it("parses legacy 'Totale calci d'angolo - 1° tempo 4.5' → total_corners_1h", () => {
     expect(parseMarketType("Totale calci d'angolo - 1° tempo 4.5")).toEqual({ base_key: "total_corners", period: "1h", line: 4.5 });
   });
 
-  it("parses kambi 'Totale calci d'angolo - 2° tempo 6.5' → total_corners_2h", () => {
+  it("parses legacy 'Totale calci d'angolo - 2° tempo 6.5' → total_corners_2h", () => {
     expect(parseMarketType("Totale calci d'angolo - 2° tempo 6.5")).toEqual({ base_key: "total_corners", period: "2h", line: 6.5 });
   });
 
-  it("parses kambi 'Più calci d'angolo' → corner_winner_ft", () => {
+  it("parses legacy 'Più calci d'angolo' → corner_winner_ft", () => {
     expect(parseMarketType("Più calci d'angolo")).toEqual({ base_key: "corner_winner", period: "ft", line: null });
   });
 
-  it("parses kambi 'Più calci d'angolo - 1° tempo' → corner_winner_1h", () => {
+  it("parses legacy 'Più calci d'angolo - 1° tempo' → corner_winner_1h", () => {
     expect(parseMarketType("Più calci d'angolo - 1° tempo")).toEqual({ base_key: "corner_winner", period: "1h", line: null });
   });
 
-  it("parses kambi 'Più calci d'angolo - 2° tempo' → corner_winner_2h", () => {
+  it("parses legacy 'Più calci d'angolo - 2° tempo' → corner_winner_2h", () => {
     expect(parseMarketType("Più calci d'angolo - 2° tempo")).toEqual({ base_key: "corner_winner", period: "2h", line: null });
   });
 
-  it("parses kambi 'Calci d'angolo - 1X2 con Handicap (-2)' → corner_1x2_handicap_ft", () => {
+  it("parses legacy 'Calci d'angolo - 1X2 con Handicap (-2)' → corner_1x2_handicap_ft", () => {
     expect(parseMarketType("Calci d'angolo - 1X2 con Handicap (-2)")).toEqual({ base_key: "corner_1x2_handicap", period: "ft", line: -2 });
   });
 
-  it("parses kambi 'Calci d'angolo - 1X2 con Handicap (+3)' positive line", () => {
+  it("parses legacy 'Calci d'angolo - 1X2 con Handicap (+3)' positive line", () => {
     expect(parseMarketType("Calci d'angolo - 1X2 con Handicap (+3)")).toEqual({ base_key: "corner_1x2_handicap", period: "ft", line: 3 });
   });
 
-  it("parses kambi 'Corner successivo, puntata annullata in caso di nessun corner, (1)' → next_corner_ft line=1", () => {
+  it("parses legacy 'Corner successivo, puntata annullata in caso di nessun corner, (1)' → next_corner_ft line=1", () => {
     expect(parseMarketType("Corner successivo, puntata annullata in caso di nessun corner, (1)")).toEqual({ base_key: "next_corner", period: "ft", line: 1 });
   });
 
-  it("parses kambi 'Corner successivo, puntata annullata in caso di nessun corner, (2)' line=2", () => {
+  it("parses legacy 'Corner successivo, puntata annullata in caso di nessun corner, (2)' line=2", () => {
     expect(parseMarketType("Corner successivo, puntata annullata in caso di nessun corner, (2)")).toEqual({ base_key: "next_corner", period: "ft", line: 2 });
   });
 });
 
-describe("parseMarketType — wave 6 Kambi verbose forms", () => {
-  it("parses kambi 'Handicap (-0.5)' → 1x2_h_ft", () => {
+describe("parseMarketType — wave 6 legacy verbose forms", () => {
+  it("parses legacy 'Handicap (-0.5)' → 1x2_h_ft", () => {
     expect(parseMarketType("Handicap (-0.5)")).toEqual({ base_key: "1x2_handicap", period: "ft", line: -0.5 });
   });
 
-  it("parses kambi 'Handicap (+0.5)' → 1x2_h_ft", () => {
+  it("parses legacy 'Handicap (+0.5)' → 1x2_h_ft", () => {
     expect(parseMarketType("Handicap (+0.5)")).toEqual({ base_key: "1x2_handicap", period: "ft", line: 0.5 });
   });
 
-  it("parses kambi 'Handicap (-1)' integer line", () => {
+  it("parses legacy 'Handicap (-1)' integer line", () => {
     expect(parseMarketType("Handicap (-1)")).toEqual({ base_key: "1x2_handicap", period: "ft", line: -1 });
   });
 
-  it("parses kambi 'Handicap (-1.5)' line", () => {
+  it("parses legacy 'Handicap (-1.5)' line", () => {
     expect(parseMarketType("Handicap (-1.5)")).toEqual({ base_key: "1x2_handicap", period: "ft", line: -1.5 });
   });
 
-  it("parses kambi 'Handicap - 1° tempo (-0.5)' period-in-middle → 1x2_h_1h", () => {
+  it("parses legacy 'Handicap - 1° tempo (-0.5)' period-in-middle → 1x2_h_1h", () => {
     expect(parseMarketType("Handicap - 1° tempo (-0.5)")).toEqual({ base_key: "1x2_handicap", period: "1h", line: -0.5 });
   });
 
-  it("parses kambi 'Handicap Asiatico - 1° tempo (-0.5)' → asian_handicap_1h", () => {
+  it("parses legacy 'Handicap Asiatico - 1° tempo (-0.5)' → asian_handicap_1h", () => {
     expect(parseMarketType("Handicap Asiatico - 1° tempo (-0.5)")).toEqual({ base_key: "asian_handicap", period: "1h", line: -0.5 });
   });
 
-  it("parses kambi 'Handicap Asiatico - 2° tempo (+1.5)' → asian_handicap_2h", () => {
+  it("parses legacy 'Handicap Asiatico - 2° tempo (+1.5)' → asian_handicap_2h", () => {
     expect(parseMarketType("Handicap Asiatico - 2° tempo (+1.5)")).toEqual({ base_key: "asian_handicap", period: "2h", line: 1.5 });
   });
 
-  it("parses kambi 'Totale Asiatico - 1° tempo 1.5' → asian_total_1h", () => {
+  it("parses legacy 'Totale Asiatico - 1° tempo 1.5' → asian_total_1h", () => {
     expect(parseMarketType("Totale Asiatico - 1° tempo 1.5")).toEqual({ base_key: "asian_total", period: "1h", line: 1.5 });
   });
 
-  it("parses kambi 'Totale Asiatico - 2° tempo 2' integer line → asian_total_2h", () => {
+  it("parses legacy 'Totale Asiatico - 2° tempo 2' integer line → asian_total_2h", () => {
     expect(parseMarketType("Totale Asiatico - 2° tempo 2")).toEqual({ base_key: "asian_total", period: "2h", line: 2 });
   });
 
-  it("parses kambi 'Gol segnato in entrambi i tempi' → both_halves_score", () => {
+  it("parses legacy 'Gol segnato in entrambi i tempi' → both_halves_score", () => {
     expect(parseMarketType("Gol segnato in entrambi i tempi")).toEqual({ base_key: "both_halves_score", period: "ft", line: null });
   });
 
-  it("parses kambi 'Entrambe le squadre segnano' (no period) → gg_ng_ft", () => {
+  it("parses legacy 'Entrambe le squadre segnano' (no period) → gg_ng_ft", () => {
     expect(parseMarketType("Entrambe le squadre segnano")).toEqual({ base_key: "gg_ng", period: "ft", line: null });
   });
 
-  it("parses kambi 'Entrambe le squadre segnano - 2° tempo (Gol/No Gol)' → gg_ng_2h", () => {
+  it("parses legacy 'Entrambe le squadre segnano - 2° tempo (Gol/No Gol)' → gg_ng_2h", () => {
     expect(parseMarketType("Entrambe le squadre segnano - 2° tempo (Gol/No Gol)")).toEqual({ base_key: "gg_ng", period: "2h", line: null });
   });
 
-  it("parses kambi 'Entrambe le squadre segnano - 1° tempo' (without GG/NG suffix) → gg_ng_1h", () => {
+  it("parses legacy 'Entrambe le squadre segnano - 1° tempo' (without GG/NG suffix) → gg_ng_1h", () => {
     expect(parseMarketType("Entrambe le squadre segnano - 1° tempo")).toEqual({ base_key: "gg_ng", period: "1h", line: null });
   });
 
-  it("parses 22bet 'Vince a Zero' → win_to_nil_ft", () => {
+  it("parses legacy 'Vince a Zero' → win_to_nil_ft", () => {
     expect(parseMarketType("Vince a Zero")).toEqual({ base_key: "win_to_nil", period: "ft", line: null });
   });
 });
 
 describe("parseMarketType — asian U/O detection (quarter lines)", () => {
-  it("routes 'U/O 4.75' (kambi asian) to asian_total (NOT u_o)", () => {
+  it("routes 'U/O 4.75' (legacy asian) to asian_total (NOT u_o)", () => {
     expect(parseMarketType("U/O 4.75")).toEqual({ base_key: "asian_total", period: "ft", line: 4.75 });
   });
 
@@ -693,11 +693,11 @@ describe("parseMarketType — asian U/O detection (quarter lines)", () => {
     expect(parseMarketType("U/O 1.25")).toEqual({ base_key: "asian_total", period: "ft", line: 1.25 });
   });
 
-  it("routes 'U/O 1T 1.25' (kambi period-then-line) to asian_total_1h", () => {
+  it("routes 'U/O 1T 1.25' (legacy period-then-line) to asian_total_1h", () => {
     expect(parseMarketType("U/O 1T 1.25")).toEqual({ base_key: "asian_total", period: "1h", line: 1.25 });
   });
 
-  it("routes 'U/O 3.25 - 2T' (22bet-style) to asian_total_2h", () => {
+  it("routes 'U/O 3.25 - 2T' (legacy-style) to asian_total_2h", () => {
     expect(parseMarketType("U/O 3.25 - 2T")).toEqual({ base_key: "asian_total", period: "2h", line: 3.25 });
   });
 
@@ -752,37 +752,37 @@ describe("parseMarketType — unknown", () => {
 //                basket quarter (Punti totali, Handicap), trailing-dash fixes ═══
 
 describe("parseMarketType — Wave 13 total_team Home/Away", () => {
-  it("parses 22bet 'Totale Home 3.5' → total_team_ft", () => {
+  it("parses legacy 'Totale Home 3.5' → total_team_ft", () => {
     expect(parseMarketType("Totale Home 3.5")).toEqual({ base_key: "total_team", period: "ft", line: 3.5 });
   });
 
-  it("parses 22bet 'Totale Away 2' → total_team_ft (integer line)", () => {
+  it("parses legacy 'Totale Away 2' → total_team_ft (integer line)", () => {
     expect(parseMarketType("Totale Away 2")).toEqual({ base_key: "total_team", period: "ft", line: 2 });
   });
 
-  it("parses 22bet 'Totale Home 3.5 - 1T' → total_team_1h", () => {
+  it("parses legacy 'Totale Home 3.5 - 1T' → total_team_1h", () => {
     expect(parseMarketType("Totale Home 3.5 - 1T")).toEqual({ base_key: "total_team", period: "1h", line: 3.5 });
   });
 
-  it("parses 22bet 'Totale Away 2.5 - 2T' → total_team_2h", () => {
+  it("parses legacy 'Totale Away 2.5 - 2T' → total_team_2h", () => {
     expect(parseMarketType("Totale Away 2.5 - 2T")).toEqual({ base_key: "total_team", period: "2h", line: 2.5 });
   });
 
-  it("parses 22bet 'Totale Home 4.5' (higher line)", () => {
+  it("parses legacy 'Totale Home 4.5' (higher line)", () => {
     expect(parseMarketType("Totale Home 4.5")).toEqual({ base_key: "total_team", period: "ft", line: 4.5 });
   });
 });
 
 describe("parseMarketType — Wave 13 total_corners Multicalci", () => {
-  it("parses 22bet \"Multicalci d'angolo (8.5)\" → total_corners_ft", () => {
+  it("parses legacy \"Multicalci d'angolo (8.5)\" → total_corners_ft", () => {
     expect(parseMarketType("Multicalci d'angolo (8.5)")).toEqual({ base_key: "total_corners", period: "ft", line: 8.5 });
   });
 
-  it("parses 22bet \"Multicalci d'angolo (10.5) - \" with trailing dash → total_corners_ft", () => {
+  it("parses legacy \"Multicalci d'angolo (10.5) - \" with trailing dash → total_corners_ft", () => {
     expect(parseMarketType("Multicalci d'angolo (10.5) - ")).toEqual({ base_key: "total_corners", period: "ft", line: 10.5 });
   });
 
-  it("parses 22bet \"Multicalci d'angolo (30.5) - 1T\" → total_corners_1h", () => {
+  it("parses legacy \"Multicalci d'angolo (30.5) - 1T\" → total_corners_1h", () => {
     expect(parseMarketType("Multicalci d'angolo (30.5) - 1T")).toEqual({ base_key: "total_corners", period: "1h", line: 30.5 });
   });
 
@@ -792,11 +792,11 @@ describe("parseMarketType — Wave 13 total_corners Multicalci", () => {
 });
 
 describe("parseMarketType — Wave 13 last_scorer", () => {
-  it("parses 22bet \"Chi Segnerà il L'ultimo Goal Della Partita?\" → last_scorer (ft)", () => {
+  it("parses legacy \"Chi Segnerà il L'ultimo Goal Della Partita?\" → last_scorer (ft)", () => {
     expect(parseMarketType("Chi Segnerà il L'ultimo Goal Della Partita?")).toEqual({ base_key: "last_scorer", period: "ft", line: null });
   });
 
-  it("parses 22bet with trailing dash variant \"... - \"", () => {
+  it("parses legacy with trailing dash variant \"... - \"", () => {
     expect(parseMarketType("Chi Segnerà il L'ultimo Goal Della Partita? - ")).toEqual({ base_key: "last_scorer", period: "ft", line: null });
   });
 
@@ -806,29 +806,29 @@ describe("parseMarketType — Wave 13 last_scorer", () => {
 });
 
 describe("parseMarketType — Wave 13 basket quarter totals + handicap", () => {
-  // "Punti totali - N° Quarto X.5" (kambi basket points over/under per quarter)
-  it("parses kambi 'Punti totali - 1° Quarto 40.5' → u_o_1h", () => {
+  // "Punti totali - N° Quarto X.5" (legacy basket points over/under per quarter)
+  it("parses legacy 'Punti totali - 1° Quarto 40.5' → u_o_1h", () => {
     expect(parseMarketType("Punti totali - 1° Quarto 40.5")).toEqual({ base_key: "u_o", period: "1h", line: 40.5 });
   });
 
-  it("parses kambi 'Punti totali - 4° Quarto 41.5' → u_o_4h", () => {
+  it("parses legacy 'Punti totali - 4° Quarto 41.5' → u_o_4h", () => {
     expect(parseMarketType("Punti totali - 4° Quarto 41.5")).toEqual({ base_key: "u_o", period: "4h", line: 41.5 });
   });
 
-  it("parses kambi 'Punti totali - 3° Quarto 40' (integer line) → u_o_3h", () => {
+  it("parses legacy 'Punti totali - 3° Quarto 40' (integer line) → u_o_3h", () => {
     expect(parseMarketType("Punti totali - 3° Quarto 40")).toEqual({ base_key: "u_o", period: "3h", line: 40 });
   });
 
-  // "Handicap - N° Quarto (±X.5)" (kambi basket handicap, 2-way) — must NOT map to 1x2_handicap
-  it("parses kambi 'Handicap - 1° Quarto (+1.5)' → 2way_handicap_1h (basket)", () => {
+  // "Handicap - N° Quarto (±X.5)" (legacy basket handicap, 2-way) — must NOT map to 1x2_handicap
+  it("parses legacy 'Handicap - 1° Quarto (+1.5)' → 2way_handicap_1h (basket)", () => {
     expect(parseMarketType("Handicap - 1° Quarto (+1.5)")).toEqual({ base_key: "2way_handicap", period: "1h", line: 1.5 });
   });
 
-  it("parses kambi 'Handicap - 3° Quarto (-1.5)' → 2way_handicap_3h", () => {
+  it("parses legacy 'Handicap - 3° Quarto (-1.5)' → 2way_handicap_3h", () => {
     expect(parseMarketType("Handicap - 3° Quarto (-1.5)")).toEqual({ base_key: "2way_handicap", period: "3h", line: -1.5 });
   });
 
-  it("parses kambi 'Handicap - 4° Quarto (+1)' → 2way_handicap_4h (integer line)", () => {
+  it("parses legacy 'Handicap - 4° Quarto (+1)' → 2way_handicap_4h (integer line)", () => {
     expect(parseMarketType("Handicap - 4° Quarto (+1)")).toEqual({ base_key: "2way_handicap", period: "4h", line: 1 });
   });
 
@@ -839,7 +839,7 @@ describe("parseMarketType — Wave 13 basket quarter totals + handicap", () => {
 });
 
 describe("parseMarketType — Wave 13 trailing-dash permissive fixes", () => {
-  // 22bet emits trailing " - " (empty period fragment) due to scraper bug.
+  // legacy emits trailing " - " (empty period fragment) due to scraper bug.
   // These patterns must treat it as if no period (→ ft).
 
   it("parses '(Totale Asiatico) 12.25 - ' (trailing dash) → asian_total_ft", () => {
@@ -869,16 +869,16 @@ describe("parseMarketType — Wave 13 trailing-dash permissive fixes", () => {
 });
 
 describe("parseMarketType — Wave 13 T/T Handicap period 3h/4h (with new canonicals)", () => {
-  it("parses 22bet 'T/T Handicap (-2.5) - 3T' → 2way_handicap_3h", () => {
+  it("parses legacy 'T/T Handicap (-2.5) - 3T' → 2way_handicap_3h", () => {
     expect(parseMarketType("T/T Handicap (-2.5) - 3T")).toEqual({ base_key: "2way_handicap", period: "3h", line: -2.5 });
   });
 
-  it("parses 22bet 'T/T Handicap (+1.5) - 4T' → 2way_handicap_4h", () => {
+  it("parses legacy 'T/T Handicap (+1.5) - 4T' → 2way_handicap_4h", () => {
     expect(parseMarketType("T/T Handicap (+1.5) - 4T")).toEqual({ base_key: "2way_handicap", period: "4h", line: 1.5 });
   });
 
   // Wave 20: 11T → 1h for T/T Handicap (basket aggregate-half 2way handicap)
-  it("Wave 20: 22bet 'T/T Handicap (-2.5) - 11T' → 2way_handicap_1h line=-2.5", () => {
+  it("Wave 20: legacy 'T/T Handicap (-2.5) - 11T' → 2way_handicap_1h line=-2.5", () => {
     expect(parseMarketType("T/T Handicap (-2.5) - 11T"))
       .toEqual({ base_key: "2way_handicap", period: "1h", line: -2.5 });
   });
@@ -888,35 +888,35 @@ describe("parseMarketType — Wave 13 T/T Handicap period 3h/4h (with new canoni
 
 describe("parseMarketType — Wave 14 OT (Supplementari inclusi / Including Overtime)", () => {
   // Totale gol - Supplementari inclusi N → u_o_et
-  it("parses kambi 'Totale gol - Supplementari inclusi 5.5' → u_o_et", () => {
+  it("parses legacy 'Totale gol - Supplementari inclusi 5.5' → u_o_et", () => {
     expect(parseMarketType("Totale gol - Supplementari inclusi 5.5")).toEqual({ base_key: "u_o", period: "et", line: 5.5 });
   });
 
-  it("parses kambi 'Totale gol - Supplementari inclusi 8.5' → u_o_et", () => {
+  it("parses legacy 'Totale gol - Supplementari inclusi 8.5' → u_o_et", () => {
     expect(parseMarketType("Totale gol - Supplementari inclusi 8.5")).toEqual({ base_key: "u_o", period: "et", line: 8.5 });
   });
 
   // U/O Incl. Supp. N → u_o_et (abbreviated form)
-  it("parses kambi 'U/O Incl. Supp. 164.5' → u_o_et", () => {
+  it("parses legacy 'U/O Incl. Supp. 164.5' → u_o_et", () => {
     expect(parseMarketType("U/O Incl. Supp. 164.5")).toEqual({ base_key: "u_o", period: "et", line: 164.5 });
   });
 
   // Risultato esatto - Supplementari inclusi → cs_et
-  it("parses kambi 'Risultato esatto - Supplementari inclusi' → cs_et", () => {
+  it("parses legacy 'Risultato esatto - Supplementari inclusi' → cs_et", () => {
     expect(parseMarketType("Risultato esatto - Supplementari inclusi")).toEqual({ base_key: "correct_score", period: "et", line: null });
   });
 
   // Entrambe le squadre segnano - Supplementari inclusi → gg_ng_et
-  it("parses kambi 'Entrambe le squadre segnano - Supplementari inclusi' → gg_ng_et", () => {
+  it("parses legacy 'Entrambe le squadre segnano - Supplementari inclusi' → gg_ng_et", () => {
     expect(parseMarketType("Entrambe le squadre segnano - Supplementari inclusi")).toEqual({ base_key: "gg_ng", period: "et", line: null });
   });
 
   // 1X2 con handicap - Supplementari inclusi (±N) → 1x2_h_et
-  it("parses kambi '1X2 con handicap - Supplementari inclusi (-1)' → 1x2_h_et", () => {
+  it("parses legacy '1X2 con handicap - Supplementari inclusi (-1)' → 1x2_h_et", () => {
     expect(parseMarketType("1X2 con handicap - Supplementari inclusi (-1)")).toEqual({ base_key: "1x2_handicap", period: "et", line: -1 });
   });
 
-  it("parses kambi '1X2 con handicap - Supplementari inclusi (+2)' → 1x2_h_et", () => {
+  it("parses legacy '1X2 con handicap - Supplementari inclusi (+2)' → 1x2_h_et", () => {
     expect(parseMarketType("1X2 con handicap - Supplementari inclusi (+2)")).toEqual({ base_key: "1x2_handicap", period: "et", line: 2 });
   });
 
@@ -933,15 +933,15 @@ describe("parseMarketType — Wave 14 OT (Supplementari inclusi / Including Over
 // ═══ Wave 15: last_goal_ft, winner alias, own_goal canonicals ═══
 
 describe("parseMarketType — Wave 15 Ultimo Goal / Vittoria Squadra / Autogol", () => {
-  it("parses 22bet 'Ultimo Goal' → last_goal_ft (new canonical)", () => {
+  it("parses legacy 'Ultimo Goal' → last_goal_ft (new canonical)", () => {
     expect(parseMarketType("Ultimo Goal")).toEqual({ base_key: "last_goal", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Vittoria Squadra' → winner_ft (existing canonical)", () => {
+  it("parses legacy 'Vittoria Squadra' → winner_ft (existing canonical)", () => {
     expect(parseMarketType("Vittoria Squadra")).toEqual({ base_key: "winner", period: "ft", line: null });
   });
 
-  it("parses kambi 'Autogol' → own_goal_ft (new canonical)", () => {
+  it("parses legacy 'Autogol' → own_goal_ft (new canonical)", () => {
     expect(parseMarketType("Autogol")).toEqual({ base_key: "own_goal", period: "ft", line: null });
   });
 
@@ -998,7 +998,7 @@ describe("parseMarketType — Wave 16 high-volume additions", () => {
       .toEqual({ base_key: "first_scorer_team", period: "ft", line: null });
   });
 
-  // Trailing-dash permissive (22bet emits "Chi Segnerà il Primo Goal Della Partita? - ")
+  // Trailing-dash permissive (legacy emits "Chi Segnerà il Primo Goal Della Partita? - ")
   it("parses trailing-dash form 'Chi Segnerà il Primo Goal Della Partita? - ' → first_scorer_team_ft", () => {
     expect(parseMarketType("Chi Segnerà il Primo Goal Della Partita? - "))
       .toEqual({ base_key: "first_scorer_team", period: "ft", line: null });
@@ -1032,7 +1032,7 @@ describe("parseMarketType — Wave 16 high-volume additions", () => {
   });
 });
 
-describe("parseMarketType — Wave 16 Kambi aliases", () => {
+describe("parseMarketType — Wave 16 legacy aliases", () => {
   it("parses 'Match Odds' → 1x2_ft", () => {
     expect(parseMarketType("Match Odds"))
       .toEqual({ base_key: "1x2", period: "ft", line: null });
@@ -1390,56 +1390,56 @@ describe("parseMarketType — Wave 18 additional families", () => {
 
 // ═══ Wave 35 — set winners, set handicaps, consecutive goals, extra time ═══
 describe("parseMarketType — Wave 35 set winners", () => {
-  it("parses Kambi '1° Set' → set_n_winner_ft line=1", () => {
+  it("parses legacy '1° Set' → set_n_winner_ft line=1", () => {
     expect(parseMarketType("1° Set"))
       .toEqual({ base_key: "set_n_winner", period: "ft", line: 1 });
   });
 
-  it("parses Kambi '2° Set' → set_n_winner_ft line=2", () => {
+  it("parses legacy '2° Set' → set_n_winner_ft line=2", () => {
     expect(parseMarketType("2° Set"))
       .toEqual({ base_key: "set_n_winner", period: "ft", line: 2 });
   });
 
-  it("parses Kambi '5° Set' → set_n_winner_ft line=5 (tennis 5-setter)", () => {
+  it("parses legacy '5° Set' → set_n_winner_ft line=5 (tennis 5-setter)", () => {
     expect(parseMarketType("5° Set"))
       .toEqual({ base_key: "set_n_winner", period: "ft", line: 5 });
   });
 
-  it("parses Kambi 'Set 2' (alternative form) → set_n_winner_ft line=2", () => {
+  it("parses legacy 'Set 2' (alternative form) → set_n_winner_ft line=2", () => {
     expect(parseMarketType("Set 2"))
       .toEqual({ base_key: "set_n_winner", period: "ft", line: 2 });
   });
 
-  it("parses Kambi 'Set 3' → set_n_winner_ft line=3", () => {
+  it("parses legacy 'Set 3' → set_n_winner_ft line=3", () => {
     expect(parseMarketType("Set 3"))
       .toEqual({ base_key: "set_n_winner", period: "ft", line: 3 });
   });
 });
 
 describe("parseMarketType — Wave 35 set handicap", () => {
-  it("parses Kambi 'Handicap sui Set (-1.5)' → set_handicap_ft line=-1.5", () => {
+  it("parses legacy 'Handicap sui Set (-1.5)' → set_handicap_ft line=-1.5", () => {
     expect(parseMarketType("Handicap sui Set (-1.5)"))
       .toEqual({ base_key: "set_handicap", period: "ft", line: -1.5 });
   });
 
-  it("parses Kambi 'Handicap sui Set (+1.5)' → set_handicap_ft line=1.5", () => {
+  it("parses legacy 'Handicap sui Set (+1.5)' → set_handicap_ft line=1.5", () => {
     expect(parseMarketType("Handicap sui Set (+1.5)"))
       .toEqual({ base_key: "set_handicap", period: "ft", line: 1.5 });
   });
 
-  it("parses Kambi 'Handicap sui Set (-2.5)' → set_handicap_ft line=-2.5", () => {
+  it("parses legacy 'Handicap sui Set (-2.5)' → set_handicap_ft line=-2.5", () => {
     expect(parseMarketType("Handicap sui Set (-2.5)"))
       .toEqual({ base_key: "set_handicap", period: "ft", line: -2.5 });
   });
 });
 
 describe("parseMarketType — Wave 35 consecutive goals (any team)", () => {
-  it("parses 22bet 'Goal Di Seguito Di Una Squadra (2)' → any_team_consecutive_goals_ft line=2", () => {
+  it("parses legacy 'Goal Di Seguito Di Una Squadra (2)' → any_team_consecutive_goals_ft line=2", () => {
     expect(parseMarketType("Goal Di Seguito Di Una Squadra (2)"))
       .toEqual({ base_key: "any_team_consecutive_goals", period: "ft", line: 2 });
   });
 
-  it("parses 22bet 'Goal Di Seguito Di Una Squadra (3)' → any_team_consecutive_goals_ft line=3", () => {
+  it("parses legacy 'Goal Di Seguito Di Una Squadra (3)' → any_team_consecutive_goals_ft line=3", () => {
     expect(parseMarketType("Goal Di Seguito Di Una Squadra (3)"))
       .toEqual({ base_key: "any_team_consecutive_goals", period: "ft", line: 3 });
   });
@@ -1455,22 +1455,22 @@ describe("parseMarketType — Wave 35 consecutive goals (any team)", () => {
 });
 
 describe("parseMarketType — Wave 35 extra time yes/no per period", () => {
-  it("parses 22bet 'Ci Saranno i Supplementari - Sì/No' (no period) → extra_time_yn_ft", () => {
+  it("parses legacy 'Ci Saranno i Supplementari - Sì/No' (no period) → extra_time_yn_ft", () => {
     expect(parseMarketType("Ci Saranno i Supplementari - Sì/No"))
       .toEqual({ base_key: "extra_time_yn", period: "ft", line: null });
   });
 
-  it("parses 22bet 'Ci Saranno i Supplementari - Sì/No - 1T' → extra_time_yn_1h", () => {
+  it("parses legacy 'Ci Saranno i Supplementari - Sì/No - 1T' → extra_time_yn_1h", () => {
     expect(parseMarketType("Ci Saranno i Supplementari - Sì/No - 1T"))
       .toEqual({ base_key: "extra_time_yn", period: "1h", line: null });
   });
 
-  it("parses 22bet 'Ci Saranno i Supplementari - Sì/No - 2T' → extra_time_yn_2h", () => {
+  it("parses legacy 'Ci Saranno i Supplementari - Sì/No - 2T' → extra_time_yn_2h", () => {
     expect(parseMarketType("Ci Saranno i Supplementari - Sì/No - 2T"))
       .toEqual({ base_key: "extra_time_yn", period: "2h", line: null });
   });
 
-  it("parses 22bet 'Ci Saranno i Supplementari - Sì/No - 3T' → extra_time_yn_3h", () => {
+  it("parses legacy 'Ci Saranno i Supplementari - Sì/No - 3T' → extra_time_yn_3h", () => {
     expect(parseMarketType("Ci Saranno i Supplementari - Sì/No - 3T"))
       .toEqual({ base_key: "extra_time_yn", period: "3h", line: null });
   });
@@ -1481,15 +1481,3 @@ describe("parseMarketType — Wave 35 extra time yes/no per period", () => {
   });
 });
 
-// ═══ Wave 35.1 — Betfair-emitted compact aliases (Task 10 expansion residue) ═══
-describe("parseMarketType — Betfair compact aliases", () => {
-  it("parses betfair 'DNB' (Draw No Bet compact) → dnb_ft", () => {
-    expect(parseMarketType("DNB"))
-      .toEqual({ base_key: "dnb", period: "ft", line: null });
-  });
-
-  it("parses betfair '1T/FT' (HT/FT compact) → htft_ft", () => {
-    expect(parseMarketType("1T/FT"))
-      .toEqual({ base_key: "htft", period: "ft", line: null });
-  });
-});

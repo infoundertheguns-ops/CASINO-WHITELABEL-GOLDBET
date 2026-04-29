@@ -52,64 +52,64 @@ function lookupsWith(opts: {
 }
 
 describe("resolveCanonicalSettler", () => {
-  it("22bet '1X2 - 1T' → 1X2_HT via 1x2_1h canonical", () => {
+  it("odds-api '1X2 - 1T' → 1X2_HT via 1x2_1h canonical", () => {
     const lookups = lookupsWith({
       markets: [
-        { source: "22bet", source_market_type: "1X2 - 1T", canonical_key: "1x2_1h" },
+        { source: "odds-api", source_market_type: "1X2 - 1T", canonical_key: "1x2_1h" },
       ],
     });
-    const r = resolveCanonicalSettler("22bet", "1X2 - 1T", null, lookups);
+    const r = resolveCanonicalSettler("odds-api", "1X2 - 1T", null, lookups);
     expect(r).toEqual({ key: "1X2_HT", line: undefined, canonicalKey: "1x2_1h" });
   });
 
-  it("22bet 'U/O 2.5 - 1T' → O/U_HT with canonical_line 2.5", () => {
+  it("odds-api 'U/O 2.5 - 1T' → O/U_HT with canonical_line 2.5", () => {
     const lookups = lookupsWith({
       markets: [
         {
-          source: "22bet",
+          source: "odds-api",
           source_market_type: "U/O 2.5 - 1T",
           canonical_key: "u_o_1h",
           canonical_line: 2.5,
         },
       ],
     });
-    const r = resolveCanonicalSettler("22bet", "U/O 2.5 - 1T", null, lookups);
+    const r = resolveCanonicalSettler("odds-api", "U/O 2.5 - 1T", null, lookups);
     expect(r).toEqual({ key: "O/U_HT", line: 2.5, canonicalKey: "u_o_1h" });
   });
 
   it("canonical_line missing → falls back to marketLine", () => {
     const lookups = lookupsWith({
       markets: [
-        { source: "22bet", source_market_type: "U/O", canonical_key: "u_o_ft" },
+        { source: "odds-api", source_market_type: "U/O", canonical_key: "u_o_ft" },
       ],
     });
-    const r = resolveCanonicalSettler("22bet", "U/O", 3.5, lookups);
+    const r = resolveCanonicalSettler("odds-api", "U/O", 3.5, lookups);
     expect(r?.line).toBe(3.5);
   });
 
-  it("22bet 'GG/NG - 1T' → GG/NG_HT", () => {
+  it("odds-api 'GG/NG - 1T' → GG/NG_HT", () => {
     const lookups = lookupsWith({
       markets: [
-        { source: "22bet", source_market_type: "GG/NG - 1T", canonical_key: "gg_ng_1h" },
+        { source: "odds-api", source_market_type: "GG/NG - 1T", canonical_key: "gg_ng_1h" },
       ],
     });
-    const r = resolveCanonicalSettler("22bet", "GG/NG - 1T", null, lookups);
+    const r = resolveCanonicalSettler("odds-api", "GG/NG - 1T", null, lookups);
     expect(r?.key).toBe("GG/NG_HT");
   });
 
-  it("22bet 'DC - 1T' → DC_HT", () => {
+  it("odds-api 'DC - 1T' → DC_HT", () => {
     const lookups = lookupsWith({
       markets: [
-        { source: "22bet", source_market_type: "DC - 1T", canonical_key: "dc_1h" },
+        { source: "odds-api", source_market_type: "DC - 1T", canonical_key: "dc_1h" },
       ],
     });
-    const r = resolveCanonicalSettler("22bet", "DC - 1T", null, lookups);
+    const r = resolveCanonicalSettler("odds-api", "DC - 1T", null, lookups);
     expect(r?.key).toBe("DC_HT");
   });
 
   it("unmapped market_type → null (fall through to void)", () => {
     const lookups = makeEmptyLookups();
-    const r = resolveCanonicalSettler("22bet", "Some Exotic Prop", null, lookups);
+    const r = resolveCanonicalSettler("odds-api", "Some Exotic Prop", null, lookups);
     expect(r).toBeNull();
   });
 
@@ -117,27 +117,27 @@ describe("resolveCanonicalSettler", () => {
     const lookups = lookupsWith({
       markets: [
         {
-          source: "22bet",
+          source: "odds-api",
           source_market_type: "Player Props Thing",
           // anytime_scorer exists in canonical_markets but not in CANONICAL_TO_SETTLER
           canonical_key: "anytime_scorer",
         },
       ],
     });
-    const r = resolveCanonicalSettler("22bet", "Player Props Thing", null, lookups);
+    const r = resolveCanonicalSettler("odds-api", "Player Props Thing", null, lookups);
     expect(r).toBeNull();
   });
 
   it("source discrimination: same market_type, different sources → independent", () => {
     const lookups = lookupsWith({
       markets: [
-        { source: "kambi", source_market_type: "1X2", canonical_key: "1x2_ft" },
+        { source: "flashscore", source_market_type: "1X2", canonical_key: "1x2_ft" },
       ],
     });
-    // 22bet with same market_type but no mapping → null
-    expect(resolveCanonicalSettler("22bet", "1X2", null, lookups)).toBeNull();
-    // kambi → maps
-    expect(resolveCanonicalSettler("kambi", "1X2", null, lookups)?.key).toBe("1X2");
+    // odds-api with same market_type but no mapping → null
+    expect(resolveCanonicalSettler("odds-api", "1X2", null, lookups)).toBeNull();
+    // flashscore → maps
+    expect(resolveCanonicalSettler("flashscore", "1X2", null, lookups)?.key).toBe("1X2");
   });
 });
 
@@ -172,7 +172,7 @@ describe("canonicalizeOutcome", () => {
     const lookups = lookupsWith({
       outcomes: [
         {
-          source: "22bet",
+          source: "odds-api",
           source_market_type: "GG/NG",
           source_outcome_name: "Si",
           canonical_outcome_key: "yes",
@@ -184,7 +184,7 @@ describe("canonicalizeOutcome", () => {
       ],
     });
     expect(
-      canonicalizeOutcome("22bet", "GG/NG", "Si", "gg_ng_ft", lookups),
+      canonicalizeOutcome("odds-api", "GG/NG", "Si", "gg_ng_ft", lookups),
     ).toBe("Sì");
   });
 
@@ -194,7 +194,7 @@ describe("canonicalizeOutcome", () => {
         { canonical_key: "1x2_ft", source_outcome_pattern: "1", canonical_outcome_key: "home" },
       ],
     });
-    expect(canonicalizeOutcome("22bet", "1X2", "1", "1x2_ft", lookups)).toBe("1");
+    expect(canonicalizeOutcome("odds-api", "1X2", "1", "1x2_ft", lookups)).toBe("1");
   });
 
   it("case-insensitive outcome lookup", () => {
@@ -203,12 +203,12 @@ describe("canonicalizeOutcome", () => {
         { canonical_key: "u_o_ft", source_outcome_pattern: "over", canonical_outcome_key: "over" },
       ],
     });
-    expect(canonicalizeOutcome("22bet", "U/O", "OVER", "u_o_ft", lookups)).toBe("Over");
+    expect(canonicalizeOutcome("odds-api", "U/O", "OVER", "u_o_ft", lookups)).toBe("Over");
   });
 
   it("no mapping → returns raw outcome (safe fallback)", () => {
     const lookups = makeEmptyLookups();
-    expect(canonicalizeOutcome("22bet", "Some Market", "SomeOutcome", null, lookups)).toBe(
+    expect(canonicalizeOutcome("odds-api", "Some Market", "SomeOutcome", null, lookups)).toBe(
       "SomeOutcome",
     );
   });
@@ -219,7 +219,7 @@ describe("canonicalizeOutcome", () => {
         { canonical_key: "1x2_ft", source_outcome_pattern: "1", canonical_outcome_key: "home" },
       ],
     });
-    expect(canonicalizeOutcome("22bet", "Something", "1", null, lookups)).toBe("1");
+    expect(canonicalizeOutcome("odds-api", "Something", "1", null, lookups)).toBe("1");
   });
 });
 
@@ -249,19 +249,19 @@ describe("VOID_BY_DESIGN", () => {
 
   it("resolveCanonicalSettler returns null for VOID_BY_DESIGN canonicals", () => {
     const l = makeEmptyLookups();
-    l.market.set("22bet|Anytime Scorer Market", {
+    l.market.set("odds-api|Anytime Scorer Market", {
       canonical_key: "anytime_scorer",
       canonical_line: null,
     });
-    expect(resolveCanonicalSettler("22bet", "Anytime Scorer Market", null, l)).toBeNull();
+    expect(resolveCanonicalSettler("odds-api", "Anytime Scorer Market", null, l)).toBeNull();
   });
 });
 
 describe("setIdx from canonical suffix — Phase C period 3h/4h", () => {
   it("1x2_3h → 1X2_QUARTER setIdx=3", () => {
     const l = makeEmptyLookups();
-    l.market.set("22bet|1X2 - 3Q", { canonical_key: "1x2_3h", canonical_line: null });
-    const r = resolveCanonicalSettler("22bet", "1X2 - 3Q", null, l);
+    l.market.set("odds-api|1X2 - 3Q", { canonical_key: "1x2_3h", canonical_line: null });
+    const r = resolveCanonicalSettler("odds-api", "1X2 - 3Q", null, l);
     expect(r).toEqual({
       key: "1X2_QUARTER",
       line: undefined,
@@ -272,11 +272,11 @@ describe("setIdx from canonical suffix — Phase C period 3h/4h", () => {
 
   it("u_o_4h → O/U_QUARTER setIdx=4 with canonical_line", () => {
     const l = makeEmptyLookups();
-    l.market.set("22bet|U/O 50 - 4Q", {
+    l.market.set("odds-api|U/O 50 - 4Q", {
       canonical_key: "u_o_4h",
       canonical_line: 50,
     });
-    const r = resolveCanonicalSettler("22bet", "U/O 50 - 4Q", null, l);
+    const r = resolveCanonicalSettler("odds-api", "U/O 50 - 4Q", null, l);
     expect(r?.key).toBe("O/U_QUARTER");
     expect(r?.setIdx).toBe(4);
     expect(r?.line).toBe(50);
@@ -284,8 +284,8 @@ describe("setIdx from canonical suffix — Phase C period 3h/4h", () => {
 
   it("dc_1h does NOT derive setIdx (routed to DC_HT)", () => {
     const l = makeEmptyLookups();
-    l.market.set("22bet|DC - 1T", { canonical_key: "dc_1h", canonical_line: null });
-    const r = resolveCanonicalSettler("22bet", "DC - 1T", null, l);
+    l.market.set("odds-api|DC - 1T", { canonical_key: "dc_1h", canonical_line: null });
+    const r = resolveCanonicalSettler("odds-api", "DC - 1T", null, l);
     expect(r?.key).toBe("DC_HT");
     expect(r?.setIdx).toBeUndefined();
   });
