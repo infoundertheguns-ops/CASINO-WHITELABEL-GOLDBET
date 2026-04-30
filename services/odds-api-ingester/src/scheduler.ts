@@ -82,7 +82,7 @@ const tierConfigs: TierConfig[] = [
  *  Independent loop avoids two failure modes seen under tier-triggered
  *  derive: (a) blocking the tier's busy flag for 60s+ and missing tick
  *  windows, (b) lock contention with concurrent tier upsertBatch ops. */
-const DERIVE_HEARTBEAT_MS = 60_000;
+const DERIVE_HEARTBEAT_MS = 300_000;
 
 /** Stale-lives heartbeat: every 5 min, settle events_v2 rows that are still
  *  status='live' but past the safety threshold (default 6h after kickoff).
