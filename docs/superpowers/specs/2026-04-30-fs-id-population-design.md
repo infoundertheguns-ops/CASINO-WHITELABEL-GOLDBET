@@ -34,9 +34,17 @@ visible for every event the Flashscore scraper can match to an FS match
 identifier — both for the existing 4237-row backlog and for the
 continuous flow of newly ingested events from odds-api.
 
-Target coverage: **> 75%** of events_v2 rows after backfill. Remaining
-gap acceptable as long as the residual events display only score-based
-markets (no broken pages).
+Target coverage:
+
+- **Floor (acceptance)**: ≥ 75% of events_v2 rows have a non-null
+  `flashscore_id` after the one-shot backfill. Below this floor the
+  feature is considered failing and rollback should be considered.
+- **Realistic expectation**: ~85-92% based on legacy/canonical join
+  yielding ~59% gratis + search endpoint matching ~70-80% of the residual
+  ~41%. The example backfill output reflects this realistic mid-range.
+
+Remaining gap acceptable as long as the residual events display only
+score-based markets (no broken pages).
 
 ## Non-goals
 
@@ -125,8 +133,12 @@ GET http://127.0.0.1:8090/search?
     starts_at={ISO8601}&
     home={text}&
     away={text}
-Header: X-API-Key: goldbet-scraper-2026
+Header: X-API-Key: ${FS_SEARCH_API_KEY}
 ```
+
+The API key is sourced on both ends from env var `FS_SEARCH_API_KEY` (set
+in the scraper service environment and in the ingester `.env`). Never
+commit a literal value.
 
 ### Response
 
@@ -150,7 +162,7 @@ Header: X-API-Key: goldbet-scraper-2026
 5. Filter candidates by timestamp ±10 min from query starts_at
 6. For each candidate, normalize and apply alias dictionary:
    normalize(s) = s.toLowerCase().normalize('NFD')
-                   .replace(/[̀-ͯ]/g, '')      // strip diacritics
+                   .replace(/[̀-ͯ]/g, '')  // strip diacritics (combining marks)
                    .replace(/\b(fc|ac|cf|sc|sk|as|ss|usl|calcio)\b/gi, '')
                    .replace(/\s+/g, ' ').trim()
    alias_lookup(s) = aliases[s] ?? s          // optional substitution
@@ -170,20 +182,26 @@ Header: X-API-Key: goldbet-scraper-2026
 
 ### Alias dictionary
 
-Static JSON file `flashscore-scraper/src/team-aliases.json`. Keyed by
-*normalized form* of either side, mapping to a canonical normalized form.
+Static JSON file `flashscore-scraper/src/team-aliases.json`. Aliases are
+**sport-scoped** to avoid cross-sport collisions (e.g. "Real" maps
+differently in football vs basketball). Keys are
+`{sport_slug}:{normalized_form}`, values are the canonical normalized
+form within that sport.
 
 ```json
 {
-  "inter": "internazionale",
-  "man utd": "manchester united",
-  "man city": "manchester city",
-  "real": "real madrid",
-  "atletico": "atletico madrid",
-  "bayern": "bayern munchen",
-  "psg": "paris saint germain"
+  "football:inter": "internazionale",
+  "football:man utd": "manchester united",
+  "football:man city": "manchester city",
+  "football:real": "real madrid",
+  "football:atletico": "atletico madrid",
+  "football:bayern": "bayern munchen",
+  "football:psg": "paris saint germain",
+  "basketball:real": "real madrid baloncesto"
 }
 ```
+
+Lookup: `aliases[`${sport_slug}:${normalized}`] ?? normalized`.
 
 Initial seed: ~50-100 entries for football, expanded over time as
 `no_match` cases surface in logs. Process: weekly review of top
@@ -307,6 +325,16 @@ event, and score-based markets remain visible. No broken UX.
 Lookups in mid/slow/discovery are dominated by Step 1+2 SQL hits
 (microseconds), only the residual ~5-10% reach Step 3 with HTTP cost.
 
+### Concurrency
+
+Per-tier lookup execution is **bounded-parallel**: the ingester runs up
+to `FS_LOOKUP_CONCURRENCY` (default 4) lookups in parallel within a tier
+batch using a `Promise.all` with a semaphore wrapper. This prevents
+serial 33-min worst-case on `discovery` while keeping FS request rate
+predictable (4 concurrent × ~1s avg = ~4 req/sec to scraper, well under
+the existing 1/sec backfill throttle since each request is mostly cache
+hit).
+
 ## Backfill script
 
 ### Step A — Bulk SQL (no scraper, ~30s)
@@ -333,6 +361,13 @@ WHERE e_oa.external_id = 'odds-api:' || v.odds_api_id::text
 Expected outcome: ~2489 rows populated.
 
 ### Step B — Priority queue (~15-20 min)
+
+Note: with cache TTL 5min and ~150 `(sport_slug, dayOffset)` combos
+covering most events, Step B is **cache-bound after the first ~50
+lookups** — most subsequent requests hit the in-memory cache and skip
+the upstream Flashscore fetch. The 1 req/sec throttle protects scraper
+CPU, not Flashscore rate limit.
+
 
 ```sql
 SELECT id, odds_api_id, sport_slug, starts_at, home, away, status
