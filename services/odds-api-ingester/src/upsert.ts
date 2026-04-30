@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { Pool } from 'pg';
+import { resolveFlashscoreId } from './resolve-flashscore-id.js';
 import type { TransformResult } from './types.js';
 
 export type UpsertConfig = {
@@ -6,10 +8,12 @@ export type UpsertConfig = {
   serviceRoleKey: string;
 };
 
+export type EventRow = {  id: string;  flashscore_id: string | null;  odds_api_id: number;  sport_slug: string;  starts_at: string;  home: string;  away: string;};
 export type UpsertSummary = {
   events_upserted: number;
   markets_upserted: number;
   outcomes_upserted: number;
+  eventRows: EventRow[];
 };
 
 // Per-table chunk sizes. All three tables are chunked so that no single
@@ -27,6 +31,7 @@ const CHUNK_OUTCOMES = 1000;
 
 export class Upserter {
   private sb: SupabaseClient;
+  private pgPool: Pool | null = null;
 
   constructor(cfg: UpsertConfig) {
     this.sb = createClient(cfg.supabaseUrl, cfg.serviceRoleKey, {
@@ -36,21 +41,23 @@ export class Upserter {
 
   async upsertBatch(results: TransformResult[]): Promise<UpsertSummary> {
     if (results.length === 0) {
-      return { events_upserted: 0, markets_upserted: 0, outcomes_upserted: 0 };
+      return { events_upserted: 0, markets_upserted: 0, outcomes_upserted: 0, eventRows: [] };
     }
 
     // 1) events_v2 -> chunked, accumulate id by odds_api_id.
-    const eventRows = results.map(r => r.event);
+    const eventInputs = results.map(r => r.event);
+    const eventRowsOut: EventRow[] = [];
     const idByOddsApiId = new Map<number, string>();
-    for (let i = 0; i < eventRows.length; i += CHUNK_EVENTS) {
-      const chunk = eventRows.slice(i, i + CHUNK_EVENTS);
+    for (let i = 0; i < eventInputs.length; i += CHUNK_EVENTS) {
+      const chunk = eventInputs.slice(i, i + CHUNK_EVENTS);
       const { data, error } = await this.sb
         .from('events_v2')
         .upsert(chunk, { onConflict: 'odds_api_id' })
-        .select('id, odds_api_id');
+        .select('id, flashscore_id, odds_api_id, sport_slug, starts_at, home, away');
       if (error) throw new Error(`events_v2 upsert failed: ${error.message}`);
       for (const row of data ?? []) {
         idByOddsApiId.set(row.odds_api_id as number, row.id as string);
+        eventRowsOut.push({ id: row.id as string, flashscore_id: (row.flashscore_id as string | null) ?? null, odds_api_id: row.odds_api_id as number, sport_slug: row.sport_slug as string, starts_at: row.starts_at as string, home: row.home as string, away: row.away as string });
       }
     }
 
@@ -124,10 +131,65 @@ export class Upserter {
     }
 
     return {
-      events_upserted: eventRows.length,
+      events_upserted: eventInputs.length,
       markets_upserted: marketRows.length,
       outcomes_upserted: outcomeRows.length,
+      eventRows: eventRowsOut,
     };
+  }
+
+  private getPgPool(): Pool {
+    if (this.pgPool) return this.pgPool;
+    if (process.env.DATABASE_URL) {
+      this.pgPool = new Pool({ max: 4, connectionString: process.env.DATABASE_URL });
+      return this.pgPool;
+    }
+    throw new Error('database connection env var missing');
+  }
+
+  /**
+   * Plan D #4 - FS-id population hook.
+   */
+  async maybeResolveFsId(row: EventRow): Promise<void> {
+    if (row.flashscore_id) return;
+    const log = {
+      info: (obj: any, msg: string) => console.log(msg),
+      warn: (obj: any, msg: string) => console.warn(msg),
+    };
+    try {
+      const pool = this.getPgPool();
+      const dbAdapter = {
+        queryOne: async <T = any>(sql: string, params: any[]): Promise<T | null> => {
+          const r = await pool.query(sql, params);
+          return ((r.rows[0] as T) ?? null);
+        },
+      };
+      const matchId = await resolveFlashscoreId(
+        {
+          odds_api_id: row.odds_api_id,
+          sport_slug: row.sport_slug,
+          starts_at: new Date(row.starts_at),
+          home: row.home,
+          away: row.away,
+        },
+        {
+          db: dbAdapter,
+          searchUrl: process.env.FS_SEARCH_URL!,
+          apiKey: process.env.FS_SEARCH_API_KEY!,
+          log,
+        }
+      );
+      if (matchId !== null) {
+        await this.persistFsId(row.id, matchId);
+      }
+    } catch (err) {
+      log.warn({ id: row.id, err: String(err) }, '[fs-id] hook failure (ignored)');
+    }
+  }
+
+  private async persistFsId(eventId: string, fsId: string): Promise<void> {
+    const payload = { flashscore_id: fsId, updated_at: new Date().toISOString() };
+    await this.sb.from('events_v2').update(payload).eq('id', eventId).is('flashscore_id', null);
   }
 
   /**

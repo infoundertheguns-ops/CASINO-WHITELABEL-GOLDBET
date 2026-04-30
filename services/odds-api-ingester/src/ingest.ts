@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { OddsApiClient } from './api-client.js';
 import { transformEvent } from './transformer.js';
 import { Upserter } from './upsert.js';
+import pLimit from 'p-limit';
 import {
   ENABLED_SPORTS,
   ENABLED_BOOKMAKERS,
@@ -206,6 +207,14 @@ export async function ingestOneSport(
       summary.events_upserted = upsertSummary.events_upserted;
       summary.markets_upserted = upsertSummary.markets_upserted;
       summary.outcomes_upserted = upsertSummary.outcomes_upserted;
+      if (upsertSummary.eventRows && upsertSummary.eventRows.length > 0) {
+        const fsLimit = pLimit(Number(process.env.FS_LOOKUP_CONCURRENCY ?? 4));
+        await Promise.all(
+          upsertSummary.eventRows.map((r) =>
+            fsLimit(() => deps.upserter.maybeResolveFsId(r)),
+          ),
+        );
+      }
     } catch (err) {
       console.error(`[${opts.label}/${sport.slug}] upsert failed:`, (err as Error).message);
     }
