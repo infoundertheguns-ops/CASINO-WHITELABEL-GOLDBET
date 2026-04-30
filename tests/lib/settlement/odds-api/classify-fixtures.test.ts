@@ -72,4 +72,27 @@ describe("Shadow classifier — coverage by market family", () => {
     const aliases = typedFixtures.filter((f) => f.id.startsWith("alias"));
     expect(aliases.length).toBeGreaterThan(0);
   });
+
+  test("covers HT/FT family", () => {
+    expect(typedFixtures.some((f) => f.id.startsWith("htft"))).toBe(true);
+  });
+
+  test("covers Correct Score family", () => {
+    expect(typedFixtures.some((f) => f.id.startsWith("cs-"))).toBe(true);
+  });
+
+  test("covers Odd/Even family", () => {
+    expect(typedFixtures.some((f) => f.id.startsWith("oe-"))).toBe(true);
+  });
+
+  test("covers Handicap 2-way with push and quarter-line null cases", () => {
+    const hcap = typedFixtures.filter((f) => f.id.startsWith("hcap"));
+    expect(hcap.length).toBeGreaterThan(0);
+    expect(hcap.some((f) => f.expected_verdict === "void")).toBe(true);
+    expect(hcap.some((f) => f.expected_verdict === null)).toBe(true);
+  });
+
+  test("covers European Handicap (3-way)", () => {
+    expect(typedFixtures.some((f) => f.id.startsWith("euhcap"))).toBe(true);
+  });
 });

@@ -440,5 +440,227 @@
     "leg": { "market_type": "DC", "outcome_name": "home_or_draw", "line": null },
     "result": { "home": 2, "away": 1 },
     "expected_verdict": "won"
+  },
+
+  {
+    "id": "htft-001",
+    "description": "HT/FT 1/1 home leading both halves (HT 1-0 FT 2-0)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "1/1", "line": null },
+    "result": { "home": 2, "away": 0, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "htft-002",
+    "description": "HT/FT X/1 draw at HT, home wins FT (HT 1-1 FT 2-1)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "X/1", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "htft-003",
+    "description": "HT/FT 2/X away leading HT, draw FT (HT 0-1 FT 1-1)",
+    "leg": { "market_type": "Half Time / Full Time", "outcome_name": "2/X", "line": null },
+    "result": { "home": 1, "away": 1, "ht_home": 0, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "htft-004",
+    "description": "HT/FT 1/2 home leading HT, away wins FT (comeback)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "1/2", "line": null },
+    "result": { "home": 1, "away": 3, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "htft-005",
+    "description": "HT/FT X/X both halves draw (HT 0-0 FT 1-1)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "X/X", "line": null },
+    "result": { "home": 1, "away": 1, "ht_home": 0, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "htft-006",
+    "description": "HT/FT 1/1 lost when actually X/1 (HT draw, FT home)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "1/1", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "htft-007",
+    "description": "HT/FT Home/Draw spelled-out (HT 1-0 FT 1-1)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "Home/Draw", "line": null },
+    "result": { "home": 1, "away": 1, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "htft-008",
+    "description": "HT/FT 2/2 away wins both halves (HT 0-1 FT 0-2)",
+    "leg": { "market_type": "1T/Finale", "outcome_name": "2/2", "line": null },
+    "result": { "home": 0, "away": 2, "ht_home": 0, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "cs-001",
+    "description": "Risultato Esatto 2-1 match exact",
+    "leg": { "market_type": "Risultato Esatto", "outcome_name": "2-1", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "cs-002",
+    "description": "Risultato Esatto 2-1 actual was 3-1 (lost)",
+    "leg": { "market_type": "Risultato Esatto", "outcome_name": "2-1", "line": null },
+    "result": { "home": 3, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "cs-003",
+    "description": "Correct Score 0-0 nil-nil (won)",
+    "leg": { "market_type": "Correct Score", "outcome_name": "0-0", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "cs-004",
+    "description": "Risultato Esatto 1:2 colon separator format (won)",
+    "leg": { "market_type": "Risultato Esatto", "outcome_name": "1:2", "line": null },
+    "result": { "home": 1, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "cs-005",
+    "description": "Risultato Esatto 4-3 high-score (won)",
+    "leg": { "market_type": "Risultato Esatto", "outcome_name": "4-3", "line": null },
+    "result": { "home": 4, "away": 3 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "oe-001",
+    "description": "P/D odd total 3 (2-1), outcome=odd",
+    "leg": { "market_type": "P/D", "outcome_name": "odd", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "oe-002",
+    "description": "P/D even total 4 (2-2), outcome=odd lost",
+    "leg": { "market_type": "P/D", "outcome_name": "odd", "line": null },
+    "result": { "home": 2, "away": 2 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "oe-003",
+    "description": "Odd/Even alias even total 0 (0-0), outcome=even",
+    "leg": { "market_type": "Odd/Even", "outcome_name": "even", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "oe-004",
+    "description": "P/D Italian dispari total 5, outcome=dispari",
+    "leg": { "market_type": "P/D", "outcome_name": "dispari", "line": null },
+    "result": { "home": 3, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "oe-005",
+    "description": "P/D pari Italian total 2, outcome=pari",
+    "leg": { "market_type": "P/D", "outcome_name": "pari", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "hcap-001",
+    "description": "Handicap home -1.5 wins 3-1 (adj 1.5 > 1)",
+    "leg": { "market_type": "Handicap", "outcome_name": "1", "line": -1.5 },
+    "result": { "home": 3, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "hcap-002",
+    "description": "Handicap home -1.5 wins 2-1 (adj 0.5 < 1, lost)",
+    "leg": { "market_type": "Handicap", "outcome_name": "1", "line": -1.5 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "hcap-003",
+    "description": "Handicap away +1.5 covers 2-1 (adj_away 2.5 > 2)",
+    "leg": { "market_type": "Handicap", "outcome_name": "2", "line": 1.5 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "hcap-004",
+    "description": "Handicap home -1.0 push exact (3-2 → adj 2 == 2 void)",
+    "leg": { "market_type": "Handicap", "outcome_name": "1", "line": -1.0 },
+    "result": { "home": 3, "away": 2 },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "hcap-005",
+    "description": "Handicap home 0 (DNB-equivalent) wins 1-0",
+    "leg": { "market_type": "Handicap", "outcome_name": "1", "line": 0 },
+    "result": { "home": 1, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "hcap-006",
+    "description": "Handicap home -2.5 falls short 2-0 (adj -0.5 < 0)",
+    "leg": { "market_type": "Handicap", "outcome_name": "1", "line": -2.5 },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "hcap-007",
+    "description": "Handicap - 1T home -0.5 HT 1-0 (adj 0.5 > 0)",
+    "leg": { "market_type": "Handicap - 1T", "outcome_name": "1", "line": -0.5 },
+    "result": { "home": 1, "away": 0, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "hcap-008",
+    "description": "Handicap - 2T away +0.5 SH (FT 2-2, HT 1-1, SH 1-1) → adj 1.5 > 1, away covers",
+    "leg": { "market_type": "Handicap - 2T", "outcome_name": "2", "line": 0.5 },
+    "result": { "home": 2, "away": 2, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "hcap-009",
+    "description": "Handicap quarter line -1.25 (Asian) NOT supported, expect null",
+    "leg": { "market_type": "Handicap", "outcome_name": "1", "line": -1.25 },
+    "result": { "home": 3, "away": 1 },
+    "expected_verdict": null
+  },
+
+  {
+    "id": "euhcap-001",
+    "description": "European Handicap home -1 line, home wins 3-1 (adj 2 > 1)",
+    "leg": { "market_type": "European Handicap", "outcome_name": "1", "line": -1 },
+    "result": { "home": 3, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "euhcap-002",
+    "description": "European Handicap home -1 wins 2-1 → adj 1=1 draw, X wins",
+    "leg": { "market_type": "European Handicap", "outcome_name": "X", "line": -1 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "euhcap-003",
+    "description": "European Handicap +2 home, draw 1-1 → adj 3 vs 1, home wins, outcome 2 lost",
+    "leg": { "market_type": "European Handicap", "outcome_name": "2", "line": 2 },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "euhcap-004",
+    "description": "European Handicap -2 home, win 2-0 → adj 0 = 0 draw, X correct",
+    "leg": { "market_type": "European Handicap", "outcome_name": "X", "line": -2 },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "won"
   }
 ]

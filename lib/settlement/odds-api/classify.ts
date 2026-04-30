@@ -6,7 +6,7 @@
 // null = engine cannot classify (e.g. market_type not yet supported by shadow).
 // Caller writes to settlement_log_shadow with source_used='unsupported_market'.
 //
-// Pure functions ONLY. No DB access. Tested via unit tests in tests/unit/shadow-classify.test.ts.
+// Pure functions ONLY. No DB access. Tested via fixture in tests/lib/settlement/...
 
 export type Verdict = "won" | "lost" | "void";
 
@@ -44,19 +44,16 @@ function settle1X2(home: number, away: number, outcome: string): Verdict {
   if (o === "2" || o === "away" || o === "trasferta") {
     return away > home ? "won" : "lost";
   }
-  // Unknown outcome name — caller treats as null
   return "void";
 }
 
 function settleOU(total: number, line: number | null, outcome: string): Verdict | null {
   if (line == null) return null;
   const o = norm(outcome);
-  // .5 lines → no push possible
-  // .0 lines → push (refund) when total === line
   if (o === "over" || o === "o" || o === "più di") {
     if (total > line) return "won";
     if (total < line) return "lost";
-    return "void"; // push
+    return "void"; // push (only on .0 lines)
   }
   if (o === "under" || o === "u" || o === "meno di") {
     if (total < line) return "won";
@@ -87,10 +84,96 @@ function settleDC(home: number, away: number, outcome: string): Verdict {
 
 function settleDNB(home: number, away: number, outcome: string): Verdict {
   const o = norm(outcome);
-  if (home === away) return "void"; // refund on draw
+  if (home === away) return "void";
   if (o === "1" || o === "home") return home > away ? "won" : "lost";
   if (o === "2" || o === "away") return away > home ? "won" : "lost";
   return "void";
+}
+
+// ─── HT/FT — Half Time / Full Time combined result
+// Outcome format: "1/X", "X/2", "Home/Draw", "1-X", or fully spelled.
+// Either half determined by 1X2 logic (home>away → "1", etc).
+function settleHTFT(
+  ht_home: number, ht_away: number,
+  ft_home: number, ft_away: number,
+  outcome: string
+): Verdict {
+  const ht1x2 = ht_home > ht_away ? "1" : ht_home < ht_away ? "2" : "x";
+  const ft1x2 = ft_home > ft_away ? "1" : ft_home < ft_away ? "2" : "x";
+  // Tokenize outcome: split on / or - or whitespace
+  const parts = norm(outcome).split(/[\/\-\s]+/).filter(Boolean);
+  if (parts.length !== 2) return "void";
+  const expectedHT = mapHTFTPart(parts[0]);
+  const expectedFT = mapHTFTPart(parts[1]);
+  if (expectedHT == null || expectedFT == null) return "void";
+  return (expectedHT === ht1x2 && expectedFT === ft1x2) ? "won" : "lost";
+}
+
+function mapHTFTPart(p: string): "1" | "x" | "2" | null {
+  if (p === "1" || p === "home" || p === "casa") return "1";
+  if (p === "x" || p === "draw" || p === "pareggio") return "x";
+  if (p === "2" || p === "away" || p === "trasferta") return "2";
+  return null;
+}
+
+// ─── Correct Score — outcome "2-1" or "2:1" → exact match
+function settleCorrectScore(home: number, away: number, outcome: string): Verdict {
+  const m = norm(outcome).match(/^(\d+)\s*[-:x]\s*(\d+)$/);
+  if (!m) return "void";
+  const expHome = parseInt(m[1], 10);
+  const expAway = parseInt(m[2], 10);
+  if (!Number.isFinite(expHome) || !Number.isFinite(expAway)) return "void";
+  return (home === expHome && away === expAway) ? "won" : "lost";
+}
+
+// ─── Odd/Even — total parity
+function settleOddEven(total: number, outcome: string): Verdict {
+  const o = norm(outcome);
+  const isOdd = total % 2 === 1;
+  if (o === "odd" || o === "dispari" || o === "d") return isOdd ? "won" : "lost";
+  if (o === "even" || o === "pari" || o === "p") return isOdd ? "lost" : "won";
+  return "void";
+}
+
+// ─── Handicap 2-way (Spread) — outcome=1/home or 2/away with signed line
+// Convention: line is the handicap APPLIED to the outcome side.
+// outcome "1" line -1.5 → adjusted_home = home + (-1.5); home wins if adjusted > away
+// outcome "2" line +0.5 → adjusted_away = away + 0.5; away wins if adjusted > home
+// .0 lines push when adjusted == opponent (refund void).
+// .5 lines never push.
+// Quarter lines (.25/.75) NOT supported — return null.
+function settleHandicap2Way(
+  home: number, away: number, line: number | null, outcome: string
+): Verdict | null {
+  if (line == null) return null;
+  // Quarter lines unsupported (Asian split)
+  const frac = Math.abs(line) % 1;
+  if (Math.abs(frac - 0.25) < 1e-9 || Math.abs(frac - 0.75) < 1e-9) return null;
+  const o = norm(outcome);
+  if (o === "1" || o === "home" || o === "casa") {
+    const adj = home + line;
+    if (adj > away) return "won";
+    if (adj < away) return "lost";
+    return "void";
+  }
+  if (o === "2" || o === "away" || o === "trasferta") {
+    const adj = away + line;
+    if (adj > home) return "won";
+    if (adj < home) return "lost";
+    return "void";
+  }
+  return null;
+}
+
+// ─── European Handicap (3-way) — like 1X2 but with handicap applied to home.
+// outcome 1/X/2 with line (e.g. -1, 0, +2). Adjusted scores: home + line vs away.
+// .5 not used (would never push); typically .0 lines (-3, -2, -1, 0, +1, +2, +3).
+function settleEuropeanHandicap(
+  home: number, away: number, line: number | null, outcome: string
+): Verdict | null {
+  if (line == null) return null;
+  const adj_home = home + line;
+  return settle1X2(adj_home, away, outcome);
 }
 
 // ═══════════════════════════════════════════════════
@@ -109,15 +192,11 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     return { verdict: settle1X2(result.home, result.away, leg.outcome_name) };
   }
   if (mt === "1x2 - 1t" || mt === "1x2 1° tempo" || mt === "half time result") {
-    if (ht_home == null || ht_away == null) {
-      return { verdict: null, reason: "ht_scores_missing" };
-    }
+    if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     return { verdict: settle1X2(ht_home, ht_away, leg.outcome_name) };
   }
   if (mt === "1x2 - 2t" || mt === "1x2 2° tempo") {
-    if (ht_home == null || ht_away == null) {
-      return { verdict: null, reason: "ht_scores_missing" };
-    }
+    if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     const sh_home = result.home - ht_home;
     const sh_away = result.away - ht_away;
     return { verdict: settle1X2(sh_home, sh_away, leg.outcome_name) };
@@ -156,6 +235,43 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   // ─── Draw No Bet ───
   if (mt === "dnb" || mt === "draw no bet") {
     return { verdict: settleDNB(result.home, result.away, leg.outcome_name) };
+  }
+
+  // ─── HT/FT — Half Time / Full Time ───
+  if (mt === "1t/finale" || mt === "half time / full time" || mt === "ht/ft") {
+    if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
+    return { verdict: settleHTFT(ht_home, ht_away, result.home, result.away, leg.outcome_name) };
+  }
+
+  // ─── Correct Score / Risultato Esatto ───
+  if (mt === "risultato esatto" || mt === "correct score") {
+    return { verdict: settleCorrectScore(result.home, result.away, leg.outcome_name) };
+  }
+
+  // ─── Odd/Even (P/D) ───
+  if (mt === "p/d" || mt === "odd/even" || mt === "pari/dispari") {
+    return { verdict: settleOddEven(total, leg.outcome_name) };
+  }
+
+  // ─── Handicap 2-way (Spread) ───
+  // Translation produces "Handicap" (FT), "Handicap - 1T", "Handicap - 2T", "Handicap - 1Q"
+  if (mt === "handicap" || mt === "spread") {
+    return { verdict: settleHandicap2Way(result.home, result.away, leg.line, leg.outcome_name) };
+  }
+  if (mt === "handicap - 1t" || mt === "spread ht" || mt === "1st half handicap") {
+    if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
+    return { verdict: settleHandicap2Way(ht_home, ht_away, leg.line, leg.outcome_name) };
+  }
+  if (mt === "handicap - 2t" || mt === "spread 2h") {
+    if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
+    const sh_home = result.home - ht_home;
+    const sh_away = result.away - ht_away;
+    return { verdict: settleHandicap2Way(sh_home, sh_away, leg.line, leg.outcome_name) };
+  }
+
+  // ─── European Handicap (3-way 1X2 with handicap on home) ───
+  if (mt === "european handicap") {
+    return { verdict: settleEuropeanHandicap(result.home, result.away, leg.line, leg.outcome_name) };
   }
 
   // Unsupported — let caller log unsupported_market
