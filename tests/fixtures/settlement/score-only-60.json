@@ -1,0 +1,444 @@
+[
+  {
+    "id": "1x2-ft-001",
+    "description": "1X2 home win 2-1, outcome=1",
+    "leg": { "market_type": "1X2", "outcome_name": "1", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ft-002",
+    "description": "1X2 home win 2-1, outcome=X",
+    "leg": { "market_type": "1X2", "outcome_name": "X", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "1x2-ft-003",
+    "description": "1X2 away win 0-3, outcome=2",
+    "leg": { "market_type": "1X2", "outcome_name": "2", "line": null },
+    "result": { "home": 0, "away": 3 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ft-004",
+    "description": "1X2 draw 1-1, outcome=X",
+    "leg": { "market_type": "1X2", "outcome_name": "X", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ft-005",
+    "description": "1X2 0-0 nil-nil draw, outcome=X",
+    "leg": { "market_type": "1X2", "outcome_name": "X", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ft-006",
+    "description": "1X2 0-0 nil-nil draw, outcome=1",
+    "leg": { "market_type": "1X2", "outcome_name": "1", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "1x2-ft-007",
+    "description": "1X2 high-score draw 3-3, outcome=X",
+    "leg": { "market_type": "1X2", "outcome_name": "X", "line": null },
+    "result": { "home": 3, "away": 3 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ft-008",
+    "description": "1X2 home win 5-0 blowout, outcome=2",
+    "leg": { "market_type": "1X2", "outcome_name": "2", "line": null },
+    "result": { "home": 5, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "1x2-ft-009",
+    "description": "Vincente Incontro home win 1-0, outcome=1",
+    "leg": { "market_type": "Vincente Incontro", "outcome_name": "1", "line": null },
+    "result": { "home": 1, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ft-010",
+    "description": "Tempo Regolamentare draw 2-2 (handball), outcome=X",
+    "leg": { "market_type": "Tempo Regolamentare", "outcome_name": "X", "line": null },
+    "result": { "home": 2, "away": 2 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "1x2-ht-001",
+    "description": "1X2 - 1T HT home leading 1-0, outcome=1",
+    "leg": { "market_type": "1X2 - 1T", "outcome_name": "1", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ht-002",
+    "description": "1X2 - 1T HT 0-0 draw, outcome=X",
+    "leg": { "market_type": "1X2 - 1T", "outcome_name": "X", "line": null },
+    "result": { "home": 1, "away": 1, "ht_home": 0, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-ht-003",
+    "description": "1X2 - 1T HT 0-0, outcome=2 (lost since draw)",
+    "leg": { "market_type": "1X2 - 1T", "outcome_name": "2", "line": null },
+    "result": { "home": 0, "away": 0, "ht_home": 0, "ht_away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "1x2-ht-004",
+    "description": "Half Time Result HT 1-1 draw, outcome=X",
+    "leg": { "market_type": "Half Time Result", "outcome_name": "X", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "1x2-2h-001",
+    "description": "1X2 - 2T HT 0-1 FT 2-1 (SH home 2-0), outcome=1",
+    "leg": { "market_type": "1X2 - 2T", "outcome_name": "1", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 0, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-2h-002",
+    "description": "1X2 - 2T HT 1-1 FT 1-3 (SH away 0-2), outcome=2",
+    "leg": { "market_type": "1X2 - 2T", "outcome_name": "2", "line": null },
+    "result": { "home": 1, "away": 3, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-2h-003",
+    "description": "1X2 - 2T HT 1-0 FT 2-1 (SH 1-1 draw), outcome=X",
+    "leg": { "market_type": "1X2 - 2T", "outcome_name": "X", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "1x2-2h-004",
+    "description": "1X2 - 2T HT 1-0 FT 1-0 (SH 0-0 draw), outcome=1 lost",
+    "leg": { "market_type": "1X2 - 2T", "outcome_name": "1", "line": null },
+    "result": { "home": 1, "away": 0, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "lost"
+  },
+
+  {
+    "id": "ou-ft-001",
+    "description": "U/O 2.5 over total 4, outcome=over",
+    "leg": { "market_type": "U/O", "outcome_name": "over", "line": 2.5 },
+    "result": { "home": 3, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-002",
+    "description": "U/O 2.5 over total 1, outcome=over",
+    "leg": { "market_type": "U/O", "outcome_name": "over", "line": 2.5 },
+    "result": { "home": 1, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "ou-ft-003",
+    "description": "U/O 2.5 under total 1, outcome=under",
+    "leg": { "market_type": "U/O", "outcome_name": "under", "line": 2.5 },
+    "result": { "home": 0, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-004",
+    "description": "U/O 2.5 under total 4, outcome=under",
+    "leg": { "market_type": "U/O", "outcome_name": "under", "line": 2.5 },
+    "result": { "home": 2, "away": 2 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "ou-ft-005",
+    "description": "U/O 2.5 over total 0 nil-nil, outcome=over",
+    "leg": { "market_type": "U/O", "outcome_name": "over", "line": 2.5 },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "ou-ft-006",
+    "description": "U/O 0.5 over 1-0 (total 1), outcome=over",
+    "leg": { "market_type": "U/O", "outcome_name": "over", "line": 0.5 },
+    "result": { "home": 1, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-007",
+    "description": "U/O 0.5 under 0-0, outcome=under",
+    "leg": { "market_type": "U/O", "outcome_name": "under", "line": 0.5 },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-008",
+    "description": "U/O 2.0 push line, total exactly 2 (1-1), outcome=over",
+    "leg": { "market_type": "U/O", "outcome_name": "over", "line": 2.0 },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "ou-ft-009",
+    "description": "U/O 2.0 line, total 3 (2-1), outcome=over",
+    "leg": { "market_type": "U/O", "outcome_name": "over", "line": 2.0 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-010",
+    "description": "U/O 2.0 line, total 1 (1-0), outcome=under",
+    "leg": { "market_type": "U/O", "outcome_name": "under", "line": 2.0 },
+    "result": { "home": 1, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-011",
+    "description": "Totals 5.5 over high-score 6-2, outcome=over",
+    "leg": { "market_type": "Totals", "outcome_name": "over", "line": 5.5 },
+    "result": { "home": 6, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ft-012",
+    "description": "Goals Over/Under 2.5 over alias, total 3, outcome=over",
+    "leg": { "market_type": "Goals Over/Under", "outcome_name": "over", "line": 2.5 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "ou-ht-001",
+    "description": "U/O - 1T 1.5 over HT 2-0, outcome=over",
+    "leg": { "market_type": "U/O - 1T", "outcome_name": "over", "line": 1.5 },
+    "result": { "home": 3, "away": 0, "ht_home": 2, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ht-002",
+    "description": "U/O - 1T 1.5 under HT 1-0, outcome=under",
+    "leg": { "market_type": "U/O - 1T", "outcome_name": "under", "line": 1.5 },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-ht-003",
+    "description": "Totals HT 0.5 over HT 0-0 (no first-half goals), outcome=over",
+    "leg": { "market_type": "Totals HT", "outcome_name": "over", "line": 0.5 },
+    "result": { "home": 1, "away": 0, "ht_home": 0, "ht_away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "ou-2h-001",
+    "description": "U/O - 2T 1.5 over HT 1-1 FT 3-2 (SH total 3), outcome=over",
+    "leg": { "market_type": "U/O - 2T", "outcome_name": "over", "line": 1.5 },
+    "result": { "home": 3, "away": 2, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-2h-002",
+    "description": "U/O - 2T 1.5 under HT 0-0 FT 1-0 (SH total 1), outcome=under",
+    "leg": { "market_type": "U/O - 2T", "outcome_name": "under", "line": 1.5 },
+    "result": { "home": 1, "away": 0, "ht_home": 0, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ou-2h-003",
+    "description": "Totals 2H 1.5 over HT 2-1 FT 2-1 (SH total 0), outcome=over",
+    "leg": { "market_type": "Totals 2H", "outcome_name": "over", "line": 1.5 },
+    "result": { "home": 2, "away": 1, "ht_home": 2, "ht_away": 1 },
+    "expected_verdict": "lost"
+  },
+
+  {
+    "id": "btts-001",
+    "description": "GG/NG yes both score 1-1, outcome=yes",
+    "leg": { "market_type": "GG/NG", "outcome_name": "yes", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "btts-002",
+    "description": "GG/NG yes only away scored 0-1, outcome=yes",
+    "leg": { "market_type": "GG/NG", "outcome_name": "yes", "line": null },
+    "result": { "home": 0, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "btts-003",
+    "description": "GG/NG yes nil-nil 0-0, outcome=yes",
+    "leg": { "market_type": "GG/NG", "outcome_name": "yes", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "btts-004",
+    "description": "GG/NG no nil-nil 0-0, outcome=no",
+    "leg": { "market_type": "GG/NG", "outcome_name": "no", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "btts-005",
+    "description": "GG/NG no both scored 1-1, outcome=no",
+    "leg": { "market_type": "GG/NG", "outcome_name": "no", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "btts-006",
+    "description": "Both Teams To Score yes alias 2-1, outcome=yes",
+    "leg": { "market_type": "Both Teams To Score", "outcome_name": "yes", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "btts-007",
+    "description": "GG/NG - 2T yes HT 1-0 FT 2-1 (SH both scored), outcome=yes",
+    "leg": { "market_type": "GG/NG - 2T", "outcome_name": "yes", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "won"
+  },
+
+  {
+    "id": "dc-001",
+    "description": "DC 1X home win 2-1, outcome=1X",
+    "leg": { "market_type": "DC", "outcome_name": "1X", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "dc-002",
+    "description": "DC 1X draw 1-1, outcome=1X",
+    "leg": { "market_type": "DC", "outcome_name": "1X", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "dc-003",
+    "description": "DC 1X away win 0-1, outcome=1X",
+    "leg": { "market_type": "DC", "outcome_name": "1X", "line": null },
+    "result": { "home": 0, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "dc-004",
+    "description": "DC X2 away win 0-2, outcome=X2",
+    "leg": { "market_type": "Double Chance", "outcome_name": "X2", "line": null },
+    "result": { "home": 0, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "dc-005",
+    "description": "DC X2 home win 2-0, outcome=X2",
+    "leg": { "market_type": "DC", "outcome_name": "X2", "line": null },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "dc-006",
+    "description": "DC 12 home win 2-0, outcome=12",
+    "leg": { "market_type": "DC", "outcome_name": "12", "line": null },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "dc-007",
+    "description": "DC 12 draw 0-0 (not 12), outcome=12",
+    "leg": { "market_type": "DC", "outcome_name": "12", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "lost"
+  },
+
+  {
+    "id": "dnb-001",
+    "description": "DNB 1 home win 2-1, outcome=1",
+    "leg": { "market_type": "DNB", "outcome_name": "1", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "dnb-002",
+    "description": "DNB 1 away win 0-1, outcome=1",
+    "leg": { "market_type": "DNB", "outcome_name": "1", "line": null },
+    "result": { "home": 0, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "dnb-003",
+    "description": "DNB 1 draw 1-1 → refund void, outcome=1",
+    "leg": { "market_type": "DNB", "outcome_name": "1", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "dnb-004",
+    "description": "Draw No Bet alias 2 away win 0-2, outcome=2",
+    "leg": { "market_type": "Draw No Bet", "outcome_name": "2", "line": null },
+    "result": { "home": 0, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "dnb-005",
+    "description": "DNB 2 draw 0-0 → refund void, outcome=2",
+    "leg": { "market_type": "DNB", "outcome_name": "2", "line": null },
+    "result": { "home": 0, "away": 0 },
+    "expected_verdict": "void"
+  },
+
+  {
+    "id": "alias-001",
+    "description": "1X2 outcome=home (English) 2-1",
+    "leg": { "market_type": "1X2", "outcome_name": "home", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "alias-002",
+    "description": "1X2 outcome=draw (English) 1-1",
+    "leg": { "market_type": "1X2", "outcome_name": "draw", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "alias-003",
+    "description": "1X2 outcome=casa (Italian) 3-2",
+    "leg": { "market_type": "1X2", "outcome_name": "casa", "line": null },
+    "result": { "home": 3, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "alias-004",
+    "description": "1X2 outcome=trasferta (Italian) 0-2",
+    "leg": { "market_type": "1X2", "outcome_name": "trasferta", "line": null },
+    "result": { "home": 0, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "alias-005",
+    "description": "U/O outcome=più di 2.5 total 3, outcome=più di",
+    "leg": { "market_type": "U/O", "outcome_name": "più di", "line": 2.5 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "alias-006",
+    "description": "BTTS outcome=si Italian 1-1, outcome=si",
+    "leg": { "market_type": "GG/NG", "outcome_name": "si", "line": null },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "alias-007",
+    "description": "DC outcome=home_or_draw v2 raw key, 2-1",
+    "leg": { "market_type": "DC", "outcome_name": "home_or_draw", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "won"
+  }
+]
