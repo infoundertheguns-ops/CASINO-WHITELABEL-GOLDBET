@@ -52,13 +52,15 @@ Map each odds-api `sport_slug` (lowercase, dash-separated) to the Flashscore num
 
 Use only sports actually present in the existing scraper `config.json`. Note both `football` and `soccer` map to id=1 because odds-api uses `soccer_*` for some leagues.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Commit or document**
+
+The `flashscore-scraper` directory is **not a git repo** (verified upfront — see `ssh scraper-vps 'ls -la /root/flashscore-scraper/.git'` returns "No such file"). All commits in Phase 1 (tasks 1-6) go to a `CHANGELOG.md` in the scraper directory instead of git. Maintain a running log:
 
 ```bash
-ssh scraper-vps "cd /root/flashscore-scraper && git add src/sport-id-map.json 2>/dev/null || true"
+ssh scraper-vps "echo '## $(date -u +%Y-%m-%dT%H:%M:%SZ) — task 1 sport-id-map' >> /root/flashscore-scraper/CHANGELOG.md"
 ```
 
-(No git in flashscore-scraper repo — verify with `ssh scraper-vps 'ls /root/flashscore-scraper/.git'`. If not git, skip commit and document in CHANGELOG.md.)
+(All Phase 1 tasks follow this pattern.)
 
 ---
 
@@ -594,23 +596,31 @@ Place it BEFORE the existing `await runResultsCycle()` so server is up first.
 
 - [ ] **Step 2: Add FS_SEARCH_API_KEY to systemd unit**
 
-Run:
+First inspect existing Environment= lines so we know where to anchor:
+
 ```bash
-ssh scraper-vps "sudo systemctl edit flashscore-scraper --full"
+ssh scraper-vps "grep -n '^Environment=' /etc/systemd/system/flashscore-scraper.service"
 ```
-This is interactive — instead, edit directly:
+
+Then append a new Environment= line right after the last existing one (defensive — works regardless of which env vars are already there):
 
 ```bash
 ssh scraper-vps "
 KEY=\$(openssl rand -hex 24)
-echo \"FS_SEARCH_API_KEY=\$KEY\" >> /tmp/fs-key
-sed -i '/^Environment=SCRAPER_API_KEY/a Environment=FS_SEARCH_API_KEY='\$KEY /etc/systemd/system/flashscore-scraper.service
+echo \"FS_SEARCH_API_KEY=\$KEY\" > /tmp/fs-key.tmp
+LAST_ENV_LINE=\$(grep -n '^Environment=' /etc/systemd/system/flashscore-scraper.service | tail -1 | cut -d: -f1)
+sed -i \"\${LAST_ENV_LINE}a Environment=FS_SEARCH_API_KEY=\$KEY\" /etc/systemd/system/flashscore-scraper.service
 systemctl daemon-reload
+echo \"Inserted at line \$((LAST_ENV_LINE+1))\"
+grep FS_SEARCH_API_KEY /etc/systemd/system/flashscore-scraper.service
 "
 ```
 
-Save the generated key — needed for ingester `.env` later. Print:
-`ssh scraper-vps "grep FS_SEARCH_API_KEY /etc/systemd/system/flashscore-scraper.service"`
+Save the generated key — read it back from systemd unit when needed for ingester `.env`:
+
+```bash
+ssh scraper-vps "grep '^Environment=FS_SEARCH_API_KEY=' /etc/systemd/system/flashscore-scraper.service | cut -d= -f3-"
+```
 
 - [ ] **Step 3: Restart scraper**
 
@@ -839,12 +849,28 @@ EOF
 
 - [ ] **Step 3: Modify upsert.ts to call helper post-INSERT**
 
-Locate the `Upserter.upsertEvent()` method. After the INSERT/UPSERT events_v2 statement, add (within the same function, in the appropriate code path that fires only when row is new OR row exists with `flashscore_id IS NULL`):
+First confirm the `Upserter` class exists, has a `db` property, and what shape the db client has. Check existing usage:
+
+```bash
+ssh scraper-vps "grep -n 'class Upserter\\|this\\.db\\.' /root/betssolution-admin/services/odds-api-ingester/src/upsert.ts | head -20"
+```
+
+If `this.db.exec` does not exist (the existing client may use a different name like `this.db.query`), adapt the snippet below to match.
+
+Add the following as a **method on the `Upserter` class** (i.e. inside the class body, indented at method level), not as a free-standing function. Place it after the existing upsert methods:
 
 ```typescript
-// FS-id population (Plan D #4) — fire-and-forget pattern with bounded parallelism
-// Plays it safe: never throws to the upsert caller, never blocks
-private async maybeResolveFsId(row: { id: string; flashscore_id: string | null; odds_api_id: number; sport_slug: string; starts_at: Date; home: string; away: string }): Promise<void> {
+// FS-id population (Plan D #4) — fire-and-forget pattern.
+// Never throws to caller; on failure leaves flashscore_id NULL for retry next tick.
+async maybeResolveFsId(row: {
+  id: string;
+  flashscore_id: string | null;
+  odds_api_id: number;
+  sport_slug: string;
+  starts_at: Date;
+  home: string;
+  away: string;
+}): Promise<void> {
   if (row.flashscore_id) return;  // already populated, skip
   try {
     const matchId = await resolveFlashscoreId(
@@ -852,7 +878,8 @@ private async maybeResolveFsId(row: { id: string; flashscore_id: string | null; 
       { db: this.db, searchUrl: process.env.FS_SEARCH_URL!, apiKey: process.env.FS_SEARCH_API_KEY!, log: this.log }
     );
     if (matchId) {
-      await this.db.exec(
+      // Adjust to actual db client method (.exec/.query/.execute) — see Step 3 above
+      await this.db.query(
         `UPDATE events_v2 SET flashscore_id = $1, updated_at = now() WHERE id = $2 AND flashscore_id IS NULL`,
         [matchId, row.id]
       );
@@ -861,6 +888,12 @@ private async maybeResolveFsId(row: { id: string; flashscore_id: string | null; 
     this.log.warn({ id: row.id, err: String(err) }, "[fs-id] hook failure (ignored)");
   }
 }
+```
+
+Add the import at the top of `upsert.ts`:
+
+```typescript
+import { resolveFlashscoreId } from "./resolve-flashscore-id.js";
 ```
 
 Wire up bounded parallelism in the batch path (e.g. ingest.ts):
@@ -907,7 +940,10 @@ ssh scraper-vps "systemctl restart odds-api-ingester && sleep 5 && systemctl is-
 ```
 Expected: `active`
 
-NOTE: ingester is currently STOPPED in test mode — this restart will bring it up. Confirm with user before proceeding if this is unexpected. If user wants to keep it stopped, skip this step and document deferred verification.
+**HARD PAUSE — confirm with user before proceeding**: the ingester is currently STOPPED (test mode, no live betting). This restart brings it up and starts FS-id population on every new ingest tick. If user prefers to keep it stopped:
+- Skip this step
+- Document `Phase 2 deferred — ingester not restarted, hook will activate on next manual `systemctl start odds-api-ingester` decision`
+- Skip Phase 3 backfill execution too (it can run independently of ingester state, but verification in Phase 4 requires the live data path)
 
 - [ ] **Step 3: Tail logs for 60s, verify fs-id hook fires**
 
@@ -932,6 +968,13 @@ Compare tier durations vs baseline (memory has baseline metrics). No tier should
 **Files:**
 - Create: `/root/betssolution-admin/services/odds-api-ingester/scripts/backfill-fs-id.ts`
 
+- [ ] **Step 0: Verify schema prereq**
+
+```bash
+ssh scraper-vps "PGPASSWORD=2MQhskawT3I6XVKW psql -h aws-1-eu-central-1.pooler.supabase.com -U postgres.xgnyqkmugnfzhdveeqom -d postgres -p 5432 -c \"\\d events_v2\" | grep flashscore_id"
+```
+Expected: `flashscore_id | text | | | |` (column exists, nullable). If missing, abort.
+
 - [ ] **Step 1: Write the script**
 
 ```typescript
@@ -940,6 +983,7 @@ import { Pool } from "pg";
 import pLimit from "p-limit";
 import { resolveFlashscoreId } from "../src/resolve-flashscore-id.js";
 
+const BACKFILL_LIMIT = process.env.BACKFILL_LIMIT ? Number(process.env.BACKFILL_LIMIT) : null;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const log = {
   info: (...a: any[]) => console.log(JSON.stringify({ level: "info", ...a[0], msg: a[1] })),
@@ -976,7 +1020,7 @@ async function stepA(): Promise<void> {
 }
 
 async function stepB(): Promise<void> {
-  console.log("[backfill] Step B — search endpoint");
+  console.log("[backfill] Step B — search endpoint" + (BACKFILL_LIMIT ? ` (LIMIT ${BACKFILL_LIMIT})` : ""));
   const rows = await pool.query(`
     SELECT id, odds_api_id, sport_slug, starts_at, home, away, status
     FROM events_v2
@@ -984,10 +1028,13 @@ async function stepB(): Promise<void> {
     ORDER BY
       CASE status WHEN 'live' THEN 0 WHEN 'pending' THEN 1 ELSE 9 END,
       starts_at ASC
+    ${BACKFILL_LIMIT ? `LIMIT ${BACKFILL_LIMIT}` : ""}
   `);
   console.log(`[backfill] Step B queue size: ${rows.rowCount}`);
 
-  const limit = pLimit(1); // 1 req/sec throttle on cache miss; cache hits are instant anyway
+  // Hard 1 req/sec throttle protects scraper CPU regardless of cache state
+  // (sleep is unconditional below; even cache hits wait the second).
+  const limit = pLimit(1);
   let matched = 0, noMatch = 0, errors = 0, idx = 0;
 
   await Promise.all(
@@ -1034,12 +1081,10 @@ async function stepB(): Promise<void> {
 })();
 ```
 
-- [ ] **Step 2: Smoke test on LIMIT 50**
-
-Modify the script temporarily to add `LIMIT 50` after `WHERE flashscore_id IS NULL` in stepB query. Run:
+- [ ] **Step 2: Smoke test on LIMIT 50 (via env var, no code edit)**
 
 ```bash
-ssh scraper-vps "cd /root/betssolution-admin/services/odds-api-ingester && npx tsx scripts/backfill-fs-id.ts 2>&1 | tee /tmp/backfill-smoke.log"
+ssh scraper-vps "cd /root/betssolution-admin/services/odds-api-ingester && BACKFILL_LIMIT=50 npx tsx scripts/backfill-fs-id.ts 2>&1 | tee /tmp/backfill-smoke.log"
 ```
 
 Expected:
@@ -1054,7 +1099,7 @@ ssh scraper-vps "PGPASSWORD=2MQhskawT3I6XVKW psql -h aws-1-eu-central-1.pooler.s
 
 Then `curl` the search endpoint manually for each to see candidate dump from 404 response. Add aliases as needed.
 
-- [ ] **Step 3: Remove LIMIT 50, run full**
+- [ ] **Step 3: Run full (omit BACKFILL_LIMIT)**
 
 ```bash
 ssh scraper-vps "cd /root/betssolution-admin/services/odds-api-ingester && nohup npx tsx scripts/backfill-fs-id.ts > /var/log/backfill-fs-id.log 2>&1 &"
