@@ -95,4 +95,26 @@ describe("Shadow classifier — coverage by market family", () => {
   test("covers European Handicap (3-way)", () => {
     expect(typedFixtures.some((f) => f.id.startsWith("euhcap"))).toBe(true);
   });
+
+  test("covers Corners family (over/under, 1X2, 2-way, handicap) with stats-missing null", () => {
+    const corners = typedFixtures.filter((f) => f.id.startsWith("corners"));
+    expect(corners.length).toBeGreaterThan(0);
+    expect(corners.some((f) => f.expected_verdict === "void")).toBe(true);
+    expect(corners.some((f) => f.expected_verdict === null)).toBe(true);
+  });
+
+  test("covers Cards over/under", () => {
+    expect(typedFixtures.some((f) => f.id.startsWith("cards"))).toBe(true);
+  });
+
+  test("covers Shots and Shots-on-target over/under", () => {
+    expect(typedFixtures.some((f) => f.id.startsWith("shots"))).toBe(true);
+  });
+
+  test("covers Anytime/First/Last Goalscorer with refund + missing scorers null", () => {
+    const scorers = typedFixtures.filter((f) => f.id.startsWith("scorer"));
+    expect(scorers.length).toBeGreaterThan(0);
+    expect(scorers.some((f) => f.expected_verdict === "void")).toBe(true); // 0-0 first scorer refund
+    expect(scorers.some((f) => f.expected_verdict === null)).toBe(true);   // scorers missing
+  });
 });
