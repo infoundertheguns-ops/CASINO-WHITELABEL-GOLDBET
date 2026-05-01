@@ -3,6 +3,8 @@ import { OddsApiClient } from './api-client.js';
 import { Upserter } from './upsert.js';
 import { runTier, type IngesterDeps, type TierOptions, type TierResult } from './ingest.js';
 import { ENABLED_BOOKMAKERS } from './sports-config.js';
+import { createRealtimePublisher } from './realtime-publisher.js';
+import { getRedisClient } from './redis-client.js';
 
 /**
  * Tier-based scheduler for odds-api.io ingestion.
@@ -184,10 +186,14 @@ async function main() {
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const serviceRole = requireEnv('SUPABASE_SERVICE_ROLE');
 
+  const redisClient = await getRedisClient();
+  const publisher = createRealtimePublisher(redisClient);
+
   const deps: IngesterDeps = {
     client: new OddsApiClient({ apiKey, baseUrl }),
     upserter: new Upserter({ supabaseUrl, serviceRoleKey: serviceRole }),
     bookmakers: ENABLED_BOOKMAKERS,
+    publisher,
   };
 
   console.log(`[scheduler] start tier-mode  bookmakers=${ENABLED_BOOKMAKERS.length}`);

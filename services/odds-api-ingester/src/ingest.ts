@@ -10,6 +10,8 @@ import {
   type SportConfig,
 } from './sports-config.js';
 import type { ApiEvent, TransformResult } from './types.js';
+import { createRealtimePublisher, type RealtimePublisher } from './realtime-publisher.js';
+import { getRedisClient } from './redis-client.js';
 
 /**
  * Multi-sport ingester. Tier-aware: a "tier" is a slice of events filtered
@@ -56,6 +58,7 @@ export type IngesterDeps = {
   client: OddsApiClient;
   upserter: Upserter;
   bookmakers: string[];
+  publisher?: RealtimePublisher;  // optional — undefined means publishing disabled
 };
 
 export type TierResult = {
@@ -182,6 +185,7 @@ export async function ingestOneSport(
 
   // 2) Bulk fetch odds in chunks of 10 (per /odds/multi contract).
   const results: TransformResult[] = [];
+  const enrichedPairs: Array<{ enriched: ApiEvent; result: TransformResult }> = [];
   const CHUNK = 10;
   for (let i = 0; i < events.length; i += CHUNK) {
     const chunk = events.slice(i, i + CHUNK);
@@ -191,7 +195,9 @@ export async function ingestOneSport(
         bookmakers: deps.bookmakers,
       });
       for (const enriched of enrichedList) {
-        results.push(transformEvent(enriched));
+        const result = transformEvent(enriched);
+        results.push(result);
+        enrichedPairs.push({ enriched, result });
         summary.odds_fetched++;
       }
     } catch {
@@ -214,6 +220,35 @@ export async function ingestOneSport(
             fsLimit(() => deps.upserter.maybeResolveFsId(r)),
           ),
         );
+      }
+
+      // 4) Realtime publish (post-upsert so PG state is consistent).
+      if (deps.publisher) {
+        for (const { enriched, result } of enrichedPairs) {
+          const newOdds = result.outcomes.map(o => ({
+            market_type: o.market_key.market_name,
+            outcome_name: o.outcome_key,
+            odds: o.odds,
+          }));
+          try {
+            await deps.publisher.publish({
+              event: {
+                id: enriched.id,
+                status: enriched.status,
+                home: enriched.home,
+                away: enriched.away,
+                sport: enriched.sport,
+                league: enriched.league,
+                scores: enriched.scores,
+              },
+              newOdds,
+            });
+          } catch (err) {
+            // Belt-and-suspenders: publisher already handles its own errors,
+            // but if anything escapes (e.g., bad input), we never want to fail ingest.
+            console.error(`[realtime] unexpected error for event ${enriched.id}:`, (err as Error).message);
+          }
+        }
       }
     } catch (err) {
       console.error(`[${opts.label}/${sport.slug}] upsert failed:`, (err as Error).message);
@@ -242,10 +277,14 @@ async function main() {
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const serviceRole = requireEnv('SUPABASE_SERVICE_ROLE');
 
+  const redisClient = await getRedisClient();
+  const publisher = createRealtimePublisher(redisClient);
+
   const deps: IngesterDeps = {
     client: new OddsApiClient({ apiKey, baseUrl }),
     upserter: new Upserter({ supabaseUrl, serviceRoleKey: serviceRole }),
     bookmakers: ENABLED_BOOKMAKERS,
+    publisher,
   };
 
   const t0 = Date.now();
