@@ -841,5 +841,33 @@
       { "name": "Diego Lopez" }
     ]},
     "expected_verdict": "lost"
+  },
+  {
+    "id": "gk-saves-001",
+    "description": "Totale parate over 8.5 (saves 5+6=11)",
+    "leg": { "market_type": "Totale parate", "outcome_name": "over", "line": 8.5 },
+    "result": { "home": 1, "away": 2, "gk_saves_home": 5, "gk_saves_away": 6 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "gk-saves-002",
+    "description": "Totale parate under 8.5 (saves 3+4=7)",
+    "leg": { "market_type": "Totale parate portiere", "outcome_name": "under", "line": 8.5 },
+    "result": { "home": 0, "away": 1, "gk_saves_home": 3, "gk_saves_away": 4 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "gk-saves-003",
+    "description": "Goalkeeper saves total push (line 10.0, total 10) → void",
+    "leg": { "market_type": "goalkeeper saves total", "outcome_name": "over", "line": 10.0 },
+    "result": { "home": 1, "away": 0, "gk_saves_home": 4, "gk_saves_away": 6 },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "gk-saves-004",
+    "description": "Totale parate stats missing → null",
+    "leg": { "market_type": "Totale parate", "outcome_name": "over", "line": 8.5 },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": null
   }
 ]

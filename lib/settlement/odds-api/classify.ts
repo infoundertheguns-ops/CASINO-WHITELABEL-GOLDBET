@@ -33,6 +33,8 @@ export interface ScoreResult {
   shots_away?: number | null;
   shots_on_target_home?: number | null;
   shots_on_target_away?: number | null;
+  gk_saves_home?: number | null;
+  gk_saves_away?: number | null;
   // Player markets — ordered list of goal scorers (chronological)
   scorers?: Scorer[];
 }
@@ -367,6 +369,10 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   }
   if (mt === "totale tiri in porta" || mt === "shots on target totals" || mt === "total shots on target") {
     const v = settleStatOU(result.shots_on_target_home, result.shots_on_target_away, leg.line, leg.outcome_name);
+    return { verdict: v, reason: v == null ? "stats_missing_or_invalid_outcome" : undefined };
+  }
+  if (mt === "totale parate" || mt === "totale parate portiere" || mt === "goalkeeper saves total" || mt === "goalkeeper saves totals") {
+    const v = settleStatOU(result.gk_saves_home, result.gk_saves_away, leg.line, leg.outcome_name);
     return { verdict: v, reason: v == null ? "stats_missing_or_invalid_outcome" : undefined };
   }
 
