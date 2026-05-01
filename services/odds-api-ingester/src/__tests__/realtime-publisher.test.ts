@@ -305,3 +305,37 @@ describe('evictEvent / getStateSize', () => {
     expect(pub.getStateSize()).toBe(0);
   });
 });
+
+describe('GC pass for stale entries', () => {
+  it('removes entries not touched in 30+ minutes', async () => {
+    vi.useFakeTimers();
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(pub.getStateSize()).toBe(1);
+
+    // Advance 35 min → > 30 min stale threshold.
+    vi.advanceTimersByTime(35 * 60_000);
+    // GC runs every 5min, so multiple ticks fire — at least one after 30min.
+    expect(pub.getStateSize()).toBe(0);
+    pub.dispose();
+    vi.useRealTimers();
+  });
+
+  it('does NOT remove entries touched within 30 minutes', async () => {
+    vi.useFakeTimers();
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+
+    // Advance 20 min, then touch via no-change publish.
+    vi.advanceTimersByTime(20 * 60_000);
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+
+    // Advance another 20 min (total 40), GC fires, but lastTouched is only 20 min stale.
+    vi.advanceTimersByTime(20 * 60_000);
+    expect(pub.getStateSize()).toBe(1);
+    pub.dispose();
+    vi.useRealTimers();
+  });
+});
