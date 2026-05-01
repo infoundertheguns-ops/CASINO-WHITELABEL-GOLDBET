@@ -376,13 +376,21 @@ describe('computeDiff', () => {
 });
 ```
 
-- [ ] **Step 2: Create skeleton `realtime-publisher.ts`**
+- [ ] **Step 2: Create skeleton `realtime-publisher.ts` with all imports pre-declared**
 
-Create `services/odds-api-ingester/src/realtime-publisher.ts` with just the diff function:
+Create `services/odds-api-ingester/src/realtime-publisher.ts`. Pre-declare all imports up front so subsequent tasks (5, 6, 7) only append implementation bodies and don't scatter imports through the file:
 
 ```typescript
 // Plan D #3a — realtime publisher.
 // See docs/superpowers/specs/2026-05-01-realtime-producer-design.md
+
+import type {
+  ApiEvent,
+  CachedEvent,
+  CachedEventMarket,
+  LiveOddsMessage,
+} from './types.js';
+import type { RedisClient } from './redis-client.js';
 
 export interface NewOddsEntry {
   market_type: string;
@@ -414,6 +422,8 @@ export function computeDiff(
   return out;
 }
 ```
+
+In Tasks 5, 6, 7 below, the "Append" steps add ONLY new exports/functions to the bottom of this file. Do NOT add new `import` statements per-task — the imports above already cover all task needs.
 
 - [ ] **Step 3: Run tests, verify pass**
 
@@ -483,11 +493,9 @@ Expected: 6 fail with "statusRoute is not a function" / "not exported".
 
 - [ ] **Step 3: Implement `statusRoute`**
 
-Append to `realtime-publisher.ts`:
+Append to `realtime-publisher.ts` (imports already declared in Task 4 Step 2):
 
 ```typescript
-import type { ApiEvent } from './types.js';
-
 export type StatusRoute = 'live' | 'settled' | 'skip';
 
 export function statusRoute(status: ApiEvent['status']): StatusRoute {
@@ -623,11 +631,9 @@ Expected: 5 new fail with "buildCachedEvent is not a function".
 
 - [ ] **Step 3: Implement `buildCachedEvent`**
 
-Append to `realtime-publisher.ts`:
+Append to `realtime-publisher.ts` (imports already declared in Task 4 Step 2):
 
 ```typescript
-import type { CachedEvent, CachedEventMarket } from './types.js';
-
 export type BuildCachedEventInput = Pick<
   ApiEvent,
   'id' | 'home' | 'away' | 'sport' | 'league' | 'scores'
@@ -855,12 +861,9 @@ Expected: ~10 new fails with "createRealtimePublisher is not a function".
 
 - [ ] **Step 3: Implement `createRealtimePublisher`**
 
-Append to `realtime-publisher.ts`:
+Append to `realtime-publisher.ts` (imports already declared in Task 4 Step 2):
 
 ```typescript
-import type { RedisClient } from './redis-client.js';
-import type { LiveOddsMessage } from './types.js';
-
 export interface PublishContext {
   event: BuildCachedEventInput & {
     id: number;
@@ -1204,13 +1207,38 @@ const deps: IngesterDeps = {
 };
 ```
 
-- [ ] **Step 5: Same wiring in `scheduler.ts`**
+- [ ] **Step 5: Mirror the wiring in `scheduler.ts` (production entry point — REQUIRED)**
 
-```bash
-ssh scraper-vps 'grep -n "IngesterDeps\|new Upserter\|main\(\)" /root/betssolution-admin/services/odds-api-ingester/src/scheduler.ts | head -20'
+`scheduler.ts` is the production entry point invoked by `systemctl odds-api-ingester` (it runs `tsx src/scheduler.ts`, not `ingest.ts`). It has its own `main()` that constructs `IngesterDeps` independently. **Without this step the production cron-driven path runs without a publisher — silent feature failure.**
+
+Verified file shape: `scheduler.ts` imports `{ runTier, type IngesterDeps, ... } from './ingest.js'`, defines `async function main()` around line 181, and constructs `const deps: IngesterDeps = { client, upserter, bookmakers }` around line 187.
+
+Edit `services/odds-api-ingester/src/scheduler.ts`:
+
+a) Add to top imports:
+
+```typescript
+import { createRealtimePublisher } from './realtime-publisher.js';
+import { getRedisClient } from './redis-client.js';
 ```
 
-If `scheduler.ts` constructs its own `IngesterDeps`, mirror the wiring there too: `getRedisClient` + `createRealtimePublisher`. If it imports `runIngestion` from `ingest.ts` and uses the same `main`-style construction, it inherits automatically — verify.
+b) In `main()`, after `const serviceRole = requireEnv('SUPABASE_SERVICE_ROLE');` and before the `const deps: IngesterDeps = { ... }` block, add:
+
+```typescript
+const redisClient = await getRedisClient();
+const publisher = createRealtimePublisher(redisClient);
+```
+
+c) Change the `deps` literal to include `publisher`:
+
+```typescript
+const deps: IngesterDeps = {
+  client: new OddsApiClient({ apiKey, baseUrl }),
+  upserter: new Upserter({ supabaseUrl, serviceRoleKey: serviceRole }),
+  bookmakers: ENABLED_BOOKMAKERS,
+  publisher,
+};
+```
 
 - [ ] **Step 6: Type-check**
 
@@ -1271,27 +1299,31 @@ ssh scraper-vps 'systemctl restart odds-api-ingester && sleep 2 && systemctl is-
 ```
 Expected: `active`.
 
-- [ ] **Step 5: Integration smoke — watch for live publishes**
+- [ ] **Step 5: Integration smoke — watch for live publishes (single-shell sequential)**
 
-In separate terminals (3 concurrent ssh sessions; you can also inline as `&` background):
+Run each command sequentially in the agent shell. Use `run_in_background` for the long-running subscribe/tail and Read its output later, or use timeboxed one-shot commands.
 
 ```bash
-# Terminal 1: tail ingester log for [realtime] lines
-ssh scraper-vps 'tail -f /var/log/odds-api-ingester.log | grep --line-buffered realtime'
+# (a) Sample log for last 5 min of realtime activity
+ssh scraper-vps 'tail -2000 /var/log/odds-api-ingester.log | grep "\[realtime\]" | tail -50'
 
-# Terminal 2: subscribe to channel (run for ~2 min during a window with live events)
-ssh scraper-vps 'redis-cli SUBSCRIBE odds:live'
+# (b) Snapshot the cache size (one-shot, no loop)
+ssh scraper-vps 'redis-cli HLEN odds:cache'
 
-# Terminal 3: every 10s show cache size
-ssh scraper-vps 'while true; do echo "$(date +%T) cache_keys=$(redis-cli HLEN odds:cache)"; sleep 10; done'
+# (c) Capture 30s of channel traffic (timeboxed; produces output even with zero messages)
+ssh scraper-vps 'timeout 30 redis-cli SUBSCRIBE odds:live || true'
+
+# (d) Inspect one cached event payload (sanity-check shape)
+ssh scraper-vps 'redis-cli HRANDFIELD odds:cache 1 | head -1 | xargs -I{} redis-cli HGET odds:cache {} | head -c 500'
 ```
 
-Pass criteria (over ~5 min observation):
-- Terminal 1 shows `[realtime] published <id> changes=<N>` lines for at least one live event
-- Terminal 2 receives JSON messages with `type=update` and a non-empty `changes` array
-- Terminal 3 shows `cache_keys` rising and consistent with live-event count
+Pass criteria:
+- (a) shows ≥1 `[realtime] published <id> changes=<N>` line in recent log
+- (b) returns >0 (at least one live event cached)
+- (c) prints ≥1 JSON message with `"type":"update"` and non-empty `changes` array (only if live events exist; zero messages is acceptable if no live event window is active)
+- (d) prints valid JSON matching `CachedEvent` shape (external_id, home_team, away_team, markets[])
 
-If no live events are happening at the moment, this can be deferred up to 24h. Document in commit if so.
+If no live events are running right now (off-hours), mark (c) as deferred and re-run during a known live window. Document in Task 12 session memory.
 
 - [ ] **Step 6: Optional — kiosk visual check (best-effort)**
 
@@ -1381,11 +1413,7 @@ Expected: matches the VPS HEAD SHA from Task 10 Step 1.
 
 - [ ] **Step 1: Update plan-d-pending-registry.md**
 
-```bash
-ssh scraper-vps 'cat /root/betssolution-admin/memory-related-files/... 2>/dev/null'
-```
-
-The pending registry lives in user memory at `C:\Users\philp\.claude\projects\C--Users-philp\memory\plan-d-pending-registry.md`. Mark item #3a as **DONE** with date + HEAD SHA + commit count. Move to "completed" section.
+The pending registry lives in user auto-memory at `C:\Users\philp\.claude\projects\C--Users-philp\memory\plan-d-pending-registry.md` (local Windows path, not on VPS). Read it via the `Read` tool, then `Edit` to mark item #3a as **DONE** with date + HEAD SHA + commit count. Move to a "Completed" section if one exists, otherwise add a status badge inline.
 
 If a session-end memory file pattern is used (e.g., `session-2026-05-01-3a-realtime.md`), create one summarizing:
 - What shipped (file paths, LoC counts, test counts)
@@ -1414,8 +1442,7 @@ Add a one-line entry at the top of `MEMORY.md` linking the new session file. Kee
 
 - **`scheduler.ts` is a separate entry point.** Step 9.5 must cover it. If skipped, the production cron-driven path will run without a publisher — silent failure.
 - **Per-event publish inside chunked upsert loop.** The wire-up in Task 9 happens after `upsertBatch` succeeds. If an upsert error throws, we skip publishing for the whole batch — correct behavior (Postgres is source of truth) but worth confirming the catch block doesn't unexpectedly silence publish errors only.
-- **`outcome_key` field name.** The publisher expects `outcome_name` but the DB row has `outcome_key`. Verify the field semantics match (look at transformer.ts to see what `outcome_key` actually contains — probably the canonical outcome label like "home"/"draw"/"away"/"over_2.5"). If naming differs, normalize at the wire-up step.
-- **`market_name` vs `market_type`.** Same concern. The DB row uses `market_name` (per `MarketV2Row`); the wire contract uses `market_type`. Translate at the wire-up step.
+- **`outcome_key` and `market_key.market_name` translation.** Already handled in Task 9 Step 3 — the wire-up code maps `o.outcome_key → outcome_name` and `o.market_key.market_name → market_type`. Note `market_name` is **nested** under `market_key` on `OutcomeV2Row`, not at the top level. Don't be tempted to write `o.market_name` (compile error). The wire field names (`market_type`, `outcome_name`) come from the consumer types in `betssolution-player/lib/hooks/use-live-odds.ts`.
 - **`scores.home`/`scores.away` undefined for live events without score yet.** `buildCachedEvent` already guards. Just ensure the test fixture covers this.
 - **Browser hook `onSnapshot`'s shape.** The hook expects a `Record<string, CachedEvent>` from `HGETALL odds:cache`. The publisher writes one event at a time via `HSET`. The endpoint composes the snapshot from the hash on connect — no producer-side fan-out needed.
 - **VPS push pattern.** Task 11 assumes the documented `infoundertheguns-ops` flow. If the local clone is stale, `git fetch origin` first; if there are upstream commits not on VPS, fast-forward will fail and you'll need to coordinate.
