@@ -24,7 +24,7 @@ Live odds push to kiosk browsers is broken since Phase 1.F (2026-04 archive of t
 
 ## Non-goals
 
-- **Prematch live push**. Kiosks on prematch pages keep 30s polling. Sub-second is unnecessary for prematch UX. Filter: only events with `status='in_play'` are published.
+- **Prematch live push**. Kiosks on prematch pages keep 30s polling. Sub-second is unnecessary for prematch UX. Filter: only events with `status='live'` are published with diff updates (the canonical `ApiEvent['status']` value used by the ingester transformer; see `services/odds-api-ingester/src/types.ts`). Events with `status='settled'` get a one-shot terminal message and cache eviction (see Data Flow §"Settled event eviction"). All other statuses (`'pending'`, `'cancelled'`, `'postponed'`) are skipped entirely.
 - **Supabase Realtime migration (Option B from brainstorm)**. Discussed and rejected for now. Reasoning: consumer is already wired to Redis+SSE; Option A unblocks S6 cutover in ~1d vs ~3d for Option B. Future architectural cleanup may revisit; tracked separately as registry item — not in this spec.
 - **Settled-event push semantics**. Events transitioning to `status='settled'` send a `type='finished'` message and stop publishing. The consumer hook already handles `onFinished` callback. No new transitions are designed here.
 - **SSE endpoint hardening, fan-out scaling, kiosk concurrency tests**. The endpoint is intact and was operational before Phase 1.F. Producer change should not regress its behavior. Concurrency stress is out of scope.
@@ -37,7 +37,7 @@ Resolved during brainstorming session 2026-05-01:
 | Q | Decision | Rationale |
 |---|---|---|
 | **Q1** — Architecture: Redis+SSE (Option A) vs Supabase Realtime (Option B) | Option A: ingester publishes to Redis `odds:live` + `odds:cache`, consumer unchanged. | Consumer already wired and operational. Option A is producer-only change (~1d effort). Option B requires consumer browser refactor + Supabase Realtime config + load test (~3d). Cutover is the priority; cleanup can come later. |
-| **Q2** — Scope: live-only vs all upserts | Live-only (`status='in_play'` filter). | Sub-second push has UX value only on live pages. Prematch polling at 30s already satisfies user need. Restricting publish to in-play caps Redis traffic to ~50 events × 1 cycle/30s ≈ 100 op/min. |
+| **Q2** — Scope: live-only vs all upserts | Live-only (`status='live'` filter, plus one-shot `status='settled'` for eviction). | Sub-second push has UX value only on live pages. Prematch polling at 30s already satisfies user need. Restricting publish to live caps Redis traffic to ~50 events × 1 cycle/30s ≈ 100 op/min. The canonical status enum is `ApiEvent['status']` from `services/odds-api-ingester/src/types.ts`: `'pending' \| 'live' \| 'settled' \| 'cancelled' \| 'postponed'`. The publisher must reuse this type rather than redeclaring as `string` — catches enum drift at compile time. |
 | **Q3** — Diff computation strategy | In-memory `Map` per ingester process. Hydrated lazily (first-tick-after-restart publishes all-changes with `previous_odds=null`). | Fast (no DB roundtrip), bounded memory (~225KB at 50 events × 30 markets × 3 outcomes), restart-safe (consumer treats `null` as first-seen with no UI flash). PG `SELECT` alternative adds 50-200ms per tick — unacceptable on tight cycle. |
 | **Q4** — Failure mode if Redis unavailable | Fire-and-forget. Log error, continue ingest. Kiosks fall back to 30s polling automatically. | Redis is an enhancement, not a dependency. Postgres upsert must always succeed (source of truth). Logging gives operator visibility without blocking the pipeline. |
 
@@ -57,7 +57,8 @@ Resolved during brainstorming session 2026-05-01:
 │    ├─ upsert.ts → write events_v2 / markets_v2 /         │
 │    │              outcomes_v2 (Postgres, source of truth)│
 │    └─ realtime-publisher.ts (NEW)                        │
-│         ├─ filter status='in_play' only                  │
+│         ├─ filter status='live' (publish) | 'settled'    │
+│         │   (final eviction message); else skip          │
 │         ├─ diff vs in-memory Map<eventId, OddsState>     │
 │         ├─ HSET odds:cache <eventId> <CachedEvent JSON>  │
 │         └─ PUBLISH odds:live <LiveOddsMessage JSON>      │
@@ -88,21 +89,23 @@ Resolved during brainstorming session 2026-05-01:
 Public API:
 
 ```typescript
+import type { ApiEvent } from './types.ts';
+
 export interface OddsState {
   // key = `${market_type}|${outcome_name}`
   outcomes: Map<string, number>;
 }
 
 export interface PublishContext {
-  eventId: string;        // odds-api event id (string)
-  status: string;         // odds-api event status
-  cachedEvent: CachedEvent;  // full snapshot for HSET
+  eventId: number;             // odds-api event id, source-of-truth numeric (ApiEvent.id)
+  status: ApiEvent['status'];  // 'pending' | 'live' | 'settled' | 'cancelled' | 'postponed'
+  cachedEvent: CachedEvent;    // full snapshot for HSET (its own external_id is already a string)
   newOdds: Array<{ market_type: string; outcome_name: string; odds: number }>;
 }
 
 export interface PublishResult {
   published: boolean;
-  reason?: 'not_in_play' | 'no_changes' | 'redis_unavailable';
+  reason?: 'not_live' | 'no_changes' | 'redis_unavailable' | 'finished' | 'skipped';
   changesCount: number;
 }
 
@@ -112,14 +115,23 @@ export interface RealtimePublisher {
   publish(ctx: PublishContext): Promise<PublishResult>;
   // For testing/observability
   getStateSize(): number;
-  evictEvent(eventId: string): void;  // called on status='settled'
+  evictEvent(eventId: number): void;  // called on status='settled' or stale GC pass
 }
 ```
+
+**Type/string boundary**: `eventId` is `number` everywhere inside the publisher (in-memory `stateByEvent` Map keys are `number`, log lines use `number`). Stringification happens **only at the Redis wire boundary** — exactly two call sites: the `HSET odds:cache <String(eventId)> <JSON>` and `PUBLISH odds:live <JSON with event_id: String(eventId)>`. The consumer side already treats `event_id` as string (Redis hash field name, JSON parsed value), so this matches the existing wire contract.
+
+Result reasons:
+- `'not_live'` — event status is `'pending'`, `'cancelled'`, or `'postponed'` → no-op
+- `'finished'` — event status is `'settled'`, one-shot terminal message published + cache evicted + state evicted
+- `'no_changes'` — `status='live'`, cache HSET refreshed but diff was empty (no PUBLISH)
+- `'redis_unavailable'` — Redis op threw; logged, swallowed (does not propagate)
+- `'skipped'` — publisher disabled via `REALTIME_PUBLISHER_ENABLED=false`
 
 Internal state:
 
 ```typescript
-const stateByEvent = new Map<string, OddsState>();
+const stateByEvent = new Map<number, OddsState>();
 ```
 
 ### `ingest.ts` (modified)
@@ -132,7 +144,7 @@ Estimated diff: +15 LoC.
 
 Singleton Redis client for the ingester process. Connects on first use, reconnects on disconnect with exponential backoff (mirrors player-side `lib/redis.ts` pattern). Exposes `getClient(): Promise<RedisClient>` for the publisher.
 
-Reuses `redis` npm package (already a transitive dep via player; will be added explicitly to ingester `package.json`).
+Reuses `redis` npm package. Verified absent from `services/odds-api-ingester/package.json` today — must be added as an explicit direct dependency in the planning step (do not rely on hoisting from the player workspace).
 
 ## Data Flow
 
@@ -140,21 +152,31 @@ Reuses `redis` npm package (already a transitive dep via player; will be added e
 
 1. `transformer` produces normalized event payload.
 2. `upsert` writes to `events_v2`, `markets_v2`, `outcomes_v2`.
-3. `publisher.publish()` is called. Inside:
-   - **Filter**: if `event.status !== 'in_play'`, return `{published: false, reason: 'not_in_play'}`. Skip everything below.
+3. `publisher.publish()` is called. Inside, status routing happens **first**, before any other work:
+
+   ```
+   switch (event.status) {
+     case 'live':     → live-path (build snapshot, HSET cache, diff, publish if changes)
+     case 'settled':  → settled-path (one-shot finished message, HDEL cache, evict state)
+     default:         → return {published: false, reason: 'not_live'}  // 'pending'|'cancelled'|'postponed'
+   }
+   ```
+
+4. **Live-path** (`status='live'`):
    - **Build snapshot**: assemble `CachedEvent` shape from event + markets + outcomes.
-   - **HSET cache**: `HSET odds:cache <eventId> <JSON.stringify(CachedEvent)>`. Always written for in-play events, even if no diff.
+   - **HSET cache**: `HSET odds:cache <String(eventId)> <JSON.stringify(CachedEvent)>`. Always written, even if diff is empty (refreshes `updated_at`, `minute`, `period`, `scores`).
    - **Diff**: compare `newOdds` against `stateByEvent.get(eventId)`. Build `changes[]`.
-   - **Publish**: if `changes.length > 0`, build `LiveOddsMessage` and `PUBLISH odds:live <JSON>`. Update `stateByEvent`.
-4. Errors at any sub-step inside `publish()` are caught, logged, and converted to `{published: false, reason: 'redis_unavailable'}`. Caller never throws.
+   - **Publish if non-empty**: if `changes.length > 0`, build `LiveOddsMessage` and `PUBLISH odds:live <JSON>`. Update `stateByEvent`.
+   - **Return**: `{published: changes.length > 0, reason: changes.length > 0 ? undefined : 'no_changes', changesCount: changes.length}`.
 
-### Settled event eviction
+5. **Settled-path** (`status='settled'`, fires once per event):
+   - Publish a `type='finished'` message: `PUBLISH odds:live {event_id: String(eventId), ts, type: 'finished', changes: []}`.
+   - `HDEL odds:cache <String(eventId)>` to clean up cache.
+   - `stateByEvent.delete(eventId)` to remove from in-memory state.
+   - **Idempotency**: if `stateByEvent` does not contain `eventId` (event was already evicted, or was never live during this process's lifetime), the settled-path still publishes the `finished` message and runs HDEL — both are idempotent at the wire level. The Map delete is a no-op. This handles ingester restarts mid-event-lifecycle.
+   - **Return**: `{published: true, reason: 'finished', changesCount: 0}`.
 
-When `event.status === 'settled'` (or any non-`in_play` terminal status):
-1. Publish a `type='finished'` message: `{event_id, ts, type: 'finished', changes: []}`.
-2. `HDEL odds:cache <eventId>` to clean up cache.
-3. `evictEvent(eventId)` to remove from in-memory `stateByEvent` Map.
-4. Subsequent ticks for this event short-circuit on the `not_in_play` filter.
+6. Errors at any sub-step inside `publish()` are caught at the publisher boundary, logged, and converted to `{published: false, reason: 'redis_unavailable'}`. Caller never throws.
 
 ### Message shapes (preserved from existing consumer types)
 
@@ -199,7 +221,7 @@ When `event.status === 'settled'` (or any non-`in_play` terminal status):
 | odds-api 5xx / timeout | Existing scheduler handling — retry, log, skip cycle. Publisher is not reached. | No live update for that cycle, kiosks see prior cache snapshot until next tick. |
 | Kiosk reconnects | Existing SSE handling — `HGETALL odds:cache` snapshot replay on connect. Hook re-receives `onSnapshot` then resumes `onOddsChange`. | Up to 1 cycle of staleness on reconnect. |
 | Redis client disconnect mid-publish | `redis-client` helper auto-reconnects with backoff. In-flight publish that failed is treated as `redis_unavailable` for that tick. State Map preserved. | Same as Redis down (transient). |
-| Memory leak from never-evicted events | Eviction triggered on first non-`in_play` status seen by publisher. Belt-and-suspenders: periodic GC pass every 5 min removes events not seen in last 30 min from `stateByEvent`. | None directly; safety net for edge cases (event manually removed from odds-api before settling). |
+| Memory leak from never-evicted events | Eviction triggered when publisher sees `status='settled'` for an event. Belt-and-suspenders: periodic GC pass every 5 min removes events not touched in last 30 min from `stateByEvent` (handles cases where event disappears from odds-api before reaching `'settled'`). | None directly; safety net for edge cases (event manually removed from odds-api before settling). |
 
 ## Testing
 
@@ -214,11 +236,11 @@ Strict TDD — write tests first, then implementation.
    - New outcome appeared (e.g., new market line) → entry with `previous_odds=null`
    - Outcome disappeared from payload → not in `changes[]` (no delete semantics on wire)
 
-2. **`shouldPublish`** (filter):
-   - `status='in_play'` → true
-   - `status='not_started'` → false
-   - `status='settled'` → false (caller handles eviction separately)
-   - Other / unknown statuses → false
+2. **`statusRoute`** (filter, returns `'live' | 'settled' | 'skip'`):
+   - `status='live'` → `'live'` (proceed to live-path)
+   - `status='settled'` → `'settled'` (proceed to settled-path)
+   - `status='pending' | 'cancelled' | 'postponed'` → `'skip'`
+   - Type system enforces exhaustiveness on `ApiEvent['status']` (no fallthrough on new enum values without a compile error)
 
 3. **`buildCachedEvent`** (snapshot builder):
    - Output matches `CachedEvent` interface exactly (validated via type-check + test fixture)
@@ -226,11 +248,13 @@ Strict TDD — write tests first, then implementation.
    - Markets grouped correctly when input has multiple outcomes per market
 
 4. **`publish` end-to-end with Redis mock**:
-   - In-play event with diff → HSET called, PUBLISH called, returns `{published: true, changesCount: N}`
-   - In-play event with no diff → HSET called (cache refresh), PUBLISH NOT called, returns `{published: false, reason: 'no_changes'}`
-   - Prematch event → neither HSET nor PUBLISH called, returns `{published: false, reason: 'not_in_play'}`
+   - Live event with diff → HSET called, PUBLISH called, returns `{published: true, changesCount: N}`
+   - Live event with no diff → HSET called (cache refresh), PUBLISH NOT called, returns `{published: false, reason: 'no_changes'}`
+   - Prematch event (`status='pending'`) → neither HSET nor PUBLISH called, returns `{published: false, reason: 'not_live'}`
+   - `status='cancelled'` / `'postponed'` → same as prematch path: skipped, returns `{published: false, reason: 'not_live'}`
    - Redis throws → returns `{published: false, reason: 'redis_unavailable'}`, does NOT propagate exception
-   - Settled event → publishes `type='finished'` message, HDEL cache, evicts from state
+   - Settled event (`status='settled'`) → publishes `type='finished'` message, HDEL cache, evicts from state, returns `{published: true, reason: 'finished', changesCount: 0}`
+   - Settled event called again after eviction → idempotent: still publishes finished + HDEL (both idempotent at wire level), Map delete is no-op
 
 5. **State Map management**:
    - `getStateSize()` reflects insertions
@@ -261,10 +285,12 @@ Pass criteria:
 ### Cutover gate metrics
 
 Post-deploy 24h observation window before flipping `NEXT_PUBLIC_READ_FROM_V2`:
-- ≥95% of upserts on in-play events result in `published=true` OR `reason='no_changes'` (i.e., not `redis_unavailable`)
+- ≥95% of upserts on `status='live'` events result in `published=true` OR `reason='no_changes'` (i.e., not `redis_unavailable`)
 - Median latency from `ts` field (set in `publish()`) to consumer receipt (browser-side `Date.now()` minus `ts`) ≤ 500ms (sampled via temporary kiosk-side log)
 - Zero unhandled exceptions in ingester log attributable to publisher
 - Memory RSS of ingester process stable (no leak >50MB over 24h)
+- `getStateSize()` stays under ~100 entries during normal load (validates Q3 sizing estimate ~225KB; sustained growth above 200 indicates eviction is failing)
+- Redis `INFO commandstats` `cmdstat_publish` + `cmdstat_hset` together stay under ~500 op/min during peak live windows (validates Q2 traffic estimate ~100 op/min with 5x headroom)
 
 ## Migration / Rollout
 
