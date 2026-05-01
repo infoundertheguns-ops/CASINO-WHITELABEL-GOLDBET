@@ -11,6 +11,11 @@ import {
   type CanonicalLookups,
 } from "@/lib/settlement/canonical-dispatcher";
 import { loadCanonicalLookups } from "@/lib/settlement/canonical-loader";
+import {
+  classifyLeg as planDClassifyLeg,
+  type ScoreResult as PlanDScoreResult,
+  type Verdict as PlanDVerdict,
+} from "@/lib/settlement/odds-api/classify";
 
 // ═══ TYPES ═══
 
@@ -1726,6 +1731,55 @@ const SETTLERS: Record<string, SettlerFn> = {
 
 // ═══ settleEvent — main orchestrator ═══
 
+/**
+ * Convert legacy SettlementResult to Plan D ScoreResult shape.
+ * Plan D engine expects a flatter structure with optional stats fields.
+ * Note: legacy uses shots_total_home/away and shots_on_target_home/away;
+ * Plan D names them shots_home/away. We map shots_total_* -> shots_*.
+ * Fields not on legacy (gk_saves, scorers, assists, player_shots) are
+ * omitted - Plan D classifiers return null verdict (stats_missing)
+ * and the existing legsSkipped logic handles those legs correctly.
+ */
+function toPlanDScoreResult(r: SettlementResult): PlanDScoreResult {
+  return {
+    home: r.home,
+    away: r.away,
+    ht_home: r.ht_home ?? null,
+    ht_away: r.ht_away ?? null,
+    corners_home: r.corners_home ?? null,
+    corners_away: r.corners_away ?? null,
+    ht_corners_home: r.ht_corners_home ?? null,
+    ht_corners_away: r.ht_corners_away ?? null,
+    cards_home: r.cards_home ?? null,
+    cards_away: r.cards_away ?? null,
+    shots_home: r.shots_total_home ?? null,
+    shots_away: r.shots_total_away ?? null,
+    shots_on_target_home: r.shots_on_target_home ?? null,
+    shots_on_target_away: r.shots_on_target_away ?? null,
+  };
+}
+
+/**
+ * Map Plan D verdict to legacy Verdict.
+ * Plan D has 5 variants (incl. half_won/half_lost from quarter-line markets).
+ * Legacy bet_selections.result column accepts won/lost/void/push only.
+ * For test-mode cutover, half_* collapses to full won/lost - payout
+ * simplification documented in registry.
+ */
+function planDVerdictToLegacy(v: PlanDVerdict | null): Verdict | null {
+  if (v === null) return null;
+  switch (v) {
+    case "won":
+    case "half_won":
+      return "won";
+    case "lost":
+    case "half_lost":
+      return "lost";
+    case "void":
+      return "void";
+  }
+}
+
 export async function settleEvent(
   supabase: SupabaseClient,
   eventId: string,
@@ -1818,6 +1872,7 @@ export async function settleEvent(
   let legsProcessed = 0;
   let legsSkipped = 0;
   const affectedBetIds = new Set<string>();
+  const useOddsApiEngine = process.env.SETTLE_VIA_ODDS_API === "true";
 
   for (const leg of legs) {
     const market = leg.markets as unknown as {
@@ -1826,37 +1881,53 @@ export async function settleEvent(
     };
     const outcome = leg.outcomes as unknown as { name: string };
 
-    const resolved = resolveSettlerKey(
-      market.market_type,
-      market.line,
-      eventSource,
-      canonicalLookups,
-    );
     let verdict: Verdict | null;
 
-    if (!resolved) {
-      // Unknown or auto-void market
-      verdict = "void";
+    if (useOddsApiEngine) {
+      // Plan D path — classifier-based verdict (S6 cutover).
+      // Side effects (wallet credits, agent commissions, Telegram alerts,
+      // settlement_log writes, event deactivation) remain untouched below.
+      const planDResult = toPlanDScoreResult(result);
+      const planDLeg = {
+        market_type: market.market_type,
+        outcome_name: outcome.name,
+        line: market.line,
+      };
+      const { verdict: planDVerdict } = planDClassifyLeg(planDLeg, planDResult);
+      verdict = planDVerdictToLegacy(planDVerdict);
     } else {
-      const settler = SETTLERS[resolved.key];
-      if (!settler) {
+      // Legacy path — canonical-dispatcher SETTLERS table
+      const resolved = resolveSettlerKey(
+        market.market_type,
+        market.line,
+        eventSource,
+        canonicalLookups,
+      );
+
+      if (!resolved) {
+        // Unknown or auto-void market
         verdict = "void";
       } else {
-        const line = resolved.line ?? market.line ?? undefined;
-        // If dispatch came through canonical fallback, translate the outcome
-        // name into a form the settler recognises (e.g. legacy "Si" → "Sì").
-        // For regex-resolved markets (Kambi Italian) we pass the raw name —
-        // those settlers already understand the native verbose strings.
-        const outcomeInput = resolved.canonicalKey
-          ? canonicalizeOutcome(
-              eventSource ?? "",
-              market.market_type,
-              outcome.name,
-              resolved.canonicalKey,
-              canonicalLookups,
-            )
-          : outcome.name;
-        verdict = settler(result, outcomeInput, line, resolved.setIdx);
+        const settler = SETTLERS[resolved.key];
+        if (!settler) {
+          verdict = "void";
+        } else {
+          const line = resolved.line ?? market.line ?? undefined;
+          // If dispatch came through canonical fallback, translate the outcome
+          // name into a form the settler recognises (e.g. legacy "Si" → "Sì").
+          // For regex-resolved markets (Kambi Italian) we pass the raw name —
+          // those settlers already understand the native verbose strings.
+          const outcomeInput = resolved.canonicalKey
+            ? canonicalizeOutcome(
+                eventSource ?? "",
+                market.market_type,
+                outcome.name,
+                resolved.canonicalKey,
+                canonicalLookups,
+              )
+            : outcome.name;
+          verdict = settler(result, outcomeInput, line, resolved.setIdx);
+        }
       }
     }
 
