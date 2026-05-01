@@ -850,7 +850,13 @@ describe('evictEvent / getStateSize', () => {
 });
 ```
 
-Add the `vi` import to the file's existing imports if not already present.
+Update the existing vitest import line at the top of `realtime-publisher.test.ts` to include `vi`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+```
+
+(The prior tasks imported only `describe, it, expect` — `vi` is needed from this task onward for mocks.)
 
 - [ ] **Step 2: Run tests, verify they fail**
 
@@ -1118,6 +1124,8 @@ Add to top of `ingest.ts`:
 import { createRealtimePublisher, type RealtimePublisher } from './realtime-publisher.js';
 import { getRedisClient } from './redis-client.js';
 ```
+
+Verify `ApiEvent` and `TransformResult` are already imported (they are: existing line `import type { ApiEvent, TransformResult } from './types.js';` near top). If for any reason they aren't in scope at your call site, add them — Step 3 below uses both type names in the `enrichedPairs` typing.
 
 Extend `IngesterDeps`:
 
