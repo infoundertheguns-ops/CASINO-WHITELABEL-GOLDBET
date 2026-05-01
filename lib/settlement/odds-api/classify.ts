@@ -39,6 +39,8 @@ export interface ScoreResult {
   scorers?: Scorer[];
   // Player markets — assists provided (parallel to scorers, optional)
   assists?: Scorer[];
+  // Player shots — per-player shot counts (optional; null/empty when source feed doesn't include)
+  player_shots?: Array<{ name: string; shots: number }>;
 }
 
 export interface BetLeg {
@@ -267,6 +269,24 @@ function settleAnytimeGoalscorerOrAssist(
   return matchScorer || matchAssist ? "won" : "lost";
 }
 
+function settlePlayerShots(
+  player_shots: Array<{ name: string; shots: number }> | undefined,
+  outcome: string,
+  line: number | null,
+  side: "over" | "under",
+): Verdict | null {
+  if (!player_shots) return null;
+  if (line == null) return null;
+  const target = normName(outcome);
+  const found = player_shots.find((p) => normName(p.name) === target);
+  if (!found) return null; // player not in feed → cannot classify
+  if (found.shots === line) return "void";
+  if (side === "over") {
+    return found.shots > line ? "won" : "lost";
+  }
+  return found.shots < line ? "won" : "lost";
+}
+
 // ═══════════════════════════════════════════════════
 // Market-type dispatcher
 // ═══════════════════════════════════════════════════
@@ -410,6 +430,14 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   if (mt === "marca o assist" || mt === "anytime goalscorer or assist" || mt === "marcatore o assist") {
     const v = settleAnytimeGoalscorerOrAssist(result.scorers, result.assists, leg.outcome_name, result.home + result.away);
     return { verdict: v, reason: v == null ? "scorers_and_assists_missing" : undefined };
+  }
+  if (mt === "tiri giocatore over" || mt === "player shots over" || mt === "tiri giocatore - over") {
+    const v = settlePlayerShots(result.player_shots, leg.outcome_name, leg.line, "over");
+    return { verdict: v, reason: v == null ? "player_shots_missing" : undefined };
+  }
+  if (mt === "tiri giocatore under" || mt === "player shots under" || mt === "tiri giocatore - under") {
+    const v = settlePlayerShots(result.player_shots, leg.outcome_name, leg.line, "under");
+    return { verdict: v, reason: v == null ? "player_shots_missing" : undefined };
   }
 
   // Unsupported
