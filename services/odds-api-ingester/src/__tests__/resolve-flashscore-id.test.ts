@@ -63,7 +63,7 @@ describe("resolveFlashscoreId", () => {
 
   it("returns null and logs warn on fetch error", async () => {
     const deps = mkDeps({ direct: null, canonical: null });
-    deps.fetch = vi.fn(async () => { throw new Error("ECONNREFUSED"); });
+    deps.fetch = vi.fn(async (): Promise<any> => { throw new Error("ECONNREFUSED"); });
     const result = await resolveFlashscoreId(baseEvent, deps);
     expect(result).toBeNull();
     expect(deps.log.warn).toHaveBeenCalled();
