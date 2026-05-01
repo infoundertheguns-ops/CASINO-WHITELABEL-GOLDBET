@@ -217,7 +217,7 @@ Reuses `redis` npm package. Verified absent from `services/odds-api-ingester/pac
 | Failure | Behavior | User impact |
 |---|---|---|
 | Redis down | Publisher catches `ECONNREFUSED`, logs `[realtime] redis publish failed`, returns `{published: false, reason: 'redis_unavailable'}`. Ingester continues. PG upsert succeeds. | Kiosks fall back to 30s polling (existing behavior). Recovers automatically when Redis returns. |
-| Ingester process restart | `stateByEvent` Map is empty on first tick. All in-play outcomes appear as `previous_odds=null` ("first-seen"). Single burst per event of size = total outcomes. | Browser hook treats `null` as initial value, renders without arrow/flash. After tick #2, normal diff resumes. |
+| Ingester process restart | `stateByEvent` Map is empty on first tick. All in-play outcomes appear as `previous_odds=null` ("first-seen"). Single burst per event of size = total outcomes. Sizing: 50 live events × ~30 markets × ~3 outcomes ≈ 4,500 outcome entries spread across 50 PUBLISH calls (≈90 outcomes per message, ~10KB JSON each). Well within Redis pub/sub default `client-output-buffer-limit pubsub` of 32MB hard / 8MB soft. | Browser hook treats `null` as initial value, renders without arrow/flash. After tick #2, normal diff resumes. |
 | odds-api 5xx / timeout | Existing scheduler handling — retry, log, skip cycle. Publisher is not reached. | No live update for that cycle, kiosks see prior cache snapshot until next tick. |
 | Kiosk reconnects | Existing SSE handling — `HGETALL odds:cache` snapshot replay on connect. Hook re-receives `onSnapshot` then resumes `onOddsChange`. | Up to 1 cycle of staleness on reconnect. |
 | Redis client disconnect mid-publish | `redis-client` helper auto-reconnects with backoff. In-flight publish that failed is treated as `redis_unavailable` for that tick. State Map preserved. | Same as Redis down (transient). |
@@ -313,7 +313,7 @@ So this can ship and run for days/weeks before the S6 flag flip. Recommended: sh
 
 ### Rollback
 
-- Disable publisher via env flag `REALTIME_PUBLISHER_ENABLED=false`. Publisher returns `{published: false, reason: 'disabled'}` for every call. Ingester behavior reverts to pre-3a state.
+- Disable publisher via env flag `REALTIME_PUBLISHER_ENABLED=false`. Publisher returns `{published: false, reason: 'skipped'}` for every call. Ingester behavior reverts to pre-3a state.
 - No DB schema changes in this spec → nothing to revert in Postgres.
 - No consumer changes → no risk of breaking kiosk pages.
 
