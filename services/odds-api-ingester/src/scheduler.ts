@@ -211,8 +211,8 @@ async function main() {
 
   // Independent derive loop — runs every DERIVE_HEARTBEAT_MS, never blocked
   // by tier ticks. First fire after 10s so tiers have data to derive from.
-  setTimeout(() => { void runDerive(deps); }, 10_000);
-  setInterval(() => { if (!shouldStop) void runDerive(deps); }, DERIVE_HEARTBEAT_MS);
+  // Plan D S6 cutover: derive disabled. setTimeout(() => { void runDerive(deps); }, 10_000);
+  // Plan D S6 cutover: derive disabled. setInterval(() => { if (!shouldStop) void runDerive(deps); }, DERIVE_HEARTBEAT_MS);
 
   // Stale-lives loop — runs every STALE_LIVES_HEARTBEAT_MS. First fire after
   // 60s to avoid colliding with the initial derive burst.
