@@ -58,3 +58,44 @@ export function statusRoute(status: ApiEvent['status']): StatusRoute {
     }
   }
 }
+
+export type BuildCachedEventInput = Pick<
+  ApiEvent,
+  'id' | 'home' | 'away' | 'sport' | 'league' | 'scores'
+> & {
+  minute?: number;
+  period?: string;
+};
+
+export function buildCachedEvent(
+  ev: BuildCachedEventInput,
+  newOdds: NewOddsEntry[],
+): CachedEvent {
+  const grouped = new Map<string, CachedEventMarket>();
+  for (const o of newOdds) {
+    let m = grouped.get(o.market_type);
+    if (!m) {
+      m = { type: o.market_type, outcomes: [] };
+      grouped.set(o.market_type, m);
+    }
+    m.outcomes.push({ name: o.outcome_name, odds: o.odds });
+  }
+
+  const cached: CachedEvent = {
+    external_id: String(ev.id),
+    home_team: ev.home,
+    away_team: ev.away,
+    sport: ev.sport.slug,
+    league: ev.league.slug,
+    markets: [...grouped.values()],
+    updated_at: Date.now(),
+  };
+
+  if (ev.scores && typeof ev.scores.home === 'number' && typeof ev.scores.away === 'number') {
+    cached.scores = { home: ev.scores.home, away: ev.scores.away };
+  }
+  if (typeof ev.minute === 'number') cached.minute = ev.minute;
+  if (typeof ev.period === 'string') cached.period = ev.period;
+
+  return cached;
+}

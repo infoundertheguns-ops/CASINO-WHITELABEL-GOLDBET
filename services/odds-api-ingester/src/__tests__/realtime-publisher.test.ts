@@ -92,3 +92,75 @@ describe('statusRoute', () => {
     }
   });
 });
+
+import { buildCachedEvent } from '../realtime-publisher.js';
+import type { CachedEvent } from '../types.js';
+
+const baseApiEvent = {
+  id: 12345,
+  home: 'Inter',
+  away: 'Milan',
+  date: '2026-05-01T20:00:00Z',
+  status: 'live' as const,
+  sport: { name: 'Football', slug: 'football' },
+  league: { name: 'Serie A', slug: 'italy-serie-a' },
+};
+
+describe('buildCachedEvent', () => {
+  it('produces required fields with empty markets when no odds', () => {
+    const c = buildCachedEvent(baseApiEvent, []);
+    expect(c.external_id).toBe('12345');
+    expect(c.home_team).toBe('Inter');
+    expect(c.away_team).toBe('Milan');
+    expect(c.sport).toBe('football');
+    expect(c.league).toBe('italy-serie-a');
+    expect(c.markets).toEqual([]);
+    expect(typeof c.updated_at).toBe('number');
+    expect(c.scores).toBeUndefined();
+    expect(c.minute).toBeUndefined();
+    expect(c.period).toBeUndefined();
+  });
+
+  it('includes scores when present', () => {
+    const ev = { ...baseApiEvent, scores: { home: 1, away: 0 } };
+    const c = buildCachedEvent(ev, []);
+    expect(c.scores).toEqual({ home: 1, away: 0 });
+  });
+
+  it('omits scores when home/away missing', () => {
+    const ev = { ...baseApiEvent, scores: { periods: { '1H': { home: 0, away: 0 } } } };
+    const c = buildCachedEvent(ev, []);
+    expect(c.scores).toBeUndefined();
+  });
+
+  it('groups outcomes by market_type', () => {
+    const odds = [
+      { market_type: '1X2', outcome_name: 'home', odds: 2.10 },
+      { market_type: '1X2', outcome_name: 'draw', odds: 3.30 },
+      { market_type: '1X2', outcome_name: 'away', odds: 3.50 },
+      { market_type: 'OU 2.5', outcome_name: 'over', odds: 1.85 },
+      { market_type: 'OU 2.5', outcome_name: 'under', odds: 1.95 },
+    ];
+    const c = buildCachedEvent(baseApiEvent, odds);
+    expect(c.markets).toEqual<CachedEvent['markets']>([
+      { type: '1X2', outcomes: [
+        { name: 'home', odds: 2.10 },
+        { name: 'draw', odds: 3.30 },
+        { name: 'away', odds: 3.50 },
+      ]},
+      { type: 'OU 2.5', outcomes: [
+        { name: 'over', odds: 1.85 },
+        { name: 'under', odds: 1.95 },
+      ]},
+    ]);
+  });
+
+  it('preserves outcome insertion order within a market', () => {
+    const odds = [
+      { market_type: 'OU 0.5', outcome_name: 'over', odds: 1.05 },
+      { market_type: 'OU 0.5', outcome_name: 'under', odds: 8.00 },
+    ];
+    const c = buildCachedEvent(baseApiEvent, odds);
+    expect(c.markets[0].outcomes.map(o => o.name)).toEqual(['over', 'under']);
+  });
+});
