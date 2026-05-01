@@ -9,7 +9,7 @@
 //
 // Pure functions ONLY. No DB access. Tested via fixture in tests/lib/...
 
-export type Verdict = "won" | "lost" | "void";
+export type Verdict = "won" | "lost" | "void" | "half_won" | "half_lost";
 
 export interface Scorer {
   name: string;
@@ -184,6 +184,39 @@ function settleEuropeanHandicap(
   if (line == null) return null;
   const adj_home = home + line;
   return settle1X2(adj_home, away, outcome);
+}
+
+function settleAsianHandicapQuarter(
+  home: number,
+  away: number,
+  line: number | null,
+  outcome: string,
+): Verdict | null {
+  if (line == null) return null;
+  // Quarter detection: line * 4 must be an ODD integer.
+  // Examples: -1.25 * 4 = -5 (odd); -1.5 * 4 = -6 (even, NOT quarter); -1 * 4 = -4 (even).
+  const fourX = line * 4;
+  const fourXRounded = Math.round(fourX);
+  if (Math.abs(fourX - fourXRounded) > 1e-9) return null;
+  if (fourXRounded % 2 === 0) return null;
+  // Split into two adjacent half-step lines.
+  const lower = Math.floor(line * 2) / 2; // e.g. -1.25 -> -1.5
+  const upper = Math.ceil(line * 2) / 2;  // e.g. -1.25 -> -1.0
+  const v1 = settleHandicap2Way(home, away, lower, outcome);
+  const v2 = settleHandicap2Way(home, away, upper, outcome);
+  if (v1 == null || v2 == null) return null;
+  return combineSplitVerdicts(v1, v2);
+}
+
+function combineSplitVerdicts(a: Verdict, b: Verdict): Verdict {
+  // Combines two half-stake Verdicts from adjacent half-step lines (.25/.75 split-bet).
+  if (a === "won" && b === "won") return "won";
+  if (a === "lost" && b === "lost") return "lost";
+  if ((a === "won" && b === "void") || (a === "void" && b === "won")) return "half_won";
+  if ((a === "lost" && b === "void") || (a === "void" && b === "lost")) return "half_lost";
+  if (a === "void" && b === "void") return "void"; // defensive: shouldn't occur at .25/.75
+  // Defensive fallback for impossible combos (won+lost on adjacent half-step lines).
+  return "void";
 }
 
 // ═══════════════════════════════════════════════════
@@ -366,6 +399,12 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   if (mt === "handicap - 2t" || mt === "spread 2h") {
     if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     return { verdict: settleHandicap2Way(result.home - ht_home, result.away - ht_away, leg.line, leg.outcome_name) };
+  }
+  if (mt === "asian handicap" || mt === "handicap asiatico") {
+    // Try quarter-line split first (.25/.75); fall through to standard 2-way for integer/half lines.
+    const vq = settleAsianHandicapQuarter(result.home, result.away, leg.line, leg.outcome_name);
+    if (vq != null) return { verdict: vq };
+    return { verdict: settleHandicap2Way(result.home, result.away, leg.line, leg.outcome_name) };
   }
   if (mt === "european handicap") {
     return { verdict: settleEuropeanHandicap(result.home, result.away, leg.line, leg.outcome_name) };

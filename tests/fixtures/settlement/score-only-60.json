@@ -2035,5 +2035,117 @@
       "away": 1
     },
     "expected_verdict": null
+  },
+  {
+    "id": "ah-quarter-001",
+    "description": "Asian Handicap home -1.25, score 3-0 → won (split: -1.5 won + -1.0 won)",
+    "leg": {
+      "market_type": "Asian Handicap",
+      "outcome_name": "home",
+      "line": -1.25
+    },
+    "result": {
+      "home": 3,
+      "away": 0
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ah-quarter-002",
+    "description": "Asian Handicap home -1.25, score 1-0 → half_lost (split: -1.5 lost + -1.0 void)",
+    "leg": {
+      "market_type": "Asian Handicap",
+      "outcome_name": "1",
+      "line": -1.25
+    },
+    "result": {
+      "home": 1,
+      "away": 0
+    },
+    "expected_verdict": "half_lost"
+  },
+  {
+    "id": "ah-quarter-003",
+    "description": "Asian Handicap home -1.25, score 0-1 → lost (both halves lost)",
+    "leg": {
+      "market_type": "asian handicap",
+      "outcome_name": "casa",
+      "line": -1.25
+    },
+    "result": {
+      "home": 0,
+      "away": 1
+    },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "ah-quarter-004",
+    "description": "Asian Handicap home +0.25, draw 1-1 → half_won (split: 0 void + 0.5 won)",
+    "leg": {
+      "market_type": "Asian Handicap",
+      "outcome_name": "home",
+      "line": 0.25
+    },
+    "result": {
+      "home": 1,
+      "away": 1
+    },
+    "expected_verdict": "half_won"
+  },
+  {
+    "id": "ah-quarter-005",
+    "description": "Asian Handicap home +0.25, win 2-1 → won (both halves won)",
+    "leg": {
+      "market_type": "Asian Handicap",
+      "outcome_name": "home",
+      "line": 0.25
+    },
+    "result": {
+      "home": 2,
+      "away": 1
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ah-quarter-006",
+    "description": "Asian Handicap home -0.75, score 1-0 → half_won (split: -1 void + -0.5 won)",
+    "leg": {
+      "market_type": "Handicap Asiatico",
+      "outcome_name": "home",
+      "line": -0.75
+    },
+    "result": {
+      "home": 1,
+      "away": 0
+    },
+    "expected_verdict": "half_won"
+  },
+  {
+    "id": "ah-quarter-007",
+    "description": "Asian Handicap away +1.25, score 1-0 → half_won (split: +1 void + +1.5 won)",
+    "leg": {
+      "market_type": "Asian Handicap",
+      "outcome_name": "away",
+      "line": 1.25
+    },
+    "result": {
+      "home": 1,
+      "away": 0
+    },
+    "expected_verdict": "half_won"
+  },
+  {
+    "id": "ah-quarter-008",
+    "description": "Asian Handicap integer line -1 fallthrough to standard 2-way → void (push)",
+    "leg": {
+      "market_type": "Asian Handicap",
+      "outcome_name": "home",
+      "line": -1
+    },
+    "result": {
+      "home": 2,
+      "away": 1
+    },
+    "expected_verdict": "void"
   }
 ]
