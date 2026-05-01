@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { computeDiff } from '../realtime-publisher.js';
 
 describe('computeDiff', () => {
@@ -162,5 +162,146 @@ describe('buildCachedEvent', () => {
     ];
     const c = buildCachedEvent(baseApiEvent, odds);
     expect(c.markets[0].outcomes.map(o => o.name)).toEqual(['over', 'under']);
+  });
+});
+
+import { createRealtimePublisher } from '../realtime-publisher.js';
+
+function makeRedisMock() {
+  return {
+    hSet: vi.fn().mockResolvedValue(1),
+    hDel: vi.fn().mockResolvedValue(1),
+    publish: vi.fn().mockResolvedValue(1),
+    isOpen: true,
+  };
+}
+
+const liveBase = {
+  id: 999,
+  status: 'live' as const,
+  home: 'A',
+  away: 'B',
+  sport: { name: 'Football', slug: 'football' },
+  league: { name: 'L', slug: 'l' },
+};
+
+describe('publish — live path', () => {
+  it('writes HSET odds:cache and PUBLISH on first sight (full diff)', async () => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    const r = await pub.publish({
+      event: liveBase,
+      newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }],
+    });
+    expect(r).toEqual({ published: true, changesCount: 1 });
+    expect(redis.hSet).toHaveBeenCalledWith('odds:cache', '999', expect.any(String));
+    expect(redis.publish).toHaveBeenCalledWith('odds:live', expect.any(String));
+    const msg = JSON.parse(redis.publish.mock.calls[0][1] as string);
+    expect(msg.event_id).toBe('999');
+    expect(msg.type).toBe('update');
+    expect(msg.changes).toEqual([
+      { market_type: '1X2', outcome_name: 'home', odds: 2.10, previous_odds: null },
+    ]);
+    expect(typeof msg.ts).toBe('number');
+  });
+
+  it('refreshes HSET but does NOT PUBLISH when diff is empty', async () => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    redis.hSet.mockClear();
+    redis.publish.mockClear();
+    const r = await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(r).toEqual({ published: false, reason: 'no_changes', changesCount: 0 });
+    expect(redis.hSet).toHaveBeenCalledTimes(1);
+    expect(redis.publish).not.toHaveBeenCalled();
+  });
+
+  it('updates state map after a successful publish', async () => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(pub.getStateSize()).toBe(1);
+  });
+});
+
+describe('publish — non-live skip path', () => {
+  it.each([['pending'], ['cancelled'], ['postponed']] as const)('skips %s without any redis op', async (status) => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    const r = await pub.publish({
+      event: { ...liveBase, status },
+      newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }],
+    });
+    expect(r).toEqual({ published: false, reason: 'not_live', changesCount: 0 });
+    expect(redis.hSet).not.toHaveBeenCalled();
+    expect(redis.publish).not.toHaveBeenCalled();
+  });
+});
+
+describe('publish — settled path', () => {
+  it('publishes finished + HDEL + evicts state', async () => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    // first put the event in state
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(pub.getStateSize()).toBe(1);
+    redis.hSet.mockClear();
+    redis.publish.mockClear();
+
+    const r = await pub.publish({ event: { ...liveBase, status: 'settled' }, newOdds: [] });
+    expect(r).toEqual({ published: true, reason: 'finished', changesCount: 0 });
+    expect(redis.publish).toHaveBeenCalledWith('odds:live', expect.any(String));
+    const msg = JSON.parse(redis.publish.mock.calls[0][1] as string);
+    expect(msg.type).toBe('finished');
+    expect(msg.event_id).toBe('999');
+    expect(msg.changes).toEqual([]);
+    expect(redis.hDel).toHaveBeenCalledWith('odds:cache', '999');
+    expect(pub.getStateSize()).toBe(0);
+  });
+
+  it('is idempotent when called for an already-evicted event', async () => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    const r1 = await pub.publish({ event: { ...liveBase, status: 'settled' }, newOdds: [] });
+    expect(r1).toEqual({ published: true, reason: 'finished', changesCount: 0 });
+    const r2 = await pub.publish({ event: { ...liveBase, status: 'settled' }, newOdds: [] });
+    expect(r2).toEqual({ published: true, reason: 'finished', changesCount: 0 });
+    expect(redis.publish).toHaveBeenCalledTimes(2);
+    expect(redis.hDel).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('publish — failure modes', () => {
+  it('catches redis errors and returns redis_unavailable, does not propagate', async () => {
+    const redis = makeRedisMock();
+    redis.hSet.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    const pub = createRealtimePublisher(redis as any);
+    const r = await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(r).toEqual({ published: false, reason: 'redis_unavailable', changesCount: 0 });
+  });
+
+  it('returns skipped when REALTIME_PUBLISHER_ENABLED=false', async () => {
+    const orig = process.env.REALTIME_PUBLISHER_ENABLED;
+    process.env.REALTIME_PUBLISHER_ENABLED = 'false';
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    const r = await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(r).toEqual({ published: false, reason: 'skipped', changesCount: 0 });
+    expect(redis.hSet).not.toHaveBeenCalled();
+    expect(redis.publish).not.toHaveBeenCalled();
+    if (orig === undefined) delete process.env.REALTIME_PUBLISHER_ENABLED;
+    else process.env.REALTIME_PUBLISHER_ENABLED = orig;
+  });
+});
+
+describe('evictEvent / getStateSize', () => {
+  it('evictEvent removes from state map', async () => {
+    const redis = makeRedisMock();
+    const pub = createRealtimePublisher(redis as any);
+    await pub.publish({ event: liveBase, newOdds: [{ market_type: '1X2', outcome_name: 'home', odds: 2.10 }] });
+    expect(pub.getStateSize()).toBe(1);
+    pub.evictEvent(999);
+    expect(pub.getStateSize()).toBe(0);
   });
 });

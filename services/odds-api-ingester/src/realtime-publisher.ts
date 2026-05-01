@@ -99,3 +99,141 @@ export function buildCachedEvent(
 
   return cached;
 }
+
+
+export interface PublishContext {
+  event: BuildCachedEventInput & {
+    id: number;
+    status: ApiEvent['status'];
+  };
+  newOdds: NewOddsEntry[];
+}
+
+export type PublishReason =
+  | 'not_live'
+  | 'no_changes'
+  | 'redis_unavailable'
+  | 'finished'
+  | 'skipped';
+
+export interface PublishResult {
+  published: boolean;
+  reason?: PublishReason;
+  changesCount: number;
+}
+
+export interface RealtimePublisher {
+  publish(ctx: PublishContext): Promise<PublishResult>;
+  getStateSize(): number;
+  evictEvent(eventId: number): void;
+  dispose(): void;
+}
+
+interface OddsState {
+  outcomes: Map<string, number>;
+  lastTouched: number;
+}
+
+const CHANNEL = 'odds:live';
+const CACHE_HASH = 'odds:cache';
+
+export function createRealtimePublisher(redis: RedisClient): RealtimePublisher {
+  const stateByEvent = new Map<number, OddsState>();
+
+  async function publish(ctx: PublishContext): Promise<PublishResult> {
+    if (process.env.REALTIME_PUBLISHER_ENABLED === 'false') {
+      return { published: false, reason: 'skipped', changesCount: 0 };
+    }
+
+    const route = statusRoute(ctx.event.status);
+    if (route === 'skip') {
+      return { published: false, reason: 'not_live', changesCount: 0 };
+    }
+
+    const eventId = ctx.event.id;
+    const eventIdStr = String(eventId);
+
+    if (route === 'settled') {
+      try {
+        const msg: LiveOddsMessage = {
+          event_id: eventIdStr,
+          ts: Date.now(),
+          type: 'finished',
+          changes: [],
+        };
+        await redis.publish(CHANNEL, JSON.stringify(msg));
+        await redis.hDel(CACHE_HASH, eventIdStr);
+        stateByEvent.delete(eventId);
+        return { published: true, reason: 'finished', changesCount: 0 };
+      } catch (err) {
+        console.error(`[realtime] settled-path redis op failed for ${eventId}:`, (err as Error).message);
+        return { published: false, reason: 'redis_unavailable', changesCount: 0 };
+      }
+    }
+
+    // route === 'live'
+    try {
+      const cached = buildCachedEvent(ctx.event, ctx.newOdds);
+      await redis.hSet(CACHE_HASH, eventIdStr, JSON.stringify(cached));
+
+      const prior = stateByEvent.get(eventId)?.outcomes ?? new Map<string, number>();
+      const diff = computeDiff(prior, ctx.newOdds);
+
+      if (diff.length === 0) {
+        // refresh lastTouched only
+        const existing = stateByEvent.get(eventId);
+        if (existing) existing.lastTouched = Date.now();
+        return { published: false, reason: 'no_changes', changesCount: 0 };
+      }
+
+      // update state with new odds
+      const nextOutcomes = new Map<string, number>(prior);
+      for (const o of ctx.newOdds) {
+        nextOutcomes.set(`${o.market_type}|${o.outcome_name}`, o.odds);
+      }
+      stateByEvent.set(eventId, { outcomes: nextOutcomes, lastTouched: Date.now() });
+
+      const msg: LiveOddsMessage = {
+        event_id: eventIdStr,
+        ts: Date.now(),
+        type: 'update',
+        changes: diff,
+        ...(cached.scores ? { scores: cached.scores } : {}),
+        ...(cached.minute !== undefined ? { minute: cached.minute } : {}),
+        ...(cached.period !== undefined ? { period: cached.period } : {}),
+      };
+      await redis.publish(CHANNEL, JSON.stringify(msg));
+      console.log(`[realtime] published ${eventId} changes=${diff.length}`);
+      return { published: true, changesCount: diff.length };
+    } catch (err) {
+      console.error(`[realtime] live-path redis op failed for ${eventId}:`, (err as Error).message);
+      return { published: false, reason: 'redis_unavailable', changesCount: 0 };
+    }
+  }
+
+  function getStateSize(): number {
+    return stateByEvent.size;
+  }
+
+  function evictEvent(eventId: number): void {
+    stateByEvent.delete(eventId);
+  }
+
+  // GC pass: drop entries older than 30min, runs every 5min.
+  // Belt-and-suspenders: handles events that disappear from odds-api before reaching 'settled'.
+  const STALE_MS = 30 * 60_000;
+  const gcInterval = setInterval(() => {
+    const cutoff = Date.now() - STALE_MS;
+    for (const [id, state] of stateByEvent.entries()) {
+      if (state.lastTouched < cutoff) stateByEvent.delete(id);
+    }
+  }, 5 * 60_000);
+  // Don't keep process alive just for GC.
+  if (typeof gcInterval.unref === 'function') gcInterval.unref();
+
+  function dispose(): void {
+    clearInterval(gcInterval);
+  }
+
+  return { publish, getStateSize, evictEvent, dispose };
+}
