@@ -37,6 +37,8 @@ export interface ScoreResult {
   gk_saves_away?: number | null;
   // Player markets — ordered list of goal scorers (chronological)
   scorers?: Scorer[];
+  // Player markets — assists provided (parallel to scorers, optional)
+  assists?: Scorer[];
 }
 
 export interface BetLeg {
@@ -249,6 +251,22 @@ function settleLastGoalscorer(
   return normName(scorers[scorers.length - 1].name) === target ? "won" : "lost";
 }
 
+function settleAnytimeGoalscorerOrAssist(
+  scorers: Scorer[] | null | undefined,
+  assists: Scorer[] | null | undefined,
+  outcome: string,
+  totalGoals: number
+): Verdict | null {
+  // Both data sources missing → cannot classify
+  if (scorers == null && assists == null) return null;
+  // 0-0 game → no goals, no assists → refund void
+  if (totalGoals === 0) return "void";
+  const target = normName(outcome);
+  const matchScorer = (scorers ?? []).some((s) => normName(s.name) === target);
+  const matchAssist = (assists ?? []).some((a) => normName(a.name) === target);
+  return matchScorer || matchAssist ? "won" : "lost";
+}
+
 // ═══════════════════════════════════════════════════
 // Market-type dispatcher
 // ═══════════════════════════════════════════════════
@@ -388,6 +406,10 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   if (mt === "ultimo marcatore" || mt === "last goalscorer") {
     const v = settleLastGoalscorer(result.scorers, leg.outcome_name);
     return { verdict: v, reason: v == null ? "scorers_missing" : undefined };
+  }
+  if (mt === "marca o assist" || mt === "anytime goalscorer or assist" || mt === "marcatore o assist") {
+    const v = settleAnytimeGoalscorerOrAssist(result.scorers, result.assists, leg.outcome_name, result.home + result.away);
+    return { verdict: v, reason: v == null ? "scorers_and_assists_missing" : undefined };
   }
 
   // Unsupported

@@ -869,5 +869,53 @@
     "leg": { "market_type": "Totale parate", "outcome_name": "over", "line": 8.5 },
     "result": { "home": 1, "away": 1 },
     "expected_verdict": null
+  },
+  {
+    "id": "marca-assist-001",
+    "description": "Marca o Assist Mario Rossi scored (in scorers) → won",
+    "leg": { "market_type": "Marca o Assist", "outcome_name": "Mario Rossi", "line": null },
+    "result": { "home": 2, "away": 1, "scorers": [
+      { "name": "Mario Rossi" },
+      { "name": "Diego Lopez" }
+    ], "assists": [] },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "marca-assist-002",
+    "description": "Marca o Assist Luca Bianchi only assisted → won",
+    "leg": { "market_type": "Marcatore o Assist", "outcome_name": "Luca Bianchi", "line": null },
+    "result": { "home": 2, "away": 1, "scorers": [
+      { "name": "Diego Lopez" },
+      { "name": "Mario Rossi" }
+    ], "assists": [
+      { "name": "Luca Bianchi" }
+    ] },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "marca-assist-003",
+    "description": "Marca o Assist Diego Lopez neither scored nor assisted → lost",
+    "leg": { "market_type": "anytime goalscorer or assist", "outcome_name": "Diego Lopez", "line": null },
+    "result": { "home": 2, "away": 1, "scorers": [
+      { "name": "Mario Rossi" },
+      { "name": "Luca Bianchi" }
+    ], "assists": [
+      { "name": "Paolo Verdi" }
+    ] },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "marca-assist-004",
+    "description": "Marca o Assist 0-0 game → refund void",
+    "leg": { "market_type": "Marca o Assist", "outcome_name": "Mario Rossi", "line": null },
+    "result": { "home": 0, "away": 0, "scorers": [], "assists": [] },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "marca-assist-005",
+    "description": "Marca o Assist scorers AND assists missing → null",
+    "leg": { "market_type": "Marca o Assist", "outcome_name": "Mario Rossi", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": null
   }
 ]
