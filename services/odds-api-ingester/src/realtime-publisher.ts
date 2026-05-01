@@ -38,3 +38,23 @@ export function computeDiff(
   }
   return out;
 }
+
+export type StatusRoute = 'live' | 'settled' | 'skip';
+
+export function statusRoute(status: ApiEvent['status']): StatusRoute {
+  switch (status) {
+    case 'live':
+      return 'live';
+    case 'settled':
+      return 'settled';
+    case 'pending':
+    case 'cancelled':
+    case 'postponed':
+      return 'skip';
+    default: {
+      const _exhaustive: never = status;
+      void _exhaustive;
+      return 'skip';
+    }
+  }
+}

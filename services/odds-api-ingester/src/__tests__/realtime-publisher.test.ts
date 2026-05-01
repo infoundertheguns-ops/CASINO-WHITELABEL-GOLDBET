@@ -62,3 +62,33 @@ describe('computeDiff', () => {
     expect(diff[0].previous_odds).toBe(2.10);
   });
 });
+
+import { statusRoute } from '../realtime-publisher.js';
+import type { ApiEvent } from '../types.js';
+
+describe('statusRoute', () => {
+  it('routes live to "live"', () => {
+    expect(statusRoute('live')).toBe('live');
+  });
+  it('routes settled to "settled"', () => {
+    expect(statusRoute('settled')).toBe('settled');
+  });
+  it('routes pending to "skip"', () => {
+    expect(statusRoute('pending')).toBe('skip');
+  });
+  it('routes cancelled to "skip"', () => {
+    expect(statusRoute('cancelled')).toBe('skip');
+  });
+  it('routes postponed to "skip"', () => {
+    expect(statusRoute('postponed')).toBe('skip');
+  });
+  it('is exhaustive on ApiEvent["status"]', () => {
+    // type-level check: this test exists to assert compile-time exhaustiveness.
+    // If a new variant is added to ApiEvent['status'], the switch in
+    // realtime-publisher.ts will fail to compile. This test documents intent.
+    const all: Array<ApiEvent['status']> = ['pending', 'live', 'settled', 'cancelled', 'postponed'];
+    for (const s of all) {
+      expect(['live', 'settled', 'skip']).toContain(statusRoute(s));
+    }
+  });
+});
