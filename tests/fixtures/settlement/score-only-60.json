@@ -2147,5 +2147,89 @@
       "away": 1
     },
     "expected_verdict": "void"
+  },
+  {
+    "id": "goal-line-001",
+    "description": "Goal Line over 2.25, score 3-0 (total 3) → won (over 2.0 won + over 2.5 won)",
+    "leg": {
+      "market_type": "Goal Line",
+      "outcome_name": "over",
+      "line": 2.25
+    },
+    "result": {
+      "home": 3,
+      "away": 0
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "goal-line-002",
+    "description": "Goal Line over 2.25, score 2-0 (total 2) → half_lost (over 2.0 push=void + over 2.5 lost)",
+    "leg": {
+      "market_type": "Goal Line",
+      "outcome_name": "over",
+      "line": 2.25
+    },
+    "result": {
+      "home": 2,
+      "away": 0
+    },
+    "expected_verdict": "half_lost"
+  },
+  {
+    "id": "goal-line-003",
+    "description": "Goal Line over 2.25, score 1-0 (total 1) → lost (over 2.0 lost + over 2.5 lost)",
+    "leg": {
+      "market_type": "Goal Line",
+      "outcome_name": "over",
+      "line": 2.25
+    },
+    "result": {
+      "home": 1,
+      "away": 0
+    },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "goal-line-004",
+    "description": "Goal Line under 2.75, score 2-0 (total 2) → won (under 2.5 won + under 3.0 won)",
+    "leg": {
+      "market_type": "Goal Line",
+      "outcome_name": "under",
+      "line": 2.75
+    },
+    "result": {
+      "home": 2,
+      "away": 0
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "goal-line-005",
+    "description": "Goal Line under 2.75, score 3-0 (total 3) → half_lost (under 2.5 lost + under 3.0 push=void)",
+    "leg": {
+      "market_type": "Goal Line",
+      "outcome_name": "under",
+      "line": 2.75
+    },
+    "result": {
+      "home": 3,
+      "away": 0
+    },
+    "expected_verdict": "half_lost"
+  },
+  {
+    "id": "goal-line-006",
+    "description": "Goal Line integer line 2.0 fallthrough to standard OU → void (push)",
+    "leg": {
+      "market_type": "Goal Line",
+      "outcome_name": "over",
+      "line": 2.0
+    },
+    "result": {
+      "home": 2,
+      "away": 0
+    },
+    "expected_verdict": "void"
   }
 ]

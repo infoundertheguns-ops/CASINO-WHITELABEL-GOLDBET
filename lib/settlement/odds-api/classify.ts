@@ -219,6 +219,27 @@ function combineSplitVerdicts(a: Verdict, b: Verdict): Verdict {
   return "void";
 }
 
+function settleGoalLine(
+  total: number,
+  line: number | null,
+  outcome: string,
+): Verdict | null {
+  if (line == null) return null;
+  // Quarter detection: line * 4 must be an ODD integer.
+  // Examples: 2.25 * 4 = 9 (odd); 2.5 * 4 = 10 (even, NOT quarter); 2 * 4 = 8 (even).
+  const fourX = line * 4;
+  const fourXRounded = Math.round(fourX);
+  if (Math.abs(fourX - fourXRounded) > 1e-9) return null;
+  if (fourXRounded % 2 === 0) return null;
+  // Split into two adjacent half-step lines.
+  const lower = Math.floor(line * 2) / 2; // e.g. 2.25 -> 2.0
+  const upper = Math.ceil(line * 2) / 2;  // e.g. 2.25 -> 2.5
+  const v1 = settleOU(total, lower, outcome);
+  const v2 = settleOU(total, upper, outcome);
+  if (v1 == null || v2 == null) return null;
+  return combineSplitVerdicts(v1, v2);
+}
+
 // ═══════════════════════════════════════════════════
 // Stat-based generic settlers (corners/cards/shots/etc.)
 // ═══════════════════════════════════════════════════
@@ -342,6 +363,14 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   if (mt === "1x2 - 2t" || mt === "1x2 2° tempo") {
     if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     return { verdict: settle1X2(result.home - ht_home, result.away - ht_away, leg.outcome_name) };
+  }
+
+  // ─── Goal Line (Asian total) ───
+  if (mt === "goal line" || mt === "goalline" || mt === "asian total" || mt === "asian totals") {
+    // Try quarter-line split first (.25/.75); fall through to standard OU for integer/half lines.
+    const vq = settleGoalLine(total, leg.line, leg.outcome_name);
+    if (vq != null) return { verdict: vq };
+    return { verdict: settleOU(total, leg.line, leg.outcome_name) };
   }
 
   // ─── U/O Goals family ───
