@@ -76,3 +76,44 @@ export type TransformResult = {
   markets: MarketV2Row[];
   outcomes: OutcomeV2Row[];
 };
+
+// === Realtime publisher wire contract (Plan D #3a) ===
+// These shapes MUST match the consumer at:
+//   betssolution-player/lib/hooks/use-live-odds.ts
+//   betssolution-player/app/api/odds/stream/route.ts
+// Do not reshape without coordinating with the consumer.
+
+export interface LiveOddsChange {
+  market_type: string;
+  outcome_name: string;
+  odds: number;
+  previous_odds: number | null;
+}
+
+export interface LiveOddsMessage {
+  event_id: string; // String(ApiEvent.id) — Redis wire is string-keyed
+  ts: number;
+  type: 'update' | 'finished';
+  changes: LiveOddsChange[];
+  scores?: { home: number; away: number };
+  minute?: number;
+  period?: string;
+}
+
+export interface CachedEventMarket {
+  type: string;
+  outcomes: Array<{ name: string; odds: number }>;
+}
+
+export interface CachedEvent {
+  external_id: string;
+  home_team: string;
+  away_team: string;
+  sport: string;
+  league: string;
+  minute?: number;
+  period?: string;
+  scores?: { home: number; away: number };
+  markets: CachedEventMarket[];
+  updated_at: number;
+}
