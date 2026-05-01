@@ -323,6 +323,20 @@ function settleAnytimeGoalscorerOrAssist(
   return matchScorer || matchAssist ? "won" : "lost";
 }
 
+function settleMultiScorers(
+  scorers: Scorer[] | null | undefined,
+  outcome: string,
+): { verdict: Verdict | null; reason?: string } {
+  if (scorers == null) return { verdict: null, reason: "scorers_missing" };
+  // Parse outcome into multiple player names. Separators: & , + and " and "
+  const rawNames = outcome.split(/\s*[&,+]\s*|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+  if (rawNames.length < 2) return { verdict: null, reason: "single_name_use_anytime" };
+  const targetNames = rawNames.map((n) => normName(n));
+  const scorerSet = new Set((scorers ?? []).map((s) => normName(s.name)));
+  const allMatched = targetNames.every((t) => scorerSet.has(t));
+  return { verdict: allMatched ? "won" : "lost" };
+}
+
 function settlePlayerShots(
   player_shots: Array<{ name: string; shots: number }> | undefined,
   outcome: string,
@@ -498,6 +512,9 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   if (mt === "marca o assist" || mt === "anytime goalscorer or assist" || mt === "marcatore o assist") {
     const v = settleAnytimeGoalscorerOrAssist(result.scorers, result.assists, leg.outcome_name, result.home + result.away);
     return { verdict: v, reason: v == null ? "scorers_and_assists_missing" : undefined };
+  }
+  if (mt === "più marcatori" || mt === "piu marcatori" || mt === "multi scorers" || mt === "both players to score") {
+    return settleMultiScorers(result.scorers, leg.outcome_name);
   }
   if (mt === "tiri giocatore over" || mt === "player shots over" || mt === "tiri giocatore - over") {
     const v = settlePlayerShots(result.player_shots, leg.outcome_name, leg.line, "over");

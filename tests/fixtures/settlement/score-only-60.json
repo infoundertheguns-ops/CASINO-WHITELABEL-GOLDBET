@@ -2231,5 +2231,158 @@
       "away": 0
     },
     "expected_verdict": "void"
+  },
+  {
+    "id": "multi-scorers-001",
+    "description": "Multi scorers Rossi & Bianchi both scored (3-way list with extra) -> won",
+    "leg": {
+      "market_type": "Più Marcatori",
+      "outcome_name": "Mario Rossi & Luca Bianchi",
+      "line": null
+    },
+    "result": {
+      "home": 2,
+      "away": 1,
+      "scorers": [
+        {
+          "name": "Mario Rossi"
+        },
+        {
+          "name": "Luca Bianchi"
+        },
+        {
+          "name": "Diego Lopez"
+        }
+      ]
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "multi-scorers-002",
+    "description": "Multi scorers Rossi & Bianchi but Bianchi missing -> lost",
+    "leg": {
+      "market_type": "Più Marcatori",
+      "outcome_name": "Mario Rossi & Luca Bianchi",
+      "line": null
+    },
+    "result": {
+      "home": 2,
+      "away": 0,
+      "scorers": [
+        {
+          "name": "Mario Rossi"
+        },
+        {
+          "name": "Diego Lopez"
+        }
+      ]
+    },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "multi-scorers-003",
+    "description": "Multi scorers Lewandowski + Mbappé with diacritic-strip match -> won",
+    "leg": {
+      "market_type": "multi scorers",
+      "outcome_name": "Lewandowski + Mbappé",
+      "line": null
+    },
+    "result": {
+      "home": 2,
+      "away": 1,
+      "scorers": [
+        {
+          "name": "Lewandowski"
+        },
+        {
+          "name": "Mbappé"
+        }
+      ]
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "multi-scorers-004",
+    "description": "Multi scorers 3-way Messi, Suarez, Neymar all scored -> won",
+    "leg": {
+      "market_type": "Più Marcatori",
+      "outcome_name": "Messi, Suarez, Neymar",
+      "line": null
+    },
+    "result": {
+      "home": 3,
+      "away": 0,
+      "scorers": [
+        {
+          "name": "Messi"
+        },
+        {
+          "name": "Suarez"
+        },
+        {
+          "name": "Neymar"
+        }
+      ]
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "multi-scorers-005",
+    "description": "Multi scorers 3-way Neymar missing -> lost",
+    "leg": {
+      "market_type": "Più Marcatori",
+      "outcome_name": "Messi, Suarez, Neymar",
+      "line": null
+    },
+    "result": {
+      "home": 2,
+      "away": 0,
+      "scorers": [
+        {
+          "name": "Messi"
+        },
+        {
+          "name": "Suarez"
+        }
+      ]
+    },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "multi-scorers-006",
+    "description": "Multi scorers English and separator -> won",
+    "leg": {
+      "market_type": "multi scorers",
+      "outcome_name": "Mario Rossi and Luca Bianchi",
+      "line": null
+    },
+    "result": {
+      "home": 2,
+      "away": 0,
+      "scorers": [
+        {
+          "name": "Mario Rossi"
+        },
+        {
+          "name": "Luca Bianchi"
+        }
+      ]
+    },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "multi-scorers-007",
+    "description": "Multi scorers 0-0 game (empty scorers) -> lost (no one scored)",
+    "leg": {
+      "market_type": "Più Marcatori",
+      "outcome_name": "Rossi & Bianchi",
+      "line": null
+    },
+    "result": {
+      "home": 0,
+      "away": 0,
+      "scorers": []
+    },
+    "expected_verdict": "lost"
   }
 ]
