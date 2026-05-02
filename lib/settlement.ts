@@ -75,7 +75,7 @@ interface SettlementResult {
   sh_shots_on_target_away?: number;
 }
 
-type Verdict = "won" | "lost" | "void" | "push";
+type Verdict = "won" | "lost" | "void" | "push" | "half_won" | "half_lost";
 
 type SettlerFn = (
   result: SettlementResult,
