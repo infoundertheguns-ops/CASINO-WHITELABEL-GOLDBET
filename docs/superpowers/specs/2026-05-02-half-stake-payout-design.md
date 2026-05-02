@@ -77,18 +77,22 @@ hasLost      = any leg.result === "lost"
 allSettled   = every leg.result != null
 allVoid      = allSettled && every leg.result === "void"
 
-if hasLost:           bet = "lost",  payout = 0
-elif !allSettled:     return null
-elif allVoid:         bet = "void",  payout = stake (refund)
+if hasLost:        bet = "lost",  payout = 0
+elif !allSettled:  return null
+elif allVoid:      bet = "void",  payout = stake (refund)
 else:
   effOddsProduct = product over legs of effective_odds(leg)
   payout         = stake × effOddsProduct
-  bet            = payout > stake ? "won" : payout == stake ? "void" : "lost"
-                   (allow "won" even if payout == stake when at least one leg is "won";
-                    edge case: all half_lost → payout = stake × 0.5^n ≤ stake → still bet status "lost")
+  bet            = payout > stake  ? "won"
+                 : payout < stake  ? "lost"
+                 :                   "void"
 ```
 
-The bet `status` enum on the parent `bets` row stays `won|lost|void` — we do not introduce `half_won` at bet level, only at leg level. The wallet just sees a numeric payout.
+**Status rule is purely numeric** (payout vs stake). One winning leg paired with a half-losing leg can still net zero gain (e.g., `won` 2.0 + `half_lost` on 10€ stake → payout 10 = stake → `void`). This is the simplest unambiguous rule and avoids the won/lost-leg-aware variant the reviewer flagged.
+
+The bet `status` enum on the parent `bets` row stays `won|lost|void`. We do not introduce `half_won` at bet level — only at leg level.
+
+**Wallet credit rule (revised)**: always credit `payout` for any non-zero numeric (replaces the previous won-only-credit-payout / void-credit-stake special cases — they now collapse to a single rule since `void` implies `payout == stake` by construction). When `bet = "lost"` but `payout > 0` (e.g. all `half_lost` legs return half stake), the player still receives `payout`; the status just labels the net outcome as a loss because they got back less than they staked.
 
 ### 3.3 Tests
 
@@ -127,6 +131,7 @@ Mock `supabase` and `creditWallet`; assert payout numeric and status string.
 
 - [ ] All existing settlement tests still pass (`npm test`).
 - [ ] New `resolveBet-half-stake.test.ts` covers 8 scenarios above, all pass.
+- [ ] Grep audit: list every reader of `bet_selections.result` outside `lib/settlement.ts` and confirm none assumes only `won|lost|void` (display-only readers OK; any state machine consumer must handle the widened union).
 - [ ] Manual smoke: insert a synthetic bet with one `half_won` leg, run `resolveBet`, verify `bets.actual_win` matches expected formula and wallet credit is the right amount.
 - [ ] `tsc` 0 errors.
 - [ ] Git commit on `feature/plan-d-settlement-d1`, no push to origin until human review.
