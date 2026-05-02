@@ -14,11 +14,12 @@ export function BetSelections({ selections }: { selections: BetSelectionDetail[]
         <div key={s.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--admin-border)", color: "var(--admin-text)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span>{s.source === "sport" ? "⚽" : "🐎"} <strong>{s.event.name}</strong>{s.event.league && ` — ${s.event.league}`}</span>
+            {/* Plan D: half-stake variants from Asian Handicap quarter / Goal Line .25/.75 markets */}
             <span style={{
               fontSize: 10, padding: "2px 6px", borderRadius: 4,
-              background: s.result === "won" ? "#10b98130" : s.result === "lost" ? "#ef444430" : "#37415130",
-              color: s.result === "won" ? "#10b981" : s.result === "lost" ? "#ef4444" : "#9ca3af",
-            }}>{(s.result || "PENDING").toUpperCase()}</span>
+              background: s.result === "won" ? "#10b98130" : s.result === "lost" ? "#ef444430" : (s.result === "half_won" || s.result === "half_lost") ? "#f59e0b30" : "#37415130",
+              color: s.result === "won" ? "#10b981" : s.result === "lost" ? "#ef4444" : (s.result === "half_won" || s.result === "half_lost") ? "#f59e0b" : "#9ca3af",
+            }}>{((s.result === "half_won" ? "MEZZA VINTA" : s.result === "half_lost" ? "MEZZA PERSA" : (s.result || "PENDING")).toUpperCase())}</span>
           </div>
           <div style={{ fontSize: 11, color: "var(--admin-text4)" }}>
             Mercato: {s.market.type}{s.market.label ? ` (${s.market.label})` : ""} • Selezione: {s.outcome.name}

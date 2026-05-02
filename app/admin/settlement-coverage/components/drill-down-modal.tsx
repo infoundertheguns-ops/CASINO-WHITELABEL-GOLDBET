@@ -132,6 +132,13 @@ export function DrillDownModal({ marketType, onClose }: Props) {
                           {b.result === "lost" && (
                             <span className="text-red-700">lost</span>
                           )}
+                          {/* Plan D: half-stake variants from Asian Handicap quarter / Goal Line .25/.75 markets */}
+                          {b.result === "half_won" && (
+                            <span className="text-amber-600">half_won</span>
+                          )}
+                          {b.result === "half_lost" && (
+                            <span className="text-amber-600">half_lost</span>
+                          )}
                           {b.result === "void" && (
                             <span className="text-gray-500">void</span>
                           )}

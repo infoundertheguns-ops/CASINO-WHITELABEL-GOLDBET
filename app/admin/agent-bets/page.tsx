@@ -18,6 +18,9 @@ const STATUS_LABEL: Record<string, string> = {
   open: "Aperta",
   won: "Vinta",
   lost: "Persa",
+  // Plan D: half-stake variants from Asian Handicap quarter / Goal Line .25/.75 markets
+  half_won: "Mezza vinta",
+  half_lost: "Mezza persa",
   void: "Void",
   pending_acceptance: "In attesa",
   rejected: "Rifiutata",
@@ -113,11 +116,16 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function SelectionRow({ sel }: { sel: any }) {
+  // Plan D: half-stake variants from Asian Handicap quarter / Goal Line .25/.75 markets
   const resultColor =
     sel.result === "won"
       ? "#10b981"
       : sel.result === "lost"
       ? "#ef4444"
+      : sel.result === "half_won"
+      ? "#f59e0b"
+      : sel.result === "half_lost"
+      ? "#f59e0b"
       : sel.result === "void"
       ? "#6b7280"
       : "#94a3b8";

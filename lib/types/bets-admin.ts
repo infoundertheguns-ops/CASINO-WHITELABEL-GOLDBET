@@ -13,7 +13,8 @@ export type BetType = "single" | "multi" | "system";
 
 export type SelectionSource = "sport" | "ippica" | "ippica_tote";
 
-export type SelectionResult = "won" | "lost" | "void" | null;
+// Plan D: half-stake variants from Asian Handicap quarter / Goal Line .25/.75 markets
+export type SelectionResult = "won" | "lost" | "half_won" | "half_lost" | "void" | null;
 
 export interface BetsListFilters {
   status?: BetStatus | "all";

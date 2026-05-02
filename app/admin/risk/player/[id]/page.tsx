@@ -100,13 +100,16 @@ export default function PlayerDetailPage() {
                     )}
                   </td>
                   <td className="px-4 py-2 text-center">
+                    {/* Plan D: half-stake variants from Asian Handicap quarter / Goal Line .25/.75 markets */}
                     <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded",
                       b.status === "won" ? "bg-emerald-500/20 text-emerald-400" :
                       b.status === "lost" ? "bg-red-500/20 text-red-400" :
+                      b.status === "half_won" ? "bg-amber-500/20 text-amber-400" :
+                      b.status === "half_lost" ? "bg-amber-500/20 text-amber-400" :
                       b.status === "open" ? "bg-blue-500/20 text-blue-400" :
                       b.status === "rejected" ? "bg-gray-500/20 text-gray-400" :
                       "bg-yellow-500/20 text-yellow-400"
-                    )}>{b.status?.toUpperCase()}</span>
+                    )}>{b.status === "half_won" ? "MEZZA VINTA" : b.status === "half_lost" ? "MEZZA PERSA" : b.status?.toUpperCase()}</span>
                   </td>
                 </tr>
               ))}
