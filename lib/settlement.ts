@@ -16,6 +16,7 @@ import {
   type ScoreResult as PlanDScoreResult,
   type Verdict as PlanDVerdict,
 } from "@/lib/settlement/odds-api/classify";
+import { aggregatePayout } from "@/lib/settlement/half-stake-payout";
 
 // ═══ TYPES ═══
 
@@ -1995,12 +1996,7 @@ export async function resolveBet(
 
   if (!allLegs) return null;
 
-  // Early termination: if any leg is lost, multi/sistema is lost immediately
-  const hasLostEarly = allLegs.some((l) => l.result === "lost");
-  // If no leg lost yet and some still unsettled → wait for other events
-  if (!hasLostEarly && allLegs.some((l) => l.result == null)) return null;
-
-  // Fetch the bet itself
+  // Fetch the bet itself (need stake/user before we can aggregate)
   const { data: bet } = await supabase
     .from("bets")
     .select("id, user_id, stake, potential_win, status, parent_bet_id")
@@ -2009,29 +2005,16 @@ export async function resolveBet(
 
   if (!bet || bet.status !== "open") return null;
 
-  // Determine outcome
-  const allSettled = allLegs.every((l) => l.result != null);
-  const allVoid = allSettled && allLegs.every((l) => l.result === "void");
-  const wonLegs = allLegs.filter((l) => l.result === "won");
+  // Pure aggregation: returns null if waiting on more legs.
+  const aggregated = aggregatePayout(
+    allLegs.map((l) => ({ result: l.result as any, odds_at_placement: l.odds_at_placement })),
+    Number(bet.stake)
+  );
+  if (aggregated === null) return null;
 
-  let betStatus: string;
-  let payout = 0;
+  const { status: betStatus, payout } = aggregated;
 
-  if (allVoid) {
-    betStatus = "void";
-  } else if (hasLostEarly) {
-    betStatus = "lost";
-  } else {
-    betStatus = "won";
-    // Payout = stake × product of odds for non-void legs
-    const oddsProduct = wonLegs.reduce(
-      (acc, l) => acc * parseFloat(String(l.odds_at_placement)),
-      1
-    );
-    payout = parseFloat((bet.stake * oddsProduct).toFixed(2));
-  }
-
-  // Update bet
+  // Persist bet outcome
   await supabase
     .from("bets")
     .update({
@@ -2041,16 +2024,19 @@ export async function resolveBet(
     })
     .eq("id", betId);
 
-  // Credit wallet
-  if (betStatus === "won" && payout > 0) {
-    await creditWallet(supabase, bet.user_id, betId, payout, "win");
-    // Telegram alert for winning bet (fire-and-forget)
+  // Wallet credit: always credit the numeric payout (zero is a no-op).
+  // The bet status enum just labels the net outcome — the wallet sees money.
+  if (payout > 0) {
+    const ledgerType = betStatus === "won" ? "win" : "refund";
+    await creditWallet(supabase, bet.user_id, betId, payout, ledgerType);
+  }
+
+  // Telegram alert only for net wins (status === "won")
+  if (betStatus === "won") {
     const { data: winner } = await supabase.from("users").select("username").eq("id", bet.user_id).single();
     sendTelegramMessage(
-      `\ud83c\udfc6 <b>SCOMMESSA VINTA</b>\n\ud83d\udc64 @${winner?.username || bet.user_id}\n\ud83d\udcb0 +\u20ac${payout.toFixed(2)} (stake: \u20ac${bet.stake})`
+      `🏆 <b>SCOMMESSA VINTA</b>\n👤 @${winner?.username || bet.user_id}\n💰 +€${payout.toFixed(2)} (stake: €${bet.stake})`
     ).catch(() => {});
-  } else if (betStatus === "void") {
-    await creditWallet(supabase, bet.user_id, betId, bet.stake, "refund");
   }
 
   // If this is a child of a sistema bet, check if parent can be resolved
