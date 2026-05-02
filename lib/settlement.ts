@@ -1761,23 +1761,12 @@ function toPlanDScoreResult(r: SettlementResult): PlanDScoreResult {
 
 /**
  * Map Plan D verdict to legacy Verdict.
- * Plan D has 5 variants (incl. half_won/half_lost from quarter-line markets).
- * Legacy bet_selections.result column accepts won/lost/void/push only.
- * For test-mode cutover, half_* collapses to full won/lost - payout
- * simplification documented in registry.
+ * Plan D Verdict (5 values) is now a subset of legacy Verdict (6 values incl. push).
+ * Pass through unchanged — bet_selections.result column TEXT accepts all variants
+ * (see migration 001_initial_schema.sql:290,329 comment).
  */
 function planDVerdictToLegacy(v: PlanDVerdict | null): Verdict | null {
-  if (v === null) return null;
-  switch (v) {
-    case "won":
-    case "half_won":
-      return "won";
-    case "lost":
-    case "half_lost":
-      return "lost";
-    case "void":
-      return "void";
-  }
+  return v;
 }
 
 export async function settleEvent(
