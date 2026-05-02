@@ -631,7 +631,7 @@ ssh scraper-vps 'cd /root/betssolution-admin && cat > /tmp/half-stake-smoke.sql 
 WITH test_user AS (SELECT id FROM users LIMIT 1)
 -- Insert a bet with stake 10
 INSERT INTO bets (id, user_id, stake, total_odds, potential_win, status, type)
-SELECT gen_random_uuid(), test_user.id, 10, 1.5, 15, "open", "single"
+SELECT gen_random_uuid(), test_user.id, 10, 1.5, 15, 'open', 'single'
 FROM test_user
 RETURNING id, user_id;
 EOF
