@@ -208,7 +208,8 @@ async function run(req: NextRequest) {
       .single();
     if (!bet || bet.status !== "open") continue;
 
-    const hasLost = allSels.some((s) => s.result === "lost");
+    // Plan D: half-stake variants behave as won/lost for this parlay aggregation
+    const hasLost = allSels.some((s) => s.result === "lost" || s.result === "half_lost");
     const allVoid = allSels.every((s) => s.result === "void");
 
     let betStatus: "won" | "lost" | "void";
@@ -226,7 +227,8 @@ async function run(req: NextRequest) {
         payout = bet.potential_win;
       } else {
         const totalOdds = allSels
-          .filter((s) => s.result === "won")
+          // Plan D: half-stake variants behave as won/lost for this parlay aggregation
+          .filter((s) => s.result === "won" || s.result === "half_won")
           .reduce((acc, s) => acc * (s.odds_at_placement ?? 1), 1);
         payout = Math.round(bet.stake * totalOdds * 100) / 100;
       }
