@@ -134,7 +134,7 @@ export interface BetLeg {
   odd_id: string;
   selection: string;
   odds_at_placement: number;
-  result: "pending" | "won" | "lost" | "void" | "push";
+  result: "pending" | "won" | "lost" | "void" | "push" | "half_won" | "half_lost";
   event_name?: string;
   market_name?: string;
 }

@@ -16,7 +16,7 @@ import {
   type ScoreResult as PlanDScoreResult,
   type Verdict as PlanDVerdict,
 } from "@/lib/settlement/odds-api/classify";
-import { aggregatePayout } from "@/lib/settlement/half-stake-payout";
+import { aggregatePayout, type LegResult } from "@/lib/settlement/half-stake-payout";
 
 // ═══ TYPES ═══
 
@@ -2007,7 +2007,7 @@ export async function resolveBet(
 
   // Pure aggregation: returns null if waiting on more legs.
   const aggregated = aggregatePayout(
-    allLegs.map((l) => ({ result: l.result as any, odds_at_placement: l.odds_at_placement })),
+    allLegs.map((l) => ({ result: l.result as LegResult | null, odds_at_placement: l.odds_at_placement })),
     Number(bet.stake)
   );
   if (aggregated === null) return null;

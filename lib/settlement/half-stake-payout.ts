@@ -59,6 +59,9 @@ export interface AggregateResult {
  * Wallet credit equals payout in all branches (caller responsibility).
  */
 export function aggregatePayout(legs: Leg[], stake: number): AggregateResult | null {
+  if (!Number.isFinite(stake) || stake <= 0) {
+    throw new Error(`aggregatePayout: invalid stake ${stake} (must be positive finite number)`);
+  }
   const hasLost = legs.some((l) => l.result === "lost");
   if (hasLost) return { status: "lost", payout: 0 };
 
@@ -70,6 +73,9 @@ export function aggregatePayout(legs: Leg[], stake: number): AggregateResult | n
 
   const effProduct = legs.reduce((acc, l) => {
     const odds = parseFloat(String(l.odds_at_placement));
+    if (!Number.isFinite(odds) || odds <= 0) {
+      throw new Error(`aggregatePayout: invalid odds_at_placement ${l.odds_at_placement} for leg with result ${l.result}`);
+    }
     return acc * computeEffectiveOdds(l.result as LegResult, odds);
   }, 1);
 

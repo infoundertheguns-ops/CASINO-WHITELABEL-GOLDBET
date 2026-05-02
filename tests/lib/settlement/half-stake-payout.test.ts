@@ -78,6 +78,23 @@ describe("aggregatePayout", () => {
     expect(r).toEqual({ status: "won", payout: 20 });
   });
 
+  test("combo: void + half_won 2.0, stake 10 → payout 15 (void leg removed, half_won contributes 1.5)", () => {
+    const r = aggregatePayout([leg("void", 3.0), leg("half_won", 2.0)], 10);
+    expect(r).toEqual({ status: "won", payout: 15 });
+  });
+
+  test("aggregatePayout throws on zero or negative stake", () => {
+    expect(() => aggregatePayout([leg("won", 2.0)], 0)).toThrow(/invalid stake/);
+    expect(() => aggregatePayout([leg("won", 2.0)], -5)).toThrow(/invalid stake/);
+    expect(() => aggregatePayout([leg("won", 2.0)], NaN)).toThrow(/invalid stake/);
+  });
+
+  test("aggregatePayout throws on NaN or non-positive odds", () => {
+    expect(() => aggregatePayout([leg("won", NaN)], 10)).toThrow(/invalid odds/);
+    expect(() => aggregatePayout([{ result: "won", odds_at_placement: "garbage" as unknown as number }], 10)).toThrow(/invalid odds/);
+    expect(() => aggregatePayout([leg("won", 0)], 10)).toThrow(/invalid odds/);
+  });
+
   test("combo: won 2.0 + lost, stake 10 → payout 0, status lost (regression)", () => {
     const r = aggregatePayout([leg("won", 2.0), leg("lost", 3.0)], 10);
     expect(r).toEqual({ status: "lost", payout: 0 });
