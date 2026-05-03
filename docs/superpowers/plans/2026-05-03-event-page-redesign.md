@@ -1268,13 +1268,61 @@ Diverso da LinePicker: 3-button row (1X2 con handicap) + chip picker linee in ba
 
 **Files:**
 - Create: `/root/betssolution-player/components/event-v2/PlayerListTwoCol.tsx`
-- Test: `/root/betssolution-player/__tests__/components/event-v2/PlayerListTwoCol.test.tsx`
+- Test: /root/betssolution-player/__tests__/components/event-v2/PlayerListFlat.test.tsx (RENAMED per Task 0.1 decision)
 
-**Decisione condizionale dal Task 0.1**:
-- Se `player_team` disponibile in `v_player_outcomes` → 2-col home/away (preferred)
-- Se mancante → flat list sortata per odds (fallback opzione 2 dello spec)
+**Decisione locked dal Task 0.1** (commit 849657e):
 
-- [ ] **Step 1-5**: TDD basato su decisione Task 0.1. Test: sort asc by odds, 2-col split se opzione 1, flat list se opzione 2.
+- v_player_outcomes/outcomes_v2/markets_v2 NON hanno colonna team. odds-api non fornisce mapping. Decisione: **OPTION 2 (flat list)** per spec sez 5.8 fallback.
+- **Rename componente**: PlayerListTwoCol -> PlayerListFlat (naming onesto)
+- **Cap UX**: top 10 player visibili + button "Mostra tutti (N)" expand (riusa pattern LinePicker expand)
+- **Sort**: by odds ascending (favoriti in cima)
+- **Layout**: single column full-width, OutcomeButton size standard (touch-friendly, NON compact)
+- **Player row**: name truncate ellipsis, OutcomeButton 80-100px right-aligned
+
+- [ ] **Step 1: Write failing test** (TDD)
+
+```tsx
+import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import PlayerListFlat from "@/components/event-v2/PlayerListFlat";
+
+const players = Array.from({ length: 25 }, (_, i) => ({
+  outcomeId: `o${i}`, outcomeIdV2: `v${i}`,
+  playerName: `Player ${i}`,
+  odds: 1.5 + i * 0.5,
+  isSuspended: false,
+}));
+
+describe("PlayerListFlat", () => {
+  it("renders top 10 by default with expand button when >10", () => {
+    render(<PlayerListFlat players={players} onSelect={() => {}} />);
+    expect(screen.getAllByRole("button").length).toBeLessThanOrEqual(11); // 10 player + 1 expand
+    expect(screen.getByText(/Mostra tutti.*15/i)).toBeInTheDocument();
+  });
+
+  it("expand reveals all players", () => {
+    render(<PlayerListFlat players={players} onSelect={() => {}} />);
+    fireEvent.click(screen.getByText(/Mostra tutti/i));
+    expect(screen.getAllByRole("button").length).toBe(25);
+  });
+
+  it("with <=10 players, no expand button", () => {
+    const few = players.slice(0, 5);
+    render(<PlayerListFlat players={few} onSelect={() => {}} />);
+    expect(screen.queryByText(/Mostra tutti/i)).not.toBeInTheDocument();
+  });
+
+  it("sorts by odds ascending (favorites top)", () => {
+    const shuffled = [players[3], players[0], players[5]];
+    render(<PlayerListFlat players={shuffled} onSelect={() => {}} />);
+    const buttons = screen.getAllByRole("button");
+    // First player rendered should be the lowest odds
+    expect(buttons[0].textContent).toContain("Player 0");
+  });
+});
+```
+
+- [ ] **Step 2-5**: implement component + run + commit per pattern Task 7.
 
 ---
 
