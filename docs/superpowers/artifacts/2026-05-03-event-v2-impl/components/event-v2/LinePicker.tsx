@@ -48,9 +48,11 @@ function pickDefault(variants: LineVariant[], target: number): LineVariant | nul
 function renderLabel(renderer: Renderer, outcome: OutcomeShape, line: number, home?: string, away?: string): string {
   switch (renderer) {
     case 'team-handicap': {
-      const formatted = line % 1 === 0 ? line.toFixed(0) : line.toFixed(2);
-      const sign = line < 0 ? formatted : `+${formatted}`;
-      const teamForOutcome = outcome.name.toLowerCase().includes('home') || outcome.name === '1' ? home : away;
+      const isHome = outcome.name.toLowerCase().includes('home') || outcome.name === '1';
+      const teamForOutcome = isHome ? home : away;
+      const effectiveLine = isHome ? line : -line;
+      const formatted = effectiveLine % 1 === 0 ? effectiveLine.toFixed(0) : effectiveLine.toFixed(2);
+      const sign = effectiveLine < 0 ? formatted : `+${formatted}`;
       return `${teamForOutcome ?? outcome.name} ${sign}`;
     }
     default:
