@@ -51,13 +51,33 @@ ssh scraper-vps 'cd /root/betssolution-admin && git status --short && git log --
 
 Expected: branch `feature/plan-d-settlement-d1`, HEAD `9ac55f3` (spec revision commit) or descendant. Working tree clean.
 
-- [ ] **Step 2: Confirm current `v_player_markets` definition matches spec assumption**
+- [ ] **Step 2a: Confirm current `v_player_markets` definition matches spec assumption AND save it for rollback**
 
 ```bash
-ssh scraper-vps 'set -a; source /root/betssolution-admin/services/odds-api-ingester/.env; set +a; psql "$DATABASE_URL" -c "SELECT pg_get_viewdef('"'"'v_player_markets'"'"'::regclass, true);"' | head -30
+ssh scraper-vps 'set -a; source /root/betssolution-admin/services/odds-api-ingester/.env; set +a; psql "$DATABASE_URL" -At -c "SELECT pg_get_viewdef('"'"'v_player_markets'"'"'::regclass, true);"' > /c/Users/philp/v_player_markets-current.sql
+head -10 /c/Users/philp/v_player_markets-current.sql
 ```
 
 Expected: contains `DISTINCT ON (m2.market_name, o2.line)` and `_bookmaker_priority(m2.bookmaker)` in `ORDER BY`. If it differs significantly, STOP and re-verify the spec is still accurate.
+
+This file is the source of truth for the rollback migration in Task 4 — do NOT regenerate it later.
+
+- [ ] **Step 2b: Confirm current `v_player_outcomes` definition AND save it**
+
+```bash
+ssh scraper-vps 'set -a; source /root/betssolution-admin/services/odds-api-ingester/.env; set +a; psql "$DATABASE_URL" -At -c "SELECT pg_get_viewdef('"'"'v_player_outcomes'"'"'::regclass, true);"' > /c/Users/philp/v_player_outcomes-current.sql
+head -10 /c/Users/philp/v_player_outcomes-current.sql
+```
+
+Expected: contains `_oddsapi_translate_outcome` and `manual_overrides` JOINs (per mig 160b). This file is the source of truth for the v_player_outcomes block re-created in Task 5 forward migration — copy its body verbatim, do not retype from memory.
+
+- [ ] **Step 2c: Confirm `_migrations.name` has a unique constraint (used by `ON CONFLICT (name)` in Task 5)**
+
+```bash
+ssh scraper-vps 'set -a; source /root/betssolution-admin/services/odds-api-ingester/.env; set +a; psql "$DATABASE_URL" -c "\d _migrations"'
+```
+
+Expected: `name` column has either PRIMARY KEY or UNIQUE constraint. If not, change Task 5 Step 1 to drop the `ON CONFLICT` clause.
 
 - [ ] **Step 3: Confirm `_bookmaker_priority` function exists with expected signature**
 
@@ -76,9 +96,9 @@ Expected: one row, `_bookmaker_priority(text) returns integer`. If missing or di
 **Files:**
 - Append to: `docs/superpowers/specs/2026-05-03-bookmaker-priority-design.md` (after task completion)
 
-- [ ] **Step 1: Save audit script locally for reproducibility**
+- [ ] **Step 1: Save audit script locally and scp to VPS**
 
-Create on VPS at `/tmp/audit_170.sql`:
+Use the `Write` tool to create `C:\Users\philp\audit_170.sql` with this content (verbatim):
 
 ```sql
 WITH active_counts AS (
@@ -126,20 +146,11 @@ SELECT
 FROM joined;
 ```
 
-```bash
-ssh scraper-vps 'cat > /tmp/audit_170.sql' < /dev/stdin
-# (paste the SQL above into the heredoc on VPS, or scp from local)
-```
-
-Practical command to write the file using a here-doc with no embedded single quotes:
+Then upload it to VPS:
 
 ```bash
-scp - scraper-vps:/tmp/audit_170.sql <<'AUDIT_EOF'
-WITH active_counts AS ( ... full SQL above ... );
-AUDIT_EOF
+scp /c/Users/philp/audit_170.sql scraper-vps:/tmp/audit_170.sql
 ```
-
-(In practice use `Write` locally then `scp` — simpler than embedded heredoc.)
 
 - [ ] **Step 2: Run aggregate audit**
 
@@ -251,22 +262,38 @@ Expected (current test mode): 0 rows or a small handful. If 0 rows → no admin 
 **Files:**
 - Create: `supabase/migrations/170_pre_rollback.sql`
 
-- [ ] **Step 1: Dump current view definition wrapped in CREATE OR REPLACE**
+- [ ] **Step 1: Construct rollback file locally from saved view definitions**
 
-```bash
-ssh scraper-vps 'set -a; source /root/betssolution-admin/services/odds-api-ingester/.env; set +a; (
-  echo "-- Migration 170 ROLLBACK — restores v_player_markets to pre-mig-170 definition.";
-  echo "-- Generated $(date -u +%Y-%m-%dT%H:%M:%SZ) from prod via pg_get_viewdef.";
-  echo "-- Apply only if mig 170 needs to be reverted.";
-  echo "";
-  echo "DROP VIEW IF EXISTS v_player_markets CASCADE;";
-  echo "CREATE VIEW v_player_markets AS";
-  psql "$DATABASE_URL" -At -c "SELECT pg_get_viewdef('"'"'v_player_markets'"'"'::regclass, true);"
-  echo ";";
-  echo "";
-  echo "COMMENT ON VIEW v_player_markets IS '"'"'Restored to pre-mig-170 definition (priority-only pickup).'"'"';";
-) > /root/betssolution-admin/supabase/migrations/170_pre_rollback.sql && wc -l /root/betssolution-admin/supabase/migrations/170_pre_rollback.sql'
+Use `/c/Users/philp/v_player_markets-current.sql` and `/c/Users/philp/v_player_outcomes-current.sql` (saved in Task 1 Steps 2a/2b) as the bodies. Use the `Write` tool to assemble `C:\Users\philp\170_pre_rollback.sql`:
+
+```sql
+-- Migration 170 ROLLBACK — restores v_player_markets and v_player_outcomes
+-- to pre-mig-170 definitions captured from prod 2026-05-03.
+-- Apply only if mig 170 needs to be reverted.
+
+DROP VIEW IF EXISTS v_player_outcomes CASCADE;
+DROP VIEW IF EXISTS v_player_markets CASCADE;
+
+CREATE VIEW v_player_markets AS
+<<paste exact contents of /c/Users/philp/v_player_markets-current.sql here>>;
+
+COMMENT ON VIEW v_player_markets IS 'Restored to pre-mig-170 definition (priority-only pickup).';
+
+CREATE VIEW v_player_outcomes AS
+<<paste exact contents of /c/Users/philp/v_player_outcomes-current.sql here>>;
+
+COMMENT ON VIEW v_player_outcomes IS 'Restored to pre-mig-170 definition (mig 160b body).';
 ```
+
+CRITICAL: paste the saved files VERBATIM, including any embedded single quotes — do not retype, do not let any heredoc/echo strip them. The semicolon at the end of each `CREATE VIEW ... AS ...` is mandatory; pg_get_viewdef does NOT include it.
+
+Upload to VPS:
+```bash
+scp /c/Users/philp/170_pre_rollback.sql scraper-vps:/root/betssolution-admin/supabase/migrations/170_pre_rollback.sql
+ssh scraper-vps 'wc -l /root/betssolution-admin/supabase/migrations/170_pre_rollback.sql'
+```
+
+Expected: file > 50 lines. If trivially small, the paste did not include the view bodies — fix and re-scp.
 
 - [ ] **Step 2: Verify rollback file is syntactically valid (parse-only)**
 
@@ -411,7 +438,7 @@ VALUES ('170_v_player_markets_max_outcomes', now(), 'Pickup: max active_count, t
 ON CONFLICT (name) DO NOTHING;
 ```
 
-CRITICAL: verify in Task 1 Step 2 whether `v_player_outcomes` is re-created from mig 160b verbatim. If mig 160b version differs from what's in this file, copy the exact body from `pg_get_viewdef('v_player_outcomes'::regclass, true)` into the migration. Do not introduce subtle drift.
+CRITICAL: do NOT use the `v_player_outcomes` body inlined above as-is. Replace lines `CREATE VIEW v_player_outcomes AS ...` through the trailing `;` with the exact contents of `/c/Users/philp/v_player_outcomes-current.sql` (saved in Task 1 Step 2b). The body above is approximate and may not match prod exactly (e.g. patches applied after mig 160b). Source-of-truth is the live `pg_get_viewdef` output. Verbatim paste avoids subtle drift.
 
 - [ ] **Step 2: scp to VPS**
 
