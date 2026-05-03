@@ -112,6 +112,18 @@ function isDrawHalf(s: string): boolean {
   const lower = s.toLowerCase().trim();
   return lower === "draw" || lower === "pareggio" || lower === "x";
 }
+/**
+ * Normalize DC outcome names from team-name format ("Home or Draw")
+ * to canonical 1X/X2/12 tokens expected by frontend market column matching.
+ *
+ * Uses token-diff: tokenize both team names, find tokens unique to each
+ * side, then match outcome against unique tokens only. Handles ambiguous
+ * cases like "Sydney United U20" vs "Sydney Olympic U20" (both contain
+ * "Sydney" — strip it, then match "United" vs "Olympic").
+ *
+ * Falls back to original name if tokens overlap completely or pattern
+ * doesn't match.
+ */
 function normalizeOutcomeName(
   marketType: string,
   outcomeName: string,
@@ -119,31 +131,46 @@ function normalizeOutcomeName(
   awayTeam: string
 ): string {
   if (marketType !== "DC") return outcomeName;
-  // Already canonical: leave as-is
+
+  // Already canonical
   if (outcomeName === "1X" || outcomeName === "X2" || outcomeName === "12") {
     return outcomeName;
   }
-  // Split on " or " (case-insensitive). DC outcomes always have this shape.
-  const parts = outcomeName.split(/\s+or\s+/i);
-  if (parts.length !== 2) return outcomeName;
-  const homeTokens = tokenize(homeTeam);
-  const awayTokens = tokenize(awayTeam);
-  const classify = (s: string): "1" | "X" | "2" | "?" => {
-    if (isDrawHalf(s)) return "X";
-    const t = tokenize(s);
-    const isHome = shareTokens(t, homeTokens);
-    const isAway = shareTokens(t, awayTokens);
-    if (isHome && !isAway) return "1";
-    if (isAway && !isHome) return "2";
-    return "?";
-  };
-  const a = classify(parts[0]);
-  const b = classify(parts[1]);
-  const code = `${a}${b}`;
-  if (code === "1X" || code === "X1") return "1X";
-  if (code === "X2" || code === "2X") return "X2";
-  if (code === "12" || code === "21") return "12";
-  return outcomeName; // fallback
+
+  const lower = outcomeName.toLowerCase();
+  const hasDraw = lower.includes("draw") || lower.includes("pareggio");
+
+  // Tokenize teams (split on whitespace + punctuation, drop short tokens <2 chars)
+  const tokenizeLocal = (s: string): Set<string> =>
+    new Set(
+      (s || "")
+        .toLowerCase()
+        .split(/[\s\-_/.,()]+/)
+        .filter((t) => t.length >= 2)
+    );
+
+  const homeTokens = tokenizeLocal(homeTeam);
+  const awayTokens = tokenizeLocal(awayTeam);
+
+  // Tokens unique to each side (set difference)
+  const homeUnique = new Set([...homeTokens].filter((t) => !awayTokens.has(t)));
+  const awayUnique = new Set([...awayTokens].filter((t) => !homeTokens.has(t)));
+
+  // If one side has no unique tokens, fall back to substring match (best-effort)
+  const matchHome =
+    homeUnique.size > 0
+      ? [...homeUnique].some((t) => lower.includes(t))
+      : (homeTeam || "").length > 0 && lower.includes(homeTeam.toLowerCase());
+  const matchAway =
+    awayUnique.size > 0
+      ? [...awayUnique].some((t) => lower.includes(t))
+      : (awayTeam || "").length > 0 && lower.includes(awayTeam.toLowerCase());
+
+  if (matchHome && hasDraw && !matchAway) return "1X";
+  if (hasDraw && matchAway && !matchHome) return "X2";
+  if (matchHome && matchAway && !hasDraw) return "12";
+  // Edge: matchHome && matchAway && hasDraw → ambiguous, fallback raw
+  return outcomeName;
 }
 
 // Bug 4 perf fix (2026-05-02): whitelist to listing-essential markets only.
@@ -152,12 +179,20 @@ function normalizeOutcomeName(
 // Other sports' main markets can be added in a follow-up.
 // 2026-05-03 Sprint A.2: pushed into SQL .in() filter (was JS post-fetch).
 const LISTING_MARKET_WHITELIST = [
+  // Football core (existing)
   "ML", "ML HT", "ML 2H",
   "Double Chance",
   "Both Teams To Score", "Both Teams To Score HT", "Both Teams To Score 2H",
   "Goals Over/Under", "Goals Over/Under HT", "Goals Over/Under 2H",
   "Half Time / Full Time",
   "Draw No Bet",
+  // Sport A.3 additions: non-football mains
+  "Totals", "Totals HT", "Totals 1Q", "Totals 2H",
+  "Spread", "Spread HT",
+  "Spread (Games)", "Totals (Games)",
+  "3-Way Result", "3-Way",
+  "ML 1st Set",
+  "Game Lines 3-Way",
 ];
 
 export async function loadSportsbookListingV2(
