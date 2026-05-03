@@ -96,7 +96,21 @@ export default function LinePicker({
             background: v === defaultVariant ? '#fffbe6' : 'transparent',
           }}
         >
-          <div style={{ fontWeight: 'bold' }}>
+          <div
+            style={{
+              background: v === defaultVariant ? '#FFC107' : '#666',
+              color: v === defaultVariant ? '#333' : 'white',
+              fontWeight: 'bold',
+              fontSize: 14,
+              textAlign: 'center',
+              padding: '10px 4px',
+              borderRadius: 3,
+              alignSelf: 'stretch',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             {v.line}{v === defaultVariant ? ' ★' : ''}
           </div>
           {v.outcomes.map(o => (

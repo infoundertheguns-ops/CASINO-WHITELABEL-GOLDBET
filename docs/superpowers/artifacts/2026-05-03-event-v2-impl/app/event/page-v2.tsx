@@ -49,6 +49,26 @@ type Props = {
   onSelectOutcome?: (o: SelectOutcomePayload) => void;
 };
 
+// Compact DC label helper: odds-api outputs full names like "Pogon Szczecin or Wisla Plock"
+// for Double Chance outcomes. Map to standard 1X/X2/12 codes by detecting team names + draw token.
+function compactDCLabel(outcomeName: string, homeTeam: string, awayTeam: string): string {
+  const lower = outcomeName.toLowerCase();
+  const home = (homeTeam || '').toLowerCase();
+  const away = (awayTeam || '').toLowerCase();
+  const hasHome = home.length > 0 && lower.includes(home);
+  const hasAway = away.length > 0 && lower.includes(away);
+  const hasDraw =
+    lower.includes('draw') ||
+    lower.includes('pareggio') ||
+    lower.includes(' x ') ||
+    lower.endsWith(' x');
+
+  if (hasHome && hasDraw) return '1X';
+  if (hasAway && hasDraw) return 'X2';
+  if (hasHome && hasAway) return '12';
+  return outcomeName;
+}
+
 // v2 outcomes from v_player_outcomes carry the same UUID for legacy and v2 purposes
 // (the v2 view IS the source of truth post-cutover). For now both fields point to the
 // same id; if a future schema split exposes idV2 separately we can adapt here.
@@ -213,8 +233,21 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
       );
     }
 
+    // DC family: replace verbose odds-api outcome names with compact 1X/X2/12 codes.
+    const isDoubleChance =
+      m.market_type === "DC" ||
+      m.market_type === "DC - 1T" ||
+      m.market_type === "DC - 2T" ||
+      m.market_type === "Double Chance";
+
     // Default: Hero in Principali tab for 1X2, otherwise Compact.
-    const outcomes = toOutcomeRowData(m.outcomes);
+    const rawOutcomes = toOutcomeRowData(m.outcomes);
+    const outcomes = isDoubleChance
+      ? rawOutcomes.map((o) => ({
+          ...o,
+          label: compactDCLabel(o.label, event.home_team ?? "", event.away_team ?? ""),
+        }))
+      : rawOutcomes;
     const isHero = isPrincipali && m.market_type === "1X2";
     const RowComp = isHero ? HeroOutcomeRow : CompactOutcomeRow;
     return (

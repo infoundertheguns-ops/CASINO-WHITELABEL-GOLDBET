@@ -18,7 +18,7 @@ type Props = {
 };
 
 const SIZE_STYLES: Record<Size, { padding: string; oddsFontSize: string; labelFontSize: string }> = {
-  hero:     { padding: '22px', oddsFontSize: '22px', labelFontSize: '11px' },
+  hero:     { padding: '32px', oddsFontSize: '32px', labelFontSize: '14px' },
   standard: { padding: '16px', oddsFontSize: '16px', labelFontSize: '10px' },
   compact:  { padding: '12px', oddsFontSize: '14px', labelFontSize: '9px' },
 };
