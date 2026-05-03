@@ -130,7 +130,7 @@ function normalizeOutcomeName(
   homeTeam: string,
   awayTeam: string
 ): string {
-  if (marketType !== "DC") return outcomeName;
+  if (!marketType.startsWith("DC")) return outcomeName;
 
   // Already canonical
   if (outcomeName === "1X" || outcomeName === "X2" || outcomeName === "12") {
