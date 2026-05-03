@@ -79,6 +79,87 @@ function mapStatus(s: string): string {
   return s === "ended" ? "finished" : s;
 }
 
+/**
+ * Normalize DC outcome names from team-name format ("Home or Draw")
+ * to canonical 1X/X2/12 tokens expected by frontend market column matching.
+ *
+ * Bet365 emits DC outcomes with team names; BetUK uses canonical codes.
+ * Bookmaker priority picks Bet365 first, so we normalize here.
+ *
+ * DC outcomes always follow the pattern "<Half1> or <Half2>". We split on
+ * " or " and classify each half as draw / home / away by token overlap.
+ * Token overlap handles abbreviations: "NY Red Bulls" matches "New York
+ * Red Bulls" via shared tokens {red, bulls}; "Cruzeiro" matches
+ * "Cruzeiro EC MG" via shared token {cruzeiro}. We require >=1 shared
+ * non-trivial token (length >= 3) to count as a match.
+ *
+ * Returns the original name if no DC match (other markets pass through).
+ */
+function tokenize(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 3)
+  );
+}
+function shareTokens(a: Set<string>, b: Set<string>): boolean {
+  for (const t of a) if (b.has(t)) return true;
+  return false;
+}
+function isDrawHalf(s: string): boolean {
+  const lower = s.toLowerCase().trim();
+  return lower === "draw" || lower === "pareggio" || lower === "x";
+}
+function normalizeOutcomeName(
+  marketType: string,
+  outcomeName: string,
+  homeTeam: string,
+  awayTeam: string
+): string {
+  if (marketType !== "DC") return outcomeName;
+  // Already canonical: leave as-is
+  if (outcomeName === "1X" || outcomeName === "X2" || outcomeName === "12") {
+    return outcomeName;
+  }
+  // Split on " or " (case-insensitive). DC outcomes always have this shape.
+  const parts = outcomeName.split(/\s+or\s+/i);
+  if (parts.length !== 2) return outcomeName;
+  const homeTokens = tokenize(homeTeam);
+  const awayTokens = tokenize(awayTeam);
+  const classify = (s: string): "1" | "X" | "2" | "?" => {
+    if (isDrawHalf(s)) return "X";
+    const t = tokenize(s);
+    const isHome = shareTokens(t, homeTokens);
+    const isAway = shareTokens(t, awayTokens);
+    if (isHome && !isAway) return "1";
+    if (isAway && !isHome) return "2";
+    return "?";
+  };
+  const a = classify(parts[0]);
+  const b = classify(parts[1]);
+  const code = `${a}${b}`;
+  if (code === "1X" || code === "X1") return "1X";
+  if (code === "X2" || code === "2X") return "X2";
+  if (code === "12" || code === "21") return "12";
+  return outcomeName; // fallback
+}
+
+// Bug 4 perf fix (2026-05-02): whitelist to listing-essential markets only.
+// Detail page (sportsbook-detail-v2.ts) fetches all markets — this whitelist
+// is for tile rendering only (1X2, GG/NG, U/O, DC and their HT/2H variants).
+// Other sports' main markets can be added in a follow-up.
+// 2026-05-03 Sprint A.2: pushed into SQL .in() filter (was JS post-fetch).
+const LISTING_MARKET_WHITELIST = [
+  "ML", "ML HT", "ML 2H",
+  "Double Chance",
+  "Both Teams To Score", "Both Teams To Score HT", "Both Teams To Score 2H",
+  "Goals Over/Under", "Goals Over/Under HT", "Goals Over/Under 2H",
+  "Half Time / Full Time",
+  "Draw No Bet",
+];
+
 export async function loadSportsbookListingV2(
   supabase: SupabaseClient,
   f: Filter
@@ -150,8 +231,8 @@ export async function loadSportsbookListingV2(
   const eventIds = allEvents.map((e) => e.id);
 
   // 2. Fetch markets for these events (chunked).
-  // No market_type filter: mig 159 vocabulary is canonical, frontend's
-  // categorizeMarketsToTabs handles per-tab dispatch.
+  // Mig 159 vocabulary is canonical; whitelist pushed into SQL .in() filter
+  // (Sprint A.2 perf fix — was JS-side post-fetch, scanning ~290 markets/event).
   type MRow = {
     id: string; event_id: string; bookmaker: string; source_market_name: string;
     market_type: string; line: number | null; category: string; is_suspended: boolean;
@@ -168,6 +249,7 @@ export async function loadSportsbookListingV2(
         .from("v_player_markets")
         .select("id, event_id, bookmaker, source_market_name, market_type, line, category, is_suspended")
         .in("event_id", slice)
+        .in("source_market_name", LISTING_MARKET_WHITELIST)  // pushdown — Plan D 2026-05-03 perf fix
         .range(mOff, mOff + M_PAGE - 1);
       if (!data || data.length === 0) break;
       allMarkets.push(...(data as MRow[]));
@@ -176,23 +258,7 @@ export async function loadSportsbookListingV2(
     }
   }
 
-  // Bug 4 perf fix (2026-05-02): whitelist to listing-essential markets only.
-  // Detail page (sportsbook-detail-v2.ts) fetches all markets — this whitelist
-  // is for tile rendering only (1X2, GG/NG, U/O, DC and their HT/2H variants).
-  // Other sports' main markets can be added in a follow-up.
-  const LISTING_MARKET_WHITELIST = new Set([
-    "ML", "ML HT", "ML 2H",
-    "Double Chance",
-    "Both Teams To Score", "Both Teams To Score HT", "Both Teams To Score 2H",
-    "Goals Over/Under", "Goals Over/Under HT", "Goals Over/Under 2H",
-    "Half Time / Full Time",
-    "Draw No Bet",
-  ]);
-  const filteredMarkets = allMarkets.filter((m) =>
-    LISTING_MARKET_WHITELIST.has(m.source_market_name)
-  );
-
-  const marketIds = filteredMarkets.map((m) => m.id);
+  const marketIds = allMarkets.map((m) => m.id);
 
   // 3. Fetch outcomes (chunked)
   type ORow = {
@@ -221,7 +287,7 @@ export async function loadSportsbookListingV2(
   }
 
   const marketsByEvent = new Map<string, MRow[]>();
-  for (const m of filteredMarkets) {
+  for (const m of allMarkets) {
     const list = marketsByEvent.get(m.event_id) ?? [];
     list.push(m);
     marketsByEvent.set(m.event_id, list);
@@ -273,7 +339,7 @@ export async function loadSportsbookListingV2(
         canonical_name_it: null,
         outcomes: (outcomesByMarketLine.get(`${m.id}@${m.line ?? ''}`) ?? []).map((o) => ({
           id: o.id,
-          name: o.name,
+          name: normalizeOutcomeName(m.market_type, o.name, ev.home_team, ev.away_team),
           odds: toNum(o.odds),
           previous_odds: null,
           is_active: o.is_active,
