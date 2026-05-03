@@ -1,0 +1,261 @@
+"use client";
+
+import { use, useState, useMemo, useEffect, useCallback } from "react";
+import LiveMarketGrid from "@/components/live/LiveMarketGrid";
+import type { Event, Market } from "@/lib/types";
+import { getLiveDetailTabs, categorizeMarketsToTabs } from "@/lib/market-config";
+import { formatTime, formatDateItalian, shortCode } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { mapDbToKioskEvent, mapSportSlug } from "@/lib/mappers";
+import type { DbEvent } from "@/lib/types/db";
+import { enrichMarketsWithCanonical } from "@/lib/market-canonical";
+import { loadPlayerEventV2, isReadFromV2Enabled } from "@/lib/queries/player-event-v2";
+import EventDetailPageV2, { type SelectOutcomePayload } from "./page-v2";
+import { useBetSlip } from "@/lib/betslip-context";
+
+export default function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
+  const { eventId } = use(params);
+  const [activeTab, setActiveTab] = useState("Mercati Principali");
+  const [event, setEvent] = useState<Event | null>(null);
+  const [rawDbEvent, setRawDbEvent] = useState<DbEvent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { dispatch } = useBetSlip();
+
+  const fetchEvent = useCallback(async () => {
+    if (isReadFromV2Enabled()) {
+      // Plan D / Elimina-derive Fase 2 — v2 read path via v_player_* views.
+      // Skips canonical enrichment (mig 159 dictionary supersedes).
+      const dbEvent = await loadPlayerEventV2(eventId);
+      if (dbEvent) {
+        setRawDbEvent(dbEvent);
+        setEvent(mapDbToKioskEvent(dbEvent));
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Legacy path — derive-populated tables.
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("events")
+      .select(`
+        *,
+        sport:sports(name, slug, icon),
+        league:leagues(name, slug, country, logo_url),
+        markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
+          outcomes(id, name, odds, previous_odds, is_active, is_suspended))
+      `)
+      .eq("id", eventId)
+      .single();
+
+    if (!error && data) {
+      const dbEvent = data as DbEvent;
+      await enrichMarketsWithCanonical(dbEvent.source, dbEvent.markets);
+      setRawDbEvent(null); // legacy data shape not compatible with v2 component
+      setEvent(mapDbToKioskEvent(dbEvent));
+    }
+    setLoading(false);
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchEvent();
+  }, [fetchEvent]);
+
+  // Poll every 30s to keep odds fresh on the event detail page
+  useEffect(() => {
+    const id = setInterval(fetchEvent, 30_000);
+    return () => clearInterval(id);
+  }, [fetchEvent]);
+
+  // Refetch when tab becomes visible after being backgrounded
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchEvent();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [fetchEvent]);
+
+  const tabs = useMemo(() => {
+    if (!event) return {};
+    return categorizeMarketsToTabs(event.markets, event.sportId);
+  }, [event]);
+
+  // Lock prematch markets when start time has passed but status hasn't flipped to live yet
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!event || event.status === "live") return;
+    const startMs = new Date(event.startTime).getTime();
+    const delay = startMs - Date.now();
+    if (delay <= 0) return;
+    const id = setTimeout(() => setNowTick(Date.now()), delay + 100);
+    return () => clearTimeout(id);
+  }, [event]);
+  const isLocked = !!event && event.status !== "live" && new Date(event.startTime).getTime() <= nowTick;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-white">
+        <span className="text-gray-400 text-lg">Caricamento...</span>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="flex items-center justify-center h-full bg-white">
+        <span className="text-gray-400 text-lg">Evento non trovato</span>
+      </div>
+    );
+  }
+
+  // Feature flag: render v2 for selected sports (matched against DbEvent.sport.slug,
+  // e.g. NEXT_PUBLIC_NEW_EVENT_PAGE_SPORTS="calcio").
+  const newSports = (process.env.NEXT_PUBLIC_NEW_EVENT_PAGE_SPORTS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const dbSportSlug = rawDbEvent?.sport?.slug ?? "";
+
+  if (rawDbEvent && newSports.includes(dbSportSlug)) {
+    // Wire v2 onSelectOutcome -> legacy bet slip Zustand dispatch.
+    // Recovers market context (marketName / sportId) by scanning rawDbEvent.markets
+    // since SelectOutcomePayload intentionally only carries outcome-level fields.
+    const handleSelectOutcome = (o: SelectOutcomePayload) => {
+      if (!rawDbEvent) return;
+      let marketName = "";
+      for (const m of rawDbEvent.markets ?? []) {
+        if ((m.outcomes ?? []).some((oc) => oc.id === o.outcomeId)) {
+          marketName = m.market_type;
+          break;
+        }
+      }
+      const sportSlugDb = rawDbEvent.sport?.slug ?? "";
+      dispatch({
+        type: "ADD_SELECTION",
+        payload: {
+          selectionId: o.outcomeId,
+          eventId,
+          eventName: `${rawDbEvent.home_team} - ${rawDbEvent.away_team}`,
+          sportId: mapSportSlug(sportSlugDb),
+          sportName: rawDbEvent.sport?.name ?? "",
+          marketName,
+          outcomeName: o.label,
+          odds: o.odds,
+          isLive: rawDbEvent.is_live,
+        },
+      });
+    };
+
+    return (
+      <EventDetailPageV2
+        event={rawDbEvent}
+        eventId={eventId}
+        onSelectOutcome={handleSelectOutcome}
+      />
+    );
+  }
+
+  const eventName = `${event.homeTeam} - ${event.awayTeam}`;
+  const availableTabs = getLiveDetailTabs(event.sportId);
+  const markets: Market[] = tabs[activeTab] ?? [];
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* Event header bar */}
+      <div
+        className="flex items-center shrink-0 px-4"
+        style={{ backgroundColor: "#fff", height: 56, borderBottom: "1px solid #ddd" }}
+      >
+        {/* Left: ID box + chart icon */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div
+            className="flex items-center justify-center"
+            style={{ border: "2px solid #FFC107", borderRadius: 10, padding: "4px 10px" }}
+          >
+            <span className="text-[16px] font-bold text-[#333]">{shortCode(event.id)}</span>
+          </div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="cursor-pointer">
+            <circle cx="12" cy="12" r="10" stroke="#0e66bf" strokeWidth="1.5"/>
+            <path d="M7 15l3-4 3 3 4-6" stroke="#0e66bf" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+
+        {/* Center: teams + time */}
+        <div className="flex items-center justify-center flex-1 gap-3">
+          <span className="text-[#333] text-[26px] font-bold uppercase">
+            {event.homeTeam}
+          </span>
+          <div className="flex flex-col items-center">
+            <span className="text-[11px] text-[#999] uppercase leading-none">Tempo</span>
+            <span className="text-[16px] font-bold text-[#333]">{formatTime(event.startTime)}</span>
+          </div>
+          <span className="text-[#333] text-[26px] font-bold uppercase">
+            {event.awayTeam}
+          </span>
+        </div>
+
+        {/* Right: competition + date */}
+        <div className="shrink-0 text-right">
+          <div className="text-[14px] font-bold text-[#333]">{event.competitionName}</div>
+          <div className="text-[12px] text-[#999] uppercase">{formatDateItalian(event.startTime)}</div>
+        </div>
+      </div>
+
+      {/* Tab bar (red) */}
+      <div
+        className="flex items-center justify-center shrink-0 overflow-x-auto px-2 gap-1"
+        style={{
+          height: 48,
+          background: "#d0141c",
+          marginRight: 10,
+          borderRadius: "0 0 6px 6px",
+        }}
+      >
+        {availableTabs.map((tab) => {
+          const isActive = tab === activeTab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className="whitespace-nowrap text-[19px] font-bold text-white transition-colors"
+              style={{
+                backgroundColor: isActive ? "#4f0a0d" : "#860e12",
+                border: "none",
+                borderRadius: 4,
+                padding: "6px 14px",
+              }}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Markets (scrollable) */}
+      <div className="flex-1 overflow-auto">
+        {markets.length > 0 ? (
+          <LiveMarketGrid
+            markets={markets}
+            sportId={event.sportId}
+            eventId={event.id}
+            eventName={eventName}
+            light
+            locked={isLocked}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-64">
+            <span className="text-gray-500 text-lg">
+              Nessun mercato disponibile
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
