@@ -54,14 +54,13 @@ Sub-pill picker (rendered da `SubPillBar.tsx`) presente in 3 tab:
 ```typescript
 export const FOOTBALL_TAB_MARKETS_V2 = {
   "Principali": {
-    markets: ["1X2", "DC", "GG/NG", "U/O@2.5", "DNB", "HT/FT@compact"],
+    markets: ["1X2", "DC", "GG/NG", "U/O@2.5", "DNB"],
   },
   "Gol/U/O": {
     markets: [
       "U/O@picker", "U/O - 1T@picker", "U/O - 2T@picker",
       "GG/NG", "GG/NG - 1T", "GG/NG - 2T",
       "Total Home@picker", "Total Away@picker",
-      "Risultato Esatto@compact",
     ],
   },
   "Handicap": {
@@ -114,8 +113,9 @@ export const LINE_PICKER_DEFAULTS = {
     "U/O - 2T": 1.5,
     "Total Home": 1.5,     // soglia tipica gol per squadra
     "Total Away": 1.5,
-    "AH": 0,               // Asian Handicap → linea più vicina a 0 (selezione runtime)
-    "AH - 1T": 0,
+    "AH": 0,               // sentinel: AH usa "linea più vicina a 0" (vedi sez 5.4), il valore 0 è il target del Math.min(Math.abs(line - target))
+    "AH - 1T": 0,          // stesso sentinel
+    "Hcap Corners": 0,     // stesso sentinel — vedi sotto in Stats group, ripetuto per chiarezza
     "European Hcap": -1,   // handicap classico al favorito (3-way)
     "Total Cards": 3.5,    // standard IT (Snai/Goldbet)
     "Cards 1T": 1.5,
@@ -123,12 +123,13 @@ export const LINE_PICKER_DEFAULTS = {
     "Total Corners": 9.5,  // standard IT
     "Corners 1T": 4.5,
     "Corners 2T": 4.5,
-    "Hcap Corners": 0,
     "Goalkeeper Saves": 3.5,  // OU per portiere — provvisorio, da tarare
     "Player Shots": 1.5,       // OU shots on target
   },
 };
 ```
+
+Nota implementativa: per famiglie marcate come "sentinel" (`AH`, `AH - 1T`, `Hcap Corners`), il `LinePicker` interpreta il valore di config come target per il "nearest" anziché come linea esatta — comportamento descritto in sezione 5.4. Tutte le altre famiglie usano "static line + closest fallback".
 
 Nota AH: il valore `0` nel config è usato come "target", il LinePicker calcola la linea reale più vicina (es. `-0.5` se Inter favorita, `+0.5` se viceversa). Quarter line (.25/.75) trattata identicamente nel render.
 
@@ -290,7 +291,7 @@ Decisione: tentare (1) durante implementation. Se `v_player_outcomes` non ha il 
 ## 6. Comportamenti UX standard
 
 ### 6.1 Suspended outcome
-- Background `#f0f0f0` (vs `#f0f0f0` normale → in realtà più grigio `#e0e0e0` da differenziare)
+- Background `#e0e0e0` (più grigio del default `#f0f0f0` per differenziarsi visivamente)
 - Opacity 0.6
 - Lock icon SVG 16×16 angolo top-right
 - `pointer-events: none` (non clickable)
@@ -327,7 +328,7 @@ Decisione: tentare (1) durante implementation. Se `v_player_outcomes` non ha il 
 **Nessuna mig DB**. Il path v2 `v_player_*` già fornisce tutti i dati necessari.
 
 **File TS server-side toccati**:
-- `lib/queries/player-event-v2.ts`: nessuna modifica, solo verifica che TUTTI i markets siano esposti (no whitelist come listing helper)
+- `lib/queries/player-event-v2.ts`: nessuna modifica, ma **verifica obbligatoria** in fase implementation che TUTTI i markets siano esposti (no whitelist filter come in `lib/queries/sportsbook-listing-v2.ts`). Filtro silenzioso causerebbe tab vuote senza errore evidente. Plan deve includere task esplicito "verifica markets count su event sample = same as raw v_player_markets count for that event"
 
 **File frontend nuovi**:
 - `lib/market-config-v2.ts` (sezione 3.1)
@@ -395,6 +396,8 @@ Decisione: tentare (1) durante implementation. Se `v_player_outcomes` non ha il 
 | line-picker-defaults | (a) lookup `calcio.U/O = 2.5`; (b) lookup mancante → return null |
 
 ### 9.2 Visual regression (Playwright + screenshot diff)
+
+**Precondition**: il player repo deve avere Playwright configurato. Se non presente, plan deve includere setup minimal (install + 1 config file + 1 baseline run) come task. Non espandere scope a setup CI completo.
 
 Snapshots per ogni tab calcio su evento sample fixture (mock data):
 - principali.png, gol-uo.png, handicap.png
