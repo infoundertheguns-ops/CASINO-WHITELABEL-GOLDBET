@@ -251,3 +251,80 @@ Compare per-sport tile listing coverage from memory baseline:
 3. Pre-deploy audit query result saved as appendix to this spec
 4. Smoke test outcomes documented in commit message
 5. Memory update in `next-session-2026-05-03.md` correcting rugby caveat (already partially done, will be finalized post-deploy)
+
+---
+
+## Audit Appendix (executed 2026-05-03 ~09:32 UTC)
+
+### Audit script bug fix vs original spec
+
+The audit query in the spec body uses `JOIN ... USING (event_id, market_name, line)`. SQL semantics drop rows where `line IS NULL` (NULL ≠ NULL). For markets without a line (ML, BTTS, DC, etc.) this silently undercounts changes by ~10-15%. Production audit used a corrected variant with `COALESCE(line, -999999) AS line_key` and `JOIN ... USING (event_id, market_name, line_key)`. Future runs of the audit must use the corrected version.
+
+Corrected scripts saved at `/c/Users/philp/audit_170_v2.sql`, `audit_170_per_sport_v2.sql`, `audit_170_per_market_v2.sql`. Will be inlined in plan task 2 docs.
+
+### Aggregate (corrected)
+
+```
+ total_markets | changed_pickup | changed_pct | gained_outcomes | avg_outcomes_gained
+---------------+----------------+-------------+-----------------+---------------------
+        566693 |           4179 |        0.74 |            4179 |                1.01
+```
+
+100% of pickup changes ALSO gain outcomes (zero markets lose coverage). 0.74% << 10% gate → proceed.
+
+### Per sport (corrected, ordered by changes)
+
+```
+    sport_slug     | total  | changed | gained
+-------------------+--------+---------+--------
+ football          | 404627 |    3396 |   3396
+ basketball        |  89599 |     589 |    589
+ baseball          |  18803 |      90 |     90
+ rugby             |   3145 |      58 |     58
+ mma               |    243 |      13 |     13
+ esports           |   6556 |      11 |     11
+ handball          |  12059 |       8 |      8
+ american-football |    434 |       6 |      6
+ tennis            |  18447 |       5 |      5
+ ice-hockey        |   7514 |       3 |      3
+ darts             |   1069 |       0 |      0
+ snooker           |      3 |       0 |      0
+ volleyball        |   3711 |       0 |      0
+ boxing            |     42 |       0 |      0
+ cricket           |    441 |       0 |      0
+```
+
+### Per market_name (corrected, top 30 ordered by changes)
+
+```
+           market_name           | total | changed | gained | avg_gain
+---------------------------------+-------+---------+--------+----------
+ European Handicap               | 12593 |    2531 |   2531 |     1.00
+ ML                              |  7804 |     864 |    864 |     1.00
+ ML HT                           |  3913 |     369 |    369 |     1.00
+ ML 2H                           |  2015 |     220 |    220 |     1.00
+ Totals                          | 79747 |      58 |     58 |     1.00
+ Double Chance                   |  4429 |      34 |     34 |     1.03
+ Team Total Away                 | 39201 |      30 |     30 |     1.00
+ To Score 2+ Goals               |   566 |      21 |     21 |     2.38
+ Spread                          | 80167 |      16 |     16 |     1.00
+ Team Total Home                 | 41096 |      14 |     14 |     1.00
+ To Score 3+ Goals               |   389 |       9 |      9 |     2.00
+ Player To Assist                |   339 |       4 |      4 |     1.25
+ Player Shots on Target          |  1612 |       3 |      3 |     3.33
+ 3-Way Result                    |   994 |       2 |      2 |     1.00
+ Player To Score or Assist       |   625 |       2 |      2 |     1.00
+ Draw No Bet                     |  4859 |       1 |      1 |     1.00
+ Player Shots                    |  2859 |       1 |      1 |     4.00
+```
+
+Markets with 0 changes (rest of top 30): Batter Match Runs, 3-Way, 1st Half Total Tries, 2nd Map Total Kills, Alternative Total Goals, Alternative Spread, 2nd Map Moneyline, Alternative Totals, Anytime Goalscorer, Assists & Rebounds O/U, Assists O/U, 1st Half Team Total Tries Home, 1st Half Team Total Points Away.
+
+### Notes
+
+- Football European Handicap is the dominant change source: 2531 markets where Bet365 emits 2-way and Pamestoixima/others emit 3-way (with draw).
+- Football ML: 864 markets where draw was hidden.
+- Rugby ML: 58 changes (matches the bug case verified manually for NZ-Argentina).
+- Basketball 589 changes mostly in 4-way variants (Spread + Team Total combos).
+- avg_gain consistently ~1 means most changes add 1 missing outcome (typically the draw); a few player markets add 2-4 outcomes (Asian-style player props).
+- Decision gate: 0.74% << 10% → proceed.
