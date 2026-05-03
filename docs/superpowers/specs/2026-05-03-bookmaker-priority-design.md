@@ -79,7 +79,8 @@ JOIN LATERAL (
   FROM per_market
   ORDER BY market_name, line,
            active_count DESC,
-           _bookmaker_priority(bookmaker) ASC
+           _bookmaker_priority(bookmaker) ASC,
+           bookmaker ASC  -- final stable tiebreaker for unknown bookmakers (priority 99)
 ) best ON true
 ```
 
@@ -99,7 +100,21 @@ All other parts of the view definition stay unchanged: outer joins on `oddsapi_t
 
 Manual overrides (mig 158) bind to `outcome_id_v2` UUID of the bookmaker selected AT THE TIME the override was set. If the pickup later switches to a different bookmaker (due to outcome count fluctuation), the new exposed outcomes have different UUIDs, so the override does not apply.
 
-**Mitigation**: documented in commit message and admin runbook. Admin must re-apply override if pickup changes. In test mode (current state) this is harmless. Real-money admin tooling can be hardened later via logical-key overrides (mig refactor — out of scope here).
+**Mitigation**:
+- Documented in commit message and admin runbook. Admin must re-apply override if pickup changes. In test mode (current state) this is harmless. Real-money admin tooling can be hardened later via logical-key overrides (mig refactor — out of scope here).
+- **Pre-deploy check**: before applying mig 170, run a query to enumerate all rows in `manual_overrides` whose `outcome_id_v2` (or `market_id_v2`) belongs to a `(event, market_name, line)` tuple where the audit query indicates a pickup change. Surface the list to admin so they can re-apply post-deploy if needed. Sample query:
+
+```sql
+SELECT mo.id, mo.scope, mo.market_id_v2, mo.outcome_id_v2,
+       e.home || ' vs ' || e.away AS event, m.market_name, o.line
+FROM manual_overrides mo
+LEFT JOIN markets_v2 m ON m.id = COALESCE(mo.market_id_v2,
+                                          (SELECT market_id FROM outcomes_v2 WHERE id = mo.outcome_id_v2))
+LEFT JOIN events_v2 e ON e.id = m.event_id
+LEFT JOIN outcomes_v2 o ON o.id = mo.outcome_id_v2
+WHERE (mo.expires_at IS NULL OR mo.expires_at > now());
+-- Then cross-reference with audit query output to see which rows reference a tuple with a pickup change.
+```
 
 ### (b) Overround can worsen for the player
 
@@ -168,7 +183,7 @@ Per-sport and per-market_name breakdown queries also executed.
 
 | Step | Action | Time |
 |---|---|---|
-| 1 | Backup current `v_player_markets` definition into `170_pre_rollback.sql` | ~1 min |
+| 1 | Backup current `v_player_markets` definition via `pg_get_viewdef('v_player_markets'::regclass, true)`, wrap in `CREATE OR REPLACE VIEW v_player_markets AS ...`, save as `170_pre_rollback.sql` | ~1 min |
 | 2 | Run audit query, save results into design doc as appendix | ~2 min |
 | 3 | Decision gate (apply thresholds above) | ~5 min |
 | 4 | `psql -f 170_v_player_markets_max_outcomes.sql` on prod | ~30 sec |
@@ -198,7 +213,7 @@ Rollback time: ~30 seconds.
 | Calcio Milan-Inter ML | bookmaker=Bet365 (tie 3 vs 3, priority wins), 3 outcomes |
 | Tennis Vincente Incontro 2-way | bookmaker=Bet365, 2 outcomes (no regression) |
 | Basket Spread .5 | invariato, no regression |
-| Mercato dove SOLO Pamestoixima copre | bookmaker=Pamestoixima (correct fallback) |
+| Mercato dove SOLO Pamestoixima copre (event identified during audit query) | bookmaker=Pamestoixima (correct fallback) |
 
 If any pre-deploy test fails, block rollout and debug.
 
