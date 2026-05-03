@@ -1,0 +1,83 @@
+// lib/market-categorizer-v2.ts
+import {
+  FOOTBALL_TAB_MARKETS_V2,
+  parseMarketSpec,
+  type SportTabConfig,
+} from "./market-config-v2";
+
+type MarketLike = {
+  id: string;
+  market_type: string;
+  line: number | null;
+  outcomes: unknown[];
+};
+
+export type CategorizeResult<M extends MarketLike> = {
+  markets: M[];
+  groupedMarkets: Map<string, M[]>;
+  extras: M[];
+};
+
+const SPORT_CONFIGS: Record<string, SportTabConfig> = {
+  calcio: FOOTBALL_TAB_MARKETS_V2,
+};
+
+function findClosestLine<M extends MarketLike>(markets: M[], targetLine: number): M | null {
+  if (markets.length === 0) return null;
+  return markets.reduce((closest, m) => {
+    if (m.line == null) return closest;
+    if (closest.line == null) return m;
+    return Math.abs(m.line - targetLine) < Math.abs(closest.line - targetLine) ? m : closest;
+  });
+}
+
+export function categorizeMarketsV2<M extends MarketLike>(
+  markets: M[],
+  sportSlug: string,
+  activeTab: string,
+  activeSubPill?: string
+): CategorizeResult<M> {
+  const config = SPORT_CONFIGS[sportSlug];
+  if (!config) return { markets: [], groupedMarkets: new Map(), extras: markets };
+
+  const tabConfig = config[activeTab];
+  if (!tabConfig) return { markets: [], groupedMarkets: new Map(), extras: [] };
+
+  let specs: string[] = [];
+  if (tabConfig.subPills && activeSubPill) {
+    specs = tabConfig.subPills[activeSubPill]?.markets ?? [];
+  } else if (tabConfig.markets) {
+    specs = tabConfig.markets;
+  }
+
+  const result: CategorizeResult<M> = { markets: [], groupedMarkets: new Map(), extras: [] };
+  const consumedIds = new Set<string>();
+
+  for (const spec of specs) {
+    const { marketType, suffix } = parseMarketSpec(spec);
+    const matching = markets.filter(m => m.market_type === marketType);
+
+    if (matching.length === 0) continue;
+
+    if (suffix === "picker" || suffix === "chip") {
+      result.groupedMarkets.set(spec, matching);
+      matching.forEach(m => consumedIds.add(m.id));
+    } else if (suffix && /^-?\d+(\.\d+)?$/.test(suffix)) {
+      const targetLine = parseFloat(suffix);
+      const closest = findClosestLine(matching, targetLine);
+      if (closest) {
+        result.markets.push(closest);
+        consumedIds.add(closest.id);
+      }
+    } else if (suffix === "compact" || suffix === null) {
+      const single = matching[0];
+      if (single) {
+        result.markets.push(single);
+        consumedIds.add(single.id);
+      }
+    }
+  }
+
+  result.extras = markets.filter(m => !consumedIds.has(m.id));
+  return result;
+}
