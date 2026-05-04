@@ -175,16 +175,16 @@ describe('expandOutcome — shape coverage', () => {
     expect(out[0].odds).toBe(5.5);
   });
 
-  it('shape Totals with extra label {hdp, label, over, under} (First 10 Min)', () => {
+  it('shape Totals with extra label {hdp, label, over, under} (First 10 Min) — rule 0a preserves label', () => {
     const out = expandOutcome(
       'First 10 Minutes',
       { label: 'Goals (Over) (0.5)', hdp: 0.5, over: '5.500', under: '1.142' },
       MK,
     );
-    // Both shapes valid: could expand as labeled (1 outcome) or totals (2). Choose totals
-    // since over/under both present (more informative).
+    // Rule 0a (labeled totals) takes priority: preserve label as part of outcome_key
+    // so player/option identity is not lost (e.g. basketball Player Props from BetUK).
     expect(out).toHaveLength(2);
-    expect(out.map(o => o.outcome_key).sort()).toEqual(['over', 'under']);
+    expect(out.map(o => o.outcome_key).sort()).toEqual(['Goals (Over) (0.5)::over', 'Goals (Over) (0.5)::under']);
     out.forEach(o => expect(o.line).toBe(0.5));
   });
 
@@ -227,5 +227,47 @@ describe('expandOutcome — shape coverage', () => {
     const out = expandOutcome('Mystery', { foo: '1.5', bar: '2.0', baz: 'invalid' }, MK);
     expect(out).toHaveLength(2);
     expect(out.map(o => o.outcome_key).sort()).toEqual(['bar', 'foo']);
+  });
+});
+
+describe('expandOutcome — rule 0a labeled totals', () => {
+  it('rule 0a: preserves label when over+under both present', () => {
+    const market_key = { event_odds_api_id: 1, bookmaker: 'BetUK', market_name: 'Player Props' };
+    const out = expandOutcome('Player Props', {
+      label: 'LeBron James', hdp: 25.5, over: '1.87', under: '1.84',
+    } as Record<string, unknown>, market_key);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ outcome_key: 'LeBron James::over',  line: 25.5, odds: 1.87 });
+    expect(out[1]).toMatchObject({ outcome_key: 'LeBron James::under', line: 25.5, odds: 1.84 });
+  });
+
+  it('rule 0a: preserves label with stat suffix', () => {
+    const market_key = { event_odds_api_id: 1, bookmaker: 'BetUK', market_name: 'Player Props' };
+    const out = expandOutcome('Player Props', {
+      label: 'Adam Mokoka (Points)', hdp: 10.5, over: '1.91', under: '1.81',
+    } as Record<string, unknown>, market_key);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ outcome_key: 'Adam Mokoka (Points)::over', line: 10.5, odds: 1.91 });
+    expect(out[1]).toMatchObject({ outcome_key: 'Adam Mokoka (Points)::under', line: 10.5, odds: 1.81 });
+  });
+
+  it('rule 0a: empty/whitespace label falls through to rule 1', () => {
+    const market_key = { event_odds_api_id: 1, bookmaker: 'BetUK', market_name: 'Player Props' };
+    const out = expandOutcome('Player Props', {
+      label: '   ', hdp: 10.5, over: '1.85', under: '1.95',
+    } as Record<string, unknown>, market_key);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ outcome_key: 'over',  line: 10.5, odds: 1.85 });
+    expect(out[1]).toMatchObject({ outcome_key: 'under', line: 10.5, odds: 1.95 });
+  });
+
+  it('rule 1 still fires when label absent (regression)', () => {
+    const market_key = { event_odds_api_id: 1, bookmaker: 'Bet365', market_name: 'Goals Over/Under' };
+    const out = expandOutcome('Goals Over/Under', {
+      hdp: 2.5, over: '2.500', under: '1.533',
+    } as Record<string, unknown>, market_key);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ outcome_key: 'over',  line: 2.5, odds: 2.5 });
+    expect(out[1]).toMatchObject({ outcome_key: 'under', line: 2.5, odds: 1.533 });
   });
 });

@@ -60,6 +60,7 @@ export function transformEvent(api: ApiEvent): TransformResult {
  * order) and expand to the canonical (outcome_key, line, odds) tuple.
  *
  * Priority of detection (most specific first):
+ *   0a. label + over + under  -> 2 outcomes (<label>::over, <label>::under), line=hdp
  *   1. {over, under} present  -> Totals-style, 2 outcomes (over/under), line=hdp
  *   2. {yes, no}    present   -> BTTS-style, 2 outcomes (yes/no), line=null
  *   3. {home, draw, away}     -> 3-way ML or Eur Handicap, 3 outcomes, line=hdp or null
@@ -68,8 +69,8 @@ export function transformEvent(api: ApiEvent): TransformResult {
  *   6. label + 1 numeric val  -> labeled outcome (Player props, Double Chance, etc), 1 outcome
  *   7. otherwise              -> empty (unknown shape)
  *
- * Note: rule #1 takes precedence over #6 even when label is present (e.g. First 10 Minutes
- * with {hdp, label, over, under}) because over+under is more informative than the label.
+ * Note: rule 0a takes precedence over rule 1 when a label is present, to preserve player
+ * identity for player-prop markets.
  */
 export function expandOutcome(
   marketName: string,
@@ -93,6 +94,15 @@ export function expandOutcome(
   const yes = num(raw.yes);
   const no = num(raw.no);
   const label = typeof raw.label === 'string' ? raw.label : null;
+
+  // 0a. Labeled totals: label + over + under all present → preserve player/label identity.
+  // Without this, rule 1 absorbs over+under and DISCARDS the label, losing player
+  // identity for markets like Player Props (basketball BetUK).
+  if (label != null && label.trim() !== '' && over != null && under != null) {
+    out.push({ market_key, outcome_key: `${label}::over`,  line: hdp, odds: over });
+    out.push({ market_key, outcome_key: `${label}::under`, line: hdp, odds: under });
+    return out;
+  }
 
   // 1. Totals-style: over+under both present (highest priority, most informative)
   if (over != null && under != null) {
