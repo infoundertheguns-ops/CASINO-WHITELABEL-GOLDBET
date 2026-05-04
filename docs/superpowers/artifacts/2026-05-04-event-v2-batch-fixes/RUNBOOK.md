@@ -74,6 +74,18 @@ Built+restarted player ~10 times during the session. Final state:
 - Symlink `.next/standalone/.env.local → .env.local` recreated each rebuild (still NOT in deploy script — TODO)
 - Smoke: `/api/health 200 ~100ms`
 
+### Follow-up batch — 2026-05-04 ~16-17 UTC: sub-pill stale DOM bug
+
+30. **Sub-pill click did not refresh content area** — clicking Marcatori/Goalkeeper/Shots/Cards/Other in Player tab kept rendering the previous sub-pill's markets, even though `activeSubPill` state and `categorized.markets` updated correctly. Confirmed via injected diagnostic overlay (yellow banner showing state, black trace strip showing IIFE specs+nodesCount): IIFE produced the correct nodes, but React did not commit them.
+
+    **Root cause**: `v_player_markets` exposes the SAME `id` for rows that share `(market_id, market_type)` but differ in `line` (verified: Cremonese-Lazio Goalkeeper Saves had 5 rows all id `557e41a4-...`, Player Shots on Target had 5 rows all id `30526302-...`). With `<MarketSection key={m.id}>` in `renderSingleMarket`, multiple sections within a single render shared the same React key. React's reconciliation behavior with duplicate keys is undefined — in this case, sub-pill switches kept stale DOM nodes instead of unmounting+mounting cleanly. No console error, just silent DOM staleness.
+
+    **Fix**: composite key `key={\`${m.id}@${m.line ?? "_"}\`}` on all 4 `<MarketSection>` calls inside `renderSingleMarket` (HT/FT MatrixGrid, Risultato Esatto ScoreGrid, Player flat list, default Hero/Compact row). 4 occurrences in `app/(kiosk)/event/[eventId]/page-v2.tsx`.
+
+    Build `syN9iLUB-KtbkO6N9wxf_` deployed; user-verified working on Torino-Sassuolo (Marcatori → MARCATORE+TEAM GOALSCORER, Shots → 2 PSoT line variants, Other → PLAYER TO ASSIST) and Cremonese-Lazio.
+
+    **Lesson saved to memory**: `feedback-react-keys-v_player_markets.md` — every `key=` for entities loaded from `v_player_*` views must compose `(id, line)` because the view's id is not unique on its own.
+
 ## Pending follow-up
 
 - **Visual verification**: Stats/Shots, Stats/Cards (Bookings Totals H/A), Stats/Tackles, Player/Goalkeeper @flat (10 sections), Player/Shots @flat (multi-line), Altri tab — fixes deployed but not yet eyeballed by user.
@@ -88,7 +100,7 @@ Built+restarted player ~10 times during the session. Final state:
 | `lib/queries/player-event-v2.ts` | +50 | Pagination, NON_LINE filter, dedupe |
 | `lib/market-config-v2.ts` | +60 | Tabs/sub-pills/markets reorganized, Altri added |
 | `lib/market-categorizer-v2.ts` | +14 | `@flat` suffix |
-| `app/(kiosk)/event/[eventId]/page-v2.tsx` | +200 | titleFor, ordering, render block, Altri, hide-empty |
+| `app/(kiosk)/event/[eventId]/page-v2.tsx` | +200 / +4 | titleFor, ordering, render block, Altri, hide-empty + composite keys (id@line) for v_player_markets duplicate-id rows |
 | `components/event-v2/MarketSection.tsx` | ~5 | Header typography |
 | `components/event-v2/OutcomeButton.tsx` | ~10 | Sizes, colors |
 | `components/event-v2/PlayerListFlat.tsx` | -25 +35 | Compact button rows |

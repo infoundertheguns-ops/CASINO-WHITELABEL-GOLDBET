@@ -322,7 +322,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
         ])
       );
       return (
-        <MarketSection key={m.id} title="HT/FT — PRIMO TEMPO / FINALE">
+        <MarketSection key={`${m.id}@${m.line ?? "_"}`} title="HT/FT — PRIMO TEMPO / FINALE">
           <MatrixGrid
             rowLabels={["HT 1", "HT X", "HT 2"]}
             colLabels={["Finale 1", "Finale X", "Finale 2"]}
@@ -350,7 +350,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
         ])
       );
       return (
-        <MarketSection key={m.id} title="RISULTATO ESATTO">
+        <MarketSection key={`${m.id}@${m.line ?? "_"}`} title="RISULTATO ESATTO">
           <ScoreGrid outcomes={map} onSelect={handleSelect} />
         </MarketSection>
       );
@@ -382,7 +382,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
         oddsChange: null as "up" | "down" | null,
       }));
       return (
-        <MarketSection key={m.id} title={m.market_type.toUpperCase()}>
+        <MarketSection key={`${m.id}@${m.line ?? "_"}`} title={m.market_type.toUpperCase()}>
           <PlayerListFlat players={players} onSelect={handleSelect} />
         </MarketSection>
       );
@@ -502,7 +502,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
     const isHero = isPrincipali && m.market_type === "1X2";
     const RowComp = isHero ? HeroOutcomeRow : CompactOutcomeRow;
     return (
-      <MarketSection key={m.id} title={titleFor(m)}>
+      <MarketSection key={`${m.id}@${m.line ?? "_"}`} title={titleFor(m)}>
         <RowComp outcomes={outcomes} onSelect={handleSelect} />
       </MarketSection>
     );
@@ -763,7 +763,11 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
           } else if (cfg?.markets) {
             specs = cfg.markets;
           }
+          // consumed is keyed by (market_id @ line) to allow multiple sections from the
+          // same market_id when its line differs (used by @flat for player props).
           const consumed = new Set<string>();
+          const consumedKey = (a: { id: string; line: number | null }) =>
+            `${a.id}@${a.line ?? "_"}`;
           const nodes: React.ReactNode[] = [];
           for (const spec of specs) {
             const { marketType, suffix } = parseMarketSpec(spec);
@@ -774,12 +778,23 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
                 (a) => a._ref
               );
               nodes.push(renderGroupedMarket(spec, variants));
+            } else if (suffix === "flat") {
+              // Emit one section per (market_id, line) variant of this market_type.
+              const flatVariants = categorized.markets.filter(
+                (a) => a.market_type === marketType && !consumed.has(consumedKey(a))
+              );
+              for (const m of flatVariants) {
+                consumed.add(consumedKey(m));
+                nodes.push(
+                  renderSingleMarket(m as unknown as { _ref: DbMarket }, false)
+                );
+              }
             } else {
               const adapted = categorized.markets.find(
-                (a) => a.market_type === marketType && !consumed.has(a.id)
+                (a) => a.market_type === marketType && !consumed.has(consumedKey(a))
               );
               if (!adapted) continue;
-              consumed.add(adapted.id);
+              consumed.add(consumedKey(adapted));
               nodes.push(
                 renderSingleMarket(
                   adapted as unknown as { _ref: DbMarket },
