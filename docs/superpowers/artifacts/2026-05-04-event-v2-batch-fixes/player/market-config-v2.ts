@@ -174,19 +174,55 @@ export const FOOTBALL_DEFAULT_SUB_PILL: Record<string, string> = {
 };
 
 
+
+export const TENNIS_TAB_MARKETS_V2: SportTabConfig = {
+  "Principali": {
+    markets: [
+      "T/T Match (Escl. Ritiro)",
+      "Totale set@2.5",
+      "Totale giochi@22.5",
+      "Handicap@-1.5",
+    ],
+  },
+  "Set": {
+    markets: [
+      "1X2 - 1T",
+      "Totals 1st Set@picker",
+      "T/T 1° Set",
+      "T/T 2° Set",
+    ],
+  },
+  "U/O Giochi": {
+    markets: ["Totale giochi@picker"],
+  },
+  "Handicap": {
+    markets: ["Handicap@picker"],
+  },
+  "Altri": {
+    markets: [],
+  },
+};
+
+export const TENNIS_TAB_ORDER = ["Principali", "Set", "U/O Giochi", "Handicap", "Altri"];
+
+export const TENNIS_DEFAULT_SUB_PILL: Record<string, string> = {};
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
 export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   calcio: FOOTBALL_TAB_MARKETS_V2,
+  tennis: TENNIS_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   calcio: FOOTBALL_TAB_ORDER,
+  tennis: TENNIS_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
   calcio: FOOTBALL_DEFAULT_SUB_PILL,
+  tennis: TENNIS_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {

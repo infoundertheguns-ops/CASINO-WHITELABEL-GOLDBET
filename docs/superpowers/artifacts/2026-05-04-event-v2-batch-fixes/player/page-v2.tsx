@@ -1,5 +1,5 @@
 // app/(kiosk)/event/[eventId]/page-v2.tsx
-// Composer page for event detail v2 (calcio). Built in Task 15 of the event-v2 plan.
+// Composer page for event detail v2. Sport-keyed via event.sport.slug; built in Task 15 of the event-v2 plan.
 //
 // Receives a DbEvent (already loaded via loadPlayerEventV2) and dispatches markets to the
 // right component via categorizeMarketsV2. We deliberately work with DbEvent/DbMarket/DbOutcome
@@ -16,9 +16,9 @@ import type { DbEvent, DbMarket, DbOutcome } from "@/lib/types/db";
 import { categorizeMarketsV2 } from "@/lib/market-categorizer-v2";
 import { getDefaultLine } from "@/lib/line-picker-defaults";
 import {
-  FOOTBALL_TAB_ORDER,
-  FOOTBALL_TAB_MARKETS_V2,
-  FOOTBALL_DEFAULT_SUB_PILL,
+  TAB_ORDER_BY_SPORT,
+  TAB_MARKETS_BY_SPORT,
+  DEFAULT_SUB_PILL_BY_SPORT,
   parseMarketSpec,
 } from "@/lib/market-config-v2";
 import TabBar from "@/components/event-v2/TabBar";
@@ -98,16 +98,28 @@ function compactDCLabel(outcomeName: string, homeTeam: string, awayTeam: string)
   const homeOnly = new Set([...homeAll].filter((t) => !awayAll.has(t)));
   const awayOnly = new Set([...awayAll].filter((t) => !homeAll.has(t)));
 
+  // Loose match: exact, OR one is a prefix of the other (both >= 4 chars).
+  // Catches "hearts"/"heart", short forms, plural variants, etc — odds-api commonly
+  // emits team nicknames in DC outcomes ("Hearts or Rangers" for Heart of Midlothian).
+  function looseHas(set: Set<string>, t: string): boolean {
+    if (set.has(t)) return true;
+    if (t.length < 4) return false;
+    for (const s of set) {
+      if (s.length < 4) continue;
+      if (t.startsWith(s) || s.startsWith(t)) return true;
+    }
+    return false;
+  }
   function classify(part: string): 'H' | 'A' | 'D' | null {
     const trimmed = part.trim();
     if (/\bdraw\b|\bpareggio\b/.test(trimmed) || trimmed === 'x') return 'D';
     const toks = tokenize(part);
     let hUniq = 0, aUniq = 0, hAny = 0, aAny = 0;
     for (const t of toks) {
-      if (homeOnly.has(t)) hUniq++;
-      if (awayOnly.has(t)) aUniq++;
-      if (homeAll.has(t)) hAny++;
-      if (awayAll.has(t)) aAny++;
+      if (looseHas(homeOnly, t)) hUniq++;
+      if (looseHas(awayOnly, t)) aUniq++;
+      if (looseHas(homeAll, t)) hAny++;
+      if (looseHas(awayAll, t)) aAny++;
     }
     // Prefer unique-token discrimination. Fall back to any-token only when no unique
     // signal exists (e.g. an outcome part containing only a shared city name).
@@ -172,6 +184,12 @@ function toLineVariants(variants: DbMarket[]) {
     }));
 }
 
+// Display-name override for markets whose stored market_type is misleading
+// or sport-specific. Applied in titleFor() before uppercase formatting.
+const MARKET_TITLE_OVERRIDE: Record<string, string> = {
+  "1X2 - 1T": "VINCENTE 1° SET",
+};
+
 // Market types that conceptually have NO line — even if v_player_markets exposes one
 // (often 0 from a normalization quirk), it should not appear in the UI title.
 const NO_LINE_TITLE_TYPES = new Set<string>([
@@ -190,12 +208,15 @@ const NO_LINE_TITLE_TYPES = new Set<string>([
   "Player To Score or Assist", "Player To Assist",
   "Player to be Booked", "Player Cards",
   "Player To Be Fouled",
+  // Tennis line-less markets — view sometimes emits stray 0 line, must suppress.
+  "T/T Match (Escl. Ritiro)", "T/T 1° Set", "T/T 2° Set",
 ]);
 // Friendly title for a single market section. Includes line when present
 // (e.g. "U/O 2.5", "HANDICAP -1.5"), but suppresses it for line-less market types
 // where the underlying view sometimes emits a stray 0.
 function titleFor(m: DbMarket): string {
-  const base = m.market_type.toUpperCase();
+  const overridden = MARKET_TITLE_OVERRIDE[m.market_type];
+  const base = (overridden ?? m.market_type).toUpperCase();
   if (m.line == null) return base;
   if (NO_LINE_TITLE_TYPES.has(m.market_type)) return base;
   const lineStr = Number.isInteger(m.line) ? String(m.line) : String(m.line);
@@ -203,14 +224,19 @@ function titleFor(m: DbMarket): string {
 }
 
 export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: Props) {
-  const [activeTab, setActiveTab] = useState<string>("Principali");
+  const sportSlug = event.sport?.slug ?? "calcio";
+  const tabOrder = TAB_ORDER_BY_SPORT[sportSlug] ?? TAB_ORDER_BY_SPORT.calcio;
+  const defaultSubPill = DEFAULT_SUB_PILL_BY_SPORT[sportSlug] ?? DEFAULT_SUB_PILL_BY_SPORT.calcio;
+  const tabMarketsCfg = TAB_MARKETS_BY_SPORT[sportSlug] ?? TAB_MARKETS_BY_SPORT.calcio;
+
+  const [activeTab, setActiveTab] = useState<string>(tabOrder[0] ?? "Principali");
   const [activeSubPill, setActiveSubPill] = useState<string>(
-    FOOTBALL_DEFAULT_SUB_PILL["Principali"] ?? ""
+    defaultSubPill[tabOrder[0] ?? ""] ?? ""
   );
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    setActiveSubPill(FOOTBALL_DEFAULT_SUB_PILL[tab] ?? "");
+    setActiveSubPill(defaultSubPill[tab] ?? "");
   };
 
   const handleSelect = (o: SelectOutcomePayload) => {
@@ -218,7 +244,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
     // TODO Task 16: wire to legacy bet slip Zustand store via parent page.
   };
 
-  const tabConfig = FOOTBALL_TAB_MARKETS_V2[activeTab];
+  const tabConfig = tabMarketsCfg[activeTab];
   const hasSubPills = !!tabConfig?.subPills;
   // Hide sub-pills that have zero matching markets for this event (e.g. Combo HT/FT
   // when odds-api doesn't provide HT/FT data — rare globally). Compute the available
@@ -243,11 +269,11 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
     }
   }, [activeTab, hasSubPills, subPillNames, activeSubPill]);
 
-  // Compute the set of market_types referenced anywhere in FOOTBALL_TAB_MARKETS_V2,
+  // Compute the set of market_types referenced anywhere in tabMarketsCfg,
   // used both for tab visibility and for the Altri catch-all.
   const allConfiguredMarketTypes = (() => {
     const s = new Set<string>();
-    for (const cfg of Object.values(FOOTBALL_TAB_MARKETS_V2)) {
+    for (const cfg of Object.values(tabMarketsCfg)) {
       const collect = (specs: string[]) => specs.forEach((sp) => s.add(parseMarketSpec(sp).marketType));
       if (cfg.markets) collect(cfg.markets);
       if (cfg.subPills) for (const pill of Object.values(cfg.subPills)) collect(pill.markets);
@@ -264,9 +290,9 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
   // Altri is special: shown only when uncategorizedMarkets is non-empty.
   const availableTabs = (() => {
     const eventMarketTypes = new Set((event.markets ?? []).map((m) => m.market_type));
-    return FOOTBALL_TAB_ORDER.filter((tabName) => {
+    return tabOrder.filter((tabName) => {
       if (tabName === "Altri") return uncategorizedMarkets.length > 0;
-      const cfg = FOOTBALL_TAB_MARKETS_V2[tabName];
+      const cfg = tabMarketsCfg[tabName];
       if (!cfg) return false;
       const allSpecs: string[] = [];
       if (cfg.markets) allSpecs.push(...cfg.markets);
@@ -283,7 +309,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
   useEffect(() => {
     if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
       setActiveTab(availableTabs[0]);
-      setActiveSubPill(FOOTBALL_DEFAULT_SUB_PILL[availableTabs[0]] ?? "");
+      setActiveSubPill(defaultSubPill[availableTabs[0]] ?? "");
     }
   }, [availableTabs, activeTab]);
 
@@ -297,7 +323,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
         // Pass the original DbMarket through as well so render functions can access it.
         _ref: m,
       })),
-      "calcio",
+      sportSlug,
       activeTab,
       hasSubPills ? activeSubPill : undefined
     );
@@ -499,7 +525,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
       }
       return rawOutcomes;
     })();
-    const isHero = isPrincipali && m.market_type === "1X2";
+    const isHero = isPrincipali && (m.market_type === "1X2" || m.market_type === "T/T Match (Escl. Ritiro)");
     const RowComp = isHero ? HeroOutcomeRow : CompactOutcomeRow;
     return (
       <MarketSection key={`${m.id}@${m.line ?? "_"}`} title={titleFor(m)}>
@@ -632,7 +658,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
 
     // Default: LinePicker with under-over renderer.
     const defaultLine =
-      getDefaultLine("calcio", marketType) ?? lineVariants[0].line;
+      getDefaultLine(sportSlug, marketType) ?? lineVariants[0].line;
     return (
       <MarketSection key={spec} title={marketType.toUpperCase()}>
         <LinePicker
@@ -756,7 +782,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
             });
           }
           // Render in config-spec order so sections appear as declared in market-config-v2.
-          const cfg = FOOTBALL_TAB_MARKETS_V2[activeTab];
+          const cfg = tabMarketsCfg[activeTab];
           let specs: string[] = [];
           if (cfg?.subPills && activeSubPill) {
             specs = cfg.subPills[activeSubPill]?.markets ?? [];
