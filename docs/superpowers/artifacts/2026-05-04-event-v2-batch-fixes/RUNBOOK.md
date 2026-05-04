@@ -106,3 +106,25 @@ Built+restarted player ~10 times during the session. Final state:
 | `components/event-v2/PlayerListFlat.tsx` | -25 +35 | Compact button rows |
 | `components/event-v2/LinePicker.tsx` | +25 | Outcome sort per renderer |
 
+## Tennis sport enabled — 2026-05-04 ~17:00 UTC
+
+Spec: [`docs/superpowers/specs/2026-05-04-event-v2-tennis-design.md`](../../specs/2026-05-04-event-v2-tennis-design.md)
+Plan: [`docs/superpowers/plans/2026-05-04-event-v2-tennis.md`](../../plans/2026-05-04-event-v2-tennis.md)
+
+**Env flag flipped on scraper-vps**: `NEXT_PUBLIC_NEW_EVENT_PAGE_SPORTS=calcio` → `=calcio,tennis`. New BUILD_ID `LSNWI9YAkVtiTA_sn-l4D` deployed. Backup `.env.local.bak-pre-tennis-flip` preserved on VPS.
+
+**Code commits** (4 total ahead of origin):
+- `df9840d` — per-sport indirection maps (TAB_MARKETS_BY_SPORT etc., additive refactor)
+- `3340185` — TENNIS_TAB_MARKETS_V2 data + sportSlug threading + render extensions (Hero for T/T Match, MARKET_TITLE_OVERRIDE for "1X2 - 1T" → "VINCENTE 1° SET", NO_LINE_TITLE_TYPES extension); also bundles previously-deployed DC looseHas fix that was unmirrored.
+
+**5-tab tennis layout shipped**:
+- Principali: T/T Match (hero), Totale set@2.5, Totale giochi@22.5, Handicap@-1.5
+- Set: 1X2 - 1T (renamed VINCENTE 1° SET), Totals 1st Set@picker, T/T 1° Set, T/T 2° Set
+- U/O Giochi: Totale giochi@picker
+- Handicap: Handicap@picker
+- Altri: catch-all (auto-hidden when uncategorized=0)
+
+**Smoke test**: user-verified visually on kiosk against tennis event `c8cb71a4-27a9-472c-86ea-cd2708624982` (Cigarran vs Miguel). Calcio regression confirmed. All 5 tabs filtering correctly.
+
+**Rollback**: `ssh scraper-vps "sed -i 's/=calcio,tennis/=calcio/' /root/betssolution-player/.env.local && cd /root/betssolution-player && source /root/.nvm/nvm.sh && nvm use 22 --silent && npm run build 2>&1 | tail -3 && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ && ln -sf /root/betssolution-player/.env.local .next/standalone/.env.local && systemctl restart betssolution-player"`. Code stays in tree; flag flip only.
+
