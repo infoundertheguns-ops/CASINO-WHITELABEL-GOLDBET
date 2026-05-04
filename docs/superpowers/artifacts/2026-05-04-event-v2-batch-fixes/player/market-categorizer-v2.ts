@@ -1,6 +1,6 @@
 // lib/market-categorizer-v2.ts
 import {
-  FOOTBALL_TAB_MARKETS_V2,
+  TAB_MARKETS_BY_SPORT,
   parseMarketSpec,
   type SportTabConfig,
 } from "./market-config-v2";
@@ -18,9 +18,7 @@ export type CategorizeResult<M extends MarketLike> = {
   extras: M[];
 };
 
-const SPORT_CONFIGS: Record<string, SportTabConfig> = {
-  calcio: FOOTBALL_TAB_MARKETS_V2,
-};
+const SPORT_CONFIGS: Record<string, SportTabConfig> = TAB_MARKETS_BY_SPORT;
 
 function findClosestLine<M extends MarketLike>(markets: M[], targetLine: number): M | null {
   if (markets.length === 0) return null;

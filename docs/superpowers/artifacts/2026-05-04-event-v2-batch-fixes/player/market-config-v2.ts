@@ -173,6 +173,22 @@ export const FOOTBALL_DEFAULT_SUB_PILL: Record<string, string> = {
   "Stats": "Corners",
 };
 
+
+// Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
+// still renders something (the availableTabs filter then strips empty tabs, leaving
+// at most Altri with all markets visible).
+export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
+  calcio: FOOTBALL_TAB_MARKETS_V2,
+};
+
+export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
+  calcio: FOOTBALL_TAB_ORDER,
+};
+
+export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
+  calcio: FOOTBALL_DEFAULT_SUB_PILL,
+};
+
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
   const idx = spec.indexOf("@");
   if (idx === -1) return { marketType: spec, suffix: null };
