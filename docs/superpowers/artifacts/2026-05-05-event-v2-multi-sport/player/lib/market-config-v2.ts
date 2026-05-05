@@ -535,6 +535,74 @@ export const DARTS_TAB_ORDER = ["Mercati Principali", "Set/Leg", "Altro"];
 export const DARTS_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Rugby ===
+// Survey (sport_slug=rugby, 4530 rows, 17 types):
+// T/T Handicap 1566, U/O Incl. Supp. 1422, U/O - 1T 445, Handicap - 1T 436,
+// Handicap 148, 1X2 109, 1st Half Team Total Points Away 64, 1X2 - 1T 57,
+// 1st Half Team Total Points Home 54, 1st Half Team Total Tries Away 49,
+// 1st Half Total Tries 49, 1st Half Team Total Tries Home 48, Total Tries 2-Way 31,
+// First Team To Score 19, DNB 13, P/D 12, DC 8.
+// Other slug candidates queried (rugby-union, rugby-league, rugby-sevens) returned
+// 0 rows in v_player_markets and 0 events in events_v2 — registered defensively for
+// forward-compat. Hero is `1X2` when bookmakers expose 3-way (109 rows present),
+// else `T/T Handicap`. Mig 171 notes rugby ML stays 2-way per odds-api source, but
+// 1X2 IS surfaced via classifier — page-v2 isHero handles both. NO Player Try Scorer
+// markets surfaced in the view (no `Player First Try`, `Try Scorer`, `Marca Try`),
+// so Player tab is intentionally omitted. The 1st-half try/point totals are the
+// distinguishing rugby props — surfaced in Tempi sub-pill 1° Tempo.
+export const RUGBY_TAB_MARKETS_V2: SportTabConfig = {
+  "Principali": {
+    markets: [
+      "1X2",                          // hero (3-way when present)
+      "T/T Handicap",                 // 2-way moneyline (rugby standard)
+      "U/O Incl. Supp.@picker",
+      "Handicap@picker",
+      "DC",
+      "DNB",
+      "GG/NG",
+      "P/D",
+    ],
+  },
+  "U/O Punti": {
+    markets: [
+      "U/O Incl. Supp.@picker",
+      "Total Tries 2-Way",
+    ],
+  },
+  "Handicap": {
+    markets: [
+      "Handicap@picker",
+      "T/T Handicap",
+    ],
+  },
+  "Tempi": {
+    subPills: {
+      "1° Tempo": {
+        markets: [
+          "1X2 - 1T",
+          "U/O - 1T@picker",
+          "Handicap - 1T@picker",
+          "1st Half Total Tries",
+          "1st Half Team Total Tries Home",
+          "1st Half Team Total Tries Away",
+          "1st Half Team Total Points Home",
+          "1st Half Team Total Points Away",
+        ],
+      },
+    },
+  },
+  "Altri": {
+    markets: [],  // catch-all uncategorized (incl. First Team To Score)
+  },
+};
+
+export const RUGBY_TAB_ORDER = ["Principali", "U/O Punti", "Handicap", "Tempi", "Altri"];
+
+export const RUGBY_DEFAULT_SUB_PILL: Record<string, string> = {
+  "Tempi": "1° Tempo",
+};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -555,6 +623,10 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   pallavolo: VOLLEYBALL_TAB_MARKETS_V2,
   darts: DARTS_TAB_MARKETS_V2,
   freccette: DARTS_TAB_MARKETS_V2,
+  rugby: RUGBY_TAB_MARKETS_V2,
+  "rugby-union": RUGBY_TAB_MARKETS_V2,
+  "rugby-league": RUGBY_TAB_MARKETS_V2,
+  "rugby-sevens": RUGBY_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -574,6 +646,10 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   pallavolo: VOLLEYBALL_TAB_ORDER,
   darts: DARTS_TAB_ORDER,
   freccette: DARTS_TAB_ORDER,
+  rugby: RUGBY_TAB_ORDER,
+  "rugby-union": RUGBY_TAB_ORDER,
+  "rugby-league": RUGBY_TAB_ORDER,
+  "rugby-sevens": RUGBY_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -591,6 +667,12 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   volleyball: VOLLEYBALL_DEFAULT_SUB_PILL,
   volley: VOLLEYBALL_DEFAULT_SUB_PILL,
   pallavolo: VOLLEYBALL_DEFAULT_SUB_PILL,
+  darts: DARTS_DEFAULT_SUB_PILL,
+  freccette: DARTS_DEFAULT_SUB_PILL,
+  rugby: RUGBY_DEFAULT_SUB_PILL,
+  "rugby-union": RUGBY_DEFAULT_SUB_PILL,
+  "rugby-league": RUGBY_DEFAULT_SUB_PILL,
+  "rugby-sevens": RUGBY_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -741,7 +823,76 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Total Legs": "Totale Leg (Esatto)",
     "DNB": "Draw No Bet",
   },
-  // 6 new sports populated by tasks 12-17.
+  rugby: {
+    // Rugby: 17 market types from survey. Most use anglosaxon/internal labels —
+    // translate to IT-friendly equivalents. `T/T Handicap` is the dominant 2-way
+    // moneyline format in rugby (no draw); `U/O Incl. Supp.` is total points incl.
+    // overtime; `Total Tries 2-Way` is the dedicated total-tries O/U. The 1st-half
+    // try/point totals are rugby-specific props — clarify the home/away split.
+    "T/T": "Vincente Match",
+    "T/T Handicap": "Vincente con Handicap",
+    "U/O Incl. Supp.": "Totale Punti (incl. OT)",
+    "Total Tries 2-Way": "Totale Mete (Under/Over)",
+    "1st Half Total Tries": "Totale Mete 1° Tempo",
+    "1st Half Team Total Tries Home": "Totale Mete Casa 1° Tempo",
+    "1st Half Team Total Tries Away": "Totale Mete Trasferta 1° Tempo",
+    "1st Half Team Total Points Home": "Totale Punti Casa 1° Tempo",
+    "1st Half Team Total Points Away": "Totale Punti Trasferta 1° Tempo",
+    "First Team To Score": "Prima Squadra a Segnare",
+    "DNB": "Draw No Bet",
+    "Player First Try": "Primo Marcatore Try",
+    "Player To Score": "Marcatore Try",
+    "Try Scorer": "Marcatore Try",
+  },
+  "rugby-union": {
+    "T/T": "Vincente Match",
+    "T/T Handicap": "Vincente con Handicap",
+    "U/O Incl. Supp.": "Totale Punti (incl. OT)",
+    "Total Tries 2-Way": "Totale Mete (Under/Over)",
+    "1st Half Total Tries": "Totale Mete 1° Tempo",
+    "1st Half Team Total Tries Home": "Totale Mete Casa 1° Tempo",
+    "1st Half Team Total Tries Away": "Totale Mete Trasferta 1° Tempo",
+    "1st Half Team Total Points Home": "Totale Punti Casa 1° Tempo",
+    "1st Half Team Total Points Away": "Totale Punti Trasferta 1° Tempo",
+    "First Team To Score": "Prima Squadra a Segnare",
+    "DNB": "Draw No Bet",
+    "Player First Try": "Primo Marcatore Try",
+    "Player To Score": "Marcatore Try",
+    "Try Scorer": "Marcatore Try",
+  },
+  "rugby-league": {
+    "T/T": "Vincente Match",
+    "T/T Handicap": "Vincente con Handicap",
+    "U/O Incl. Supp.": "Totale Punti (incl. OT)",
+    "Total Tries 2-Way": "Totale Mete (Under/Over)",
+    "1st Half Total Tries": "Totale Mete 1° Tempo",
+    "1st Half Team Total Tries Home": "Totale Mete Casa 1° Tempo",
+    "1st Half Team Total Tries Away": "Totale Mete Trasferta 1° Tempo",
+    "1st Half Team Total Points Home": "Totale Punti Casa 1° Tempo",
+    "1st Half Team Total Points Away": "Totale Punti Trasferta 1° Tempo",
+    "First Team To Score": "Prima Squadra a Segnare",
+    "DNB": "Draw No Bet",
+    "Player First Try": "Primo Marcatore Try",
+    "Player To Score": "Marcatore Try",
+    "Try Scorer": "Marcatore Try",
+  },
+  "rugby-sevens": {
+    "T/T": "Vincente Match",
+    "T/T Handicap": "Vincente con Handicap",
+    "U/O Incl. Supp.": "Totale Punti (incl. OT)",
+    "Total Tries 2-Way": "Totale Mete (Under/Over)",
+    "1st Half Total Tries": "Totale Mete 1° Tempo",
+    "1st Half Team Total Tries Home": "Totale Mete Casa 1° Tempo",
+    "1st Half Team Total Tries Away": "Totale Mete Trasferta 1° Tempo",
+    "1st Half Team Total Points Home": "Totale Punti Casa 1° Tempo",
+    "1st Half Team Total Points Away": "Totale Punti Trasferta 1° Tempo",
+    "First Team To Score": "Prima Squadra a Segnare",
+    "DNB": "Draw No Bet",
+    "Player First Try": "Primo Marcatore Try",
+    "Player To Score": "Marcatore Try",
+    "Try Scorer": "Marcatore Try",
+  },
+  // 5 new sports populated by tasks 13-17.
 };
 
 export function resolveTitleOverride(
