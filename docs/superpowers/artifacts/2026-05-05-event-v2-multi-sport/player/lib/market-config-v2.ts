@@ -349,6 +349,56 @@ export const ESPORTS_TAB_ORDER = ["Mercati Principali", "Under/Over", "Altro"];
 export const ESPORTS_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Handball ===
+// Survey: 11 market_types in v_player_markets (sport_slug=handball, 322 events, 10028 rows).
+// Handicap 4700, U/O 3989, 1X2 315, DC 276, T/T 245, P/D 119, DNB 118,
+// Handicap - 1T 109, U/O - 1T 88, 3-Way Result HT 42, 1X2 - 1T 27.
+// No 2T markets, no T/T 1T, no `1X2 Tempo Regolamentare`. Hero is plain 1X2 (3-way ball
+// sport per mig 171/172). T/T (2-way) coexists when bookmakers expose DNB-style line.
+// "3-Way Result HT" is the half-time 3-way variant — surfaced in Tempi sub-pill.
+// Aliases: handball (events_v2 slug, 322), pallamano (legacy events.sport.slug, 3319).
+export const HANDBALL_TAB_MARKETS_V2: SportTabConfig = {
+  "Principali": {
+    markets: [
+      "1X2",                          // hero (3-way)
+      "T/T",                          // 2-way alt when present
+      "U/O@picker",
+      "Handicap@picker",
+      "DC",
+      "DNB",
+      "P/D",
+    ],
+  },
+  "U/O": {
+    markets: ["U/O@picker"],
+  },
+  "Handicap": {
+    markets: ["Handicap@picker"],
+  },
+  "Tempi": {
+    subPills: {
+      "1° Tempo": {
+        markets: [
+          "1X2 - 1T",
+          "3-Way Result HT",
+          "U/O - 1T@picker",
+          "Handicap - 1T@picker",
+        ],
+      },
+    },
+  },
+  "Altri": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const HANDBALL_TAB_ORDER = ["Principali", "U/O", "Handicap", "Tempi", "Altri"];
+
+export const HANDBALL_DEFAULT_SUB_PILL: Record<string, string> = {
+  "Tempi": "1° Tempo",
+};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -360,6 +410,8 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   esports: ESPORTS_TAB_MARKETS_V2,
   "honor-of-kings": ESPORTS_TAB_MARKETS_V2,
   "rainbow-six": ESPORTS_TAB_MARKETS_V2,
+  handball: HANDBALL_TAB_MARKETS_V2,
+  pallamano: HANDBALL_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -370,6 +422,8 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   esports: ESPORTS_TAB_ORDER,
   "honor-of-kings": ESPORTS_TAB_ORDER,
   "rainbow-six": ESPORTS_TAB_ORDER,
+  handball: HANDBALL_TAB_ORDER,
+  pallamano: HANDBALL_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -380,6 +434,8 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   esports: ESPORTS_DEFAULT_SUB_PILL,
   "honor-of-kings": ESPORTS_DEFAULT_SUB_PILL,
   "rainbow-six": ESPORTS_DEFAULT_SUB_PILL,
+  handball: HANDBALL_DEFAULT_SUB_PILL,
+  pallamano: HANDBALL_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -441,7 +497,19 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Handicap": "Handicap Mappe",
     "U/O": "Totale Mappe",
   },
-  // 10 new sports populated by tasks 8-17.
+  handball: {
+    // Handball: most market_types are already IT (Handicap, U/O, DC, GG/NG, P/D, DNB).
+    // Override only the ugly anglosaxon ones.
+    "T/T": "Vincente Match",
+    "DNB": "Draw No Bet",
+    "3-Way Result HT": "1X2 1° Tempo",  // alt half-time 3-way (mig 171/172 variant)
+  },
+  pallamano: {
+    "T/T": "Vincente Match",
+    "DNB": "Draw No Bet",
+    "3-Way Result HT": "1X2 1° Tempo",
+  },
+  // 9 new sports populated by tasks 9-17.
 };
 
 export function resolveTitleOverride(
