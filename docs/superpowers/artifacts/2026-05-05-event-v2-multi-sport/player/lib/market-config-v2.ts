@@ -921,7 +921,7 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Spread 2Q": "Handicap 2° Quarto",
     "Spread 3Q": "Handicap 3° Quarto",
     "Spread 4Q": "Handicap 4° Quarto",
-    "1X2 - 1Q": "1X2 1° Quarto",
+    "1X2 - 1Q": "Vincente 1° Quarto",
     "Player Points Milestones": "Punti Giocatore - Oltre",
     "Player Rebounds Milestones": "Rimbalzi Giocatore - Oltre",
     "Player Threes Milestones": "Triple Giocatore - Oltre",
