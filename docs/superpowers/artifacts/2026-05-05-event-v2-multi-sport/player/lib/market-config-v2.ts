@@ -445,6 +445,59 @@ export const ICE_HOCKEY_TAB_ORDER = ["Mercati Principali", "Under/Over", "Period
 export const ICE_HOCKEY_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Volleyball ===
+// Survey (sport_slug=volleyball, 2990 rows, 7 types):
+// U/O 1595, Handicap 1059, T/T 174, T/T 1° Set 137, T/T 2° Set 18, DC 6, DNB 1.
+// Other slug candidates queried (volley, pallavolo) returned 0 rows — only
+// `volleyball` is populated in v_player_markets, but legacy events.sport.slug
+// uses `volley` (6570 events) so register both. `pallavolo` registered defensively
+// for future-proofing (zero rows today).
+// Hero is `T/T` (2-way match winner) — volley has no draw outcome and the
+// memory caveat notes odds-api does NOT provide 3-Way Result for volleyball
+// ("Esito Finale 1X2" source gap), so 1X2 is absent. Sport is set-based
+// (best-of-5 indoor / best-of-3 beach); Handicap is on sets, U/O on points.
+// Per-set markets exposed: T/T 1° Set, T/T 2° Set (others may surface as
+// data accumulates — auto-hide via empty filter when missing).
+export const VOLLEYBALL_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                          // hero (2-way match winner)
+      "T/T 1° Set",
+      "U/O@picker",
+      "Handicap@picker",
+      "DC",
+      "DNB",
+    ],
+  },
+  "Set": {
+    markets: [
+      "T/T 1° Set",
+      "T/T 2° Set",
+      "T/T 3° Set",
+      "T/T 4° Set",
+      "T/T 5° Set",
+    ],
+  },
+  "U/O Punti": {
+    markets: [
+      "U/O@picker",
+    ],
+  },
+  "Handicap": {
+    markets: [
+      "Handicap@picker",
+    ],
+  },
+  "Altri": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const VOLLEYBALL_TAB_ORDER = ["Mercati Principali", "Set", "U/O Punti", "Handicap", "Altri"];
+
+export const VOLLEYBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -460,6 +513,9 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   pallamano: HANDBALL_TAB_MARKETS_V2,
   "ice-hockey": ICE_HOCKEY_TAB_MARKETS_V2,
   "hockey-ghiaccio": ICE_HOCKEY_TAB_MARKETS_V2,
+  volleyball: VOLLEYBALL_TAB_MARKETS_V2,
+  volley: VOLLEYBALL_TAB_MARKETS_V2,
+  pallavolo: VOLLEYBALL_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -474,6 +530,9 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   pallamano: HANDBALL_TAB_ORDER,
   "ice-hockey": ICE_HOCKEY_TAB_ORDER,
   "hockey-ghiaccio": ICE_HOCKEY_TAB_ORDER,
+  volleyball: VOLLEYBALL_TAB_ORDER,
+  volley: VOLLEYBALL_TAB_ORDER,
+  pallavolo: VOLLEYBALL_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -488,6 +547,9 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   pallamano: HANDBALL_DEFAULT_SUB_PILL,
   "ice-hockey": ICE_HOCKEY_DEFAULT_SUB_PILL,
   "hockey-ghiaccio": ICE_HOCKEY_DEFAULT_SUB_PILL,
+  volleyball: VOLLEYBALL_DEFAULT_SUB_PILL,
+  volley: VOLLEYBALL_DEFAULT_SUB_PILL,
+  pallavolo: VOLLEYBALL_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -583,7 +645,42 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "3-Way": "1X2 (3-Way)",
     "Exact Total Goals": "Numero Esatto Gol",
   },
-  // 8 new sports populated by tasks 10-17.
+  volleyball: {
+    // Volley is set-based, 2-way (no draw). Translate set + match labels +
+    // clarify that Handicap is on sets and U/O on points.
+    "T/T": "Vincente Match",
+    "T/T 1° Set": "Vincente 1° Set",
+    "T/T 2° Set": "Vincente 2° Set",
+    "T/T 3° Set": "Vincente 3° Set",
+    "T/T 4° Set": "Vincente 4° Set",
+    "T/T 5° Set": "Vincente 5° Set",
+    "U/O": "Totale Punti Match",
+    "Handicap": "Handicap Set",
+    "DNB": "Draw No Bet",
+  },
+  volley: {
+    "T/T": "Vincente Match",
+    "T/T 1° Set": "Vincente 1° Set",
+    "T/T 2° Set": "Vincente 2° Set",
+    "T/T 3° Set": "Vincente 3° Set",
+    "T/T 4° Set": "Vincente 4° Set",
+    "T/T 5° Set": "Vincente 5° Set",
+    "U/O": "Totale Punti Match",
+    "Handicap": "Handicap Set",
+    "DNB": "Draw No Bet",
+  },
+  pallavolo: {
+    "T/T": "Vincente Match",
+    "T/T 1° Set": "Vincente 1° Set",
+    "T/T 2° Set": "Vincente 2° Set",
+    "T/T 3° Set": "Vincente 3° Set",
+    "T/T 4° Set": "Vincente 4° Set",
+    "T/T 5° Set": "Vincente 5° Set",
+    "U/O": "Totale Punti Match",
+    "Handicap": "Handicap Set",
+    "DNB": "Draw No Bet",
+  },
+  // 7 new sports populated by tasks 11-17.
 };
 
 export function resolveTitleOverride(
