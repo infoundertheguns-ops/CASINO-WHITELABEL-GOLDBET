@@ -296,8 +296,10 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
   })();
 
   // Markets present on this event whose market_type is NOT mapped to any tab.
+  // Also filter out market_types in EXCLUDE_MARKETS_BY_SPORT so they don't fall into Altri.
+  const excludeSetForUncat = EXCLUDE_MARKETS_BY_SPORT[sportSlug];
   const uncategorizedMarkets = (event.markets ?? []).filter(
-    (m) => !allConfiguredMarketTypes.has(m.market_type)
+    (m) => !allConfiguredMarketTypes.has(m.market_type) && !excludeSetForUncat?.has(m.market_type)
   );
 
   // Hide tabs that have zero matching markets across all their specs / sub-pills.
