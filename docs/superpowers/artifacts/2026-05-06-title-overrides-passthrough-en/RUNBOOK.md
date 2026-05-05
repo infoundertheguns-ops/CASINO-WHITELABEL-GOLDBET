@@ -42,8 +42,32 @@ ssh scraper-vps 'cd /root/betssolution-player && export PATH="/root/.nvm/version
 - Untouched: `oddsapi_translations` table, PG functions, `_sport_slug_en_to_it`, `derive_legacy_from_v2`
 
 ## Coverage residua
-~4% volume passthrough calcio non coperto (Specials 576 → filtered 'special'; First 10 Minutes 314 → filtered 'special'; Goal Method 114 → filtered 'special'; minor markets <50 events). Volutamente skippati.
+**Calcio**: ~99.5% volume passthrough coperto post estensione minor (32 entries aggiunti dopo smoke test).
+Skippati di proposito: Specials 576, First 10 Minutes 314, Goal Method 114, Method of Victory 69 — tutti classificati `'special'` da `classify_market_pattern`, già filtered out da `v_player_markets`.
 
 Esports rimane non esteso (635 passthrough Map-related, low priority Tier C).
 
 Cricket gap minore (Total Match Runs 6, To Win the Toss 17) — già coperti dal block esistente.
+
+## Smoke test risultato
+Hard refresh su Bayern Munich vs PSG (Champions League, FS-id `WzCGgkEU`, 300 markets) → utente confermato OK 2026-05-05.
+
+## ⚠ Issue infra residuo: `.env.local` symlink
+Ogni `npm run build` rigenera `.next/standalone/` ma NON ricrea il symlink `.next/standalone/.env.local → ../../.env.local`. Senza, il server parte ma falla ogni request con `Your project's URL and Key are required to create a Supabase client!`.
+
+**Workaround manuale**: dopo OGNI rebuild, eseguire:
+```bash
+cd /root/betssolution-player && ln -sf ../../.env.local .next/standalone/.env.local
+```
+
+**TODO** (registry): aggiungere a `build-deploy.sh` per automatizzare. Plus copy `.next/static` + `public/` → standalone.
+
+## Estensione finale (32 minor entries) — calcio block
+Cards/Bookings: Card Handicap, Number of Cards In Match, Team Cards Home/Away, Player Cards, Player to be Booked.
+Tackles: Player/Match Tackles, Team Tackles Home/Away.
+Fouls: Total Fouls (Home/Away), Player Fouls, Player Fouls Committed, Player To Be Fouled.
+Team shots: Match Shots (on Target), Team Shots Home/Away (on Target Home/Away).
+Player props minor: Player Shots on Target Outside Box, Player Headed Shots on Target, Player Passes.
+Offsides: Match Offsides, Team Offsides Home/Away.
+
+BUILD_ID finale: `eqqz1fR3xzo3YxEz9WNsj`.
