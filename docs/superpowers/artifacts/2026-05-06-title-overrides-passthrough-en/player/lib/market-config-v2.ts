@@ -419,6 +419,8 @@ export const ICE_HOCKEY_TAB_MARKETS_V2: SportTabConfig = {
       "T/T",                          // 2-way alt (incl. OT)
       "Gol Tot. TR@picker",
       "Handicap TR@picker",
+      "Handicap@picker",              // European Handicap (no TR) — line variants
+      "Exact Total Goals",            // Numero Esatto Gol (Exact Score, NON O/U)
       "DNB",
       "GG/NG",
       "DC TR",
@@ -427,20 +429,48 @@ export const ICE_HOCKEY_TAB_MARKETS_V2: SportTabConfig = {
   "Under/Over": {
     markets: [
       "Gol Tot. TR@picker",
-      "Exact Total Goals",
     ],
   },
   "Periodi": {
-    // No per-period market_types observed in v_player_markets for ice-hockey;
-    // tab auto-hides via empty-tab filter. Slot reserved for forward-compat.
     markets: [],
+  },
+  "Player": {
+    // Aggiunto 2026-05-06 — survey post-deploy ha rivelato ~241 player markets persi in "Altri".
+    // Player markets: NO @picker (LinePicker raggruppa per linea e nasconde nome giocatore).
+    // PlayerOverUnderRow renderizza correttamente "PlayerName | line | OVER | UNDER".
+    subPills: {
+      "Marcatori": {
+        markets: [
+          "Marcatore",
+          "To Score 2+ Goals",
+          "To Score 3+ Goals",
+          "Player Props",            // First Goalscorer fallback (parsed by PlayerListFlat)
+        ],
+      },
+      "Punti/Assist": {
+        markets: [
+          "Points",
+          "Player Points Milestones",
+          "Player Assists Milestones",
+          "Points O/U",
+          "Assists O/U",
+          "Power Play Points O/U",
+        ],
+      },
+      "Tiri": {
+        markets: [
+          "Player Shots",
+          "Shots on Goal O/U",
+        ],
+      },
+    },
   },
   "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const ICE_HOCKEY_TAB_ORDER = ["Principali", "Under/Over", "Periodi", "Altri"];
+export const ICE_HOCKEY_TAB_ORDER = ["Principali", "Under/Over", "Periodi", "Player", "Altri"];
 
 export const ICE_HOCKEY_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -1428,4 +1458,9 @@ export function resolveTitleOverride(
 // '1X2 - 1Q' which duplicates ML 1Q from other bookmakers with same outcomes).
 export const EXCLUDE_MARKETS_BY_SPORT: Record<string, Set<string>> = {
   basket: new Set(["1X2 - 1Q"]),
+  // Hockey 3-Way: mig 169 ha revocato la translation perché Bet365 emette outcome
+  // non-canonici ("Money Line (Tie)", "Money Line (1)", "Total (Tie) (null)").
+  // Escludiamo dal rendering — il fallback "1X2 TR" da 3-Way Result è già visibile in Principali.
+  "ice-hockey": new Set(["3-Way"]),
+  "hockey-ghiaccio": new Set(["3-Way"]),
 };
