@@ -247,7 +247,7 @@ export const BASKET_TAB_MARKETS_V2: SportTabConfig = {
   },
   "Quarti": {
     subPills: {
-      "Q1": { markets: ["1X2 - 1Q", "ML 1Q", "U/O - 1Q@picker", "Handicap - 1Q@picker", "Spread 1Q@picker"] },
+      "Q1": { markets: ["ML 1Q", "U/O - 1Q@picker", "Handicap - 1Q@picker", "Spread 1Q@picker"] },
       "Q2": { markets: ["ML 2Q", "U/O - 2Q@picker", "Spread 2Q@picker"] },
       "Q3": { markets: ["ML 3Q", "U/O - 3Q@picker", "Spread 3Q@picker"] },
       "Q4": { markets: ["ML 4Q", "U/O - 4Q@picker", "Spread 4Q@picker"] },
