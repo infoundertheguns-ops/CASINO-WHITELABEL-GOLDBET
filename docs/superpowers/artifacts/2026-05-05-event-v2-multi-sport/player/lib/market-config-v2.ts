@@ -1275,3 +1275,12 @@ export function resolveTitleOverride(
   const map = TITLE_OVERRIDES_BY_SPORT[sportSlug];
   return map?.[marketType] ?? null;
 }
+
+// === Excluded market types per-sport ===
+// Markets in this set are filtered out BEFORE categorization — they will not appear
+// in any tab (not even Altri). Use for upstream-translation duplicates that cannot
+// be cleanly fixed at the SQL layer (e.g. basket Bet365 ML Q1 mistranslated to
+// '1X2 - 1Q' which duplicates ML 1Q from other bookmakers with same outcomes).
+export const EXCLUDE_MARKETS_BY_SPORT: Record<string, Set<string>> = {
+  basket: new Set(["1X2 - 1Q"]),
+};

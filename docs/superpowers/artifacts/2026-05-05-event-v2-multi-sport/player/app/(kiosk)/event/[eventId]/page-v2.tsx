@@ -21,6 +21,7 @@ import {
   DEFAULT_SUB_PILL_BY_SPORT,
   parseMarketSpec,
   resolveTitleOverride,
+  EXCLUDE_MARKETS_BY_SPORT,
 } from "@/lib/market-config-v2";
 import TabBar from "@/components/event-v2/TabBar";
 import SubPillBar from "@/components/event-v2/SubPillBar";
@@ -327,8 +328,12 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
   }, [availableTabs, activeTab]);
 
   const categorized = useMemo(() => {
+    const excludeSet = EXCLUDE_MARKETS_BY_SPORT[sportSlug];
+    const filteredMarkets = excludeSet
+      ? (event.markets ?? []).filter((m) => !excludeSet.has(m.market_type))
+      : (event.markets ?? []);
     return categorizeMarketsV2(
-      (event.markets ?? []).map((m) => ({
+      filteredMarkets.map((m) => ({
         id: m.id,
         market_type: m.market_type,
         line: m.line ?? null,
@@ -340,7 +345,7 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
       activeTab,
       hasSubPills ? activeSubPill : undefined
     );
-  }, [event.markets, activeTab, activeSubPill, hasSubPills]);
+  }, [event.markets, sportSlug, activeTab, activeSubPill, hasSubPills]);
 
   function renderSingleMarket(adapted: { _ref: DbMarket }, isPrincipali: boolean) {
     const m = adapted._ref;
