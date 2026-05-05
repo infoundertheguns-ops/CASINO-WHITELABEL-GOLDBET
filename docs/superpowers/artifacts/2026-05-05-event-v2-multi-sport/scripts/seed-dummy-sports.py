@@ -36,19 +36,23 @@ def req(method, path, body=None):
 
 # Sport configs: legacy slug → market spec
 # Each market: (market_type, market_name_for_v2, outcomes [(name, odds, line)])
+# IMPORTANT: events_v2.sport_slug MUST be the KIOSK-style slug (e.g. "handball" not "pallamano"),
+# else v_player_events JOIN returns sport_slug=NULL → page-v2 falls through to legacy UI.
+# v2_slug column below = events_v2.sport_slug. Legacy slug (key) = legacy events.sport.slug,
+# stored in `sports` table and used by `sport_id` FK.
 SPORTS = {
-    'baseball':            {'sport_id': '16667314-d8d0-4a3e-aa9f-a155f6df13de', 'home': 'Boston Red Sox QA', 'away': 'NY Yankees QA'},
-    'esports':             {'sport_id': 'a007fae5-91f5-4c95-a7fe-3a0fa39783d3', 'home': 'Team Alpha QA',    'away': 'Team Bravo QA'},
-    'pallamano':           {'sport_id': '161815ec-30ab-4333-9780-d4176303d588', 'home': 'Hand A QA',         'away': 'Hand B QA'},
-    'hockey-ghiaccio':     {'sport_id': 'af3a27e5-71fe-46eb-a855-4e94d556156e', 'home': 'Ice Bears QA',      'away': 'Ice Wolves QA'},
-    'volley':              {'sport_id': '786f967b-342f-442c-9442-5e28d5023c1d', 'home': 'Spike Aces QA',     'away': 'Net Kings QA'},
-    'freccette':           {'sport_id': 'f1277c9f-230e-4441-88c7-be09002e4c57', 'home': 'Player Smith QA',   'away': 'Player Jones QA'},
-    'rugby':               {'sport_id': 'c92e1921-32c2-45f4-a3a1-f63b5cf6cac3', 'home': 'Lions QA',          'away': 'Sharks QA'},
-    'cricket':             {'sport_id': '28da75b0-8835-4892-acfd-a56f824f79f7', 'home': 'Mumbai QA',         'away': 'Chennai QA'},
-    'boxe':                {'sport_id': 'ec0303c9-79b1-4da5-81b1-78137767e5ec', 'home': 'Fighter Red QA',    'away': 'Fighter Blue QA'},
-    'arti-marziali':       {'sport_id': '4554dd2c-8507-4093-b1e0-d76fe0bcff7d', 'home': 'MMA Red QA',        'away': 'MMA Blue QA'},
-    'football-americano':  {'sport_id': '63265903-76c3-4d3b-acf6-efcdf6699ad4', 'home': 'Patriots QA',       'away': 'Cowboys QA'},
-    'snooker':             {'sport_id': 'cd11415b-f96a-4aef-bb6e-1e6858c149e3', 'home': "O'Sullivan QA",     'away': 'Trump QA'},
+    'baseball':            {'sport_id': '16667314-d8d0-4a3e-aa9f-a155f6df13de', 'v2_slug': 'baseball',          'v2_name': 'Baseball',          'home': 'Boston Red Sox QA', 'away': 'NY Yankees QA'},
+    'esports':             {'sport_id': 'a007fae5-91f5-4c95-a7fe-3a0fa39783d3', 'v2_slug': 'esports',           'v2_name': 'Esports',           'home': 'Team Alpha QA',    'away': 'Team Bravo QA'},
+    'pallamano':           {'sport_id': '161815ec-30ab-4333-9780-d4176303d588', 'v2_slug': 'handball',          'v2_name': 'Handball',          'home': 'Hand A QA',         'away': 'Hand B QA'},
+    'hockey-ghiaccio':     {'sport_id': 'af3a27e5-71fe-46eb-a855-4e94d556156e', 'v2_slug': 'ice-hockey',        'v2_name': 'Ice Hockey',        'home': 'Ice Bears QA',      'away': 'Ice Wolves QA'},
+    'volley':              {'sport_id': '786f967b-342f-442c-9442-5e28d5023c1d', 'v2_slug': 'volleyball',        'v2_name': 'Volleyball',        'home': 'Spike Aces QA',     'away': 'Net Kings QA'},
+    'freccette':           {'sport_id': 'f1277c9f-230e-4441-88c7-be09002e4c57', 'v2_slug': 'darts',             'v2_name': 'Darts',             'home': 'Player Smith QA',   'away': 'Player Jones QA'},
+    'rugby':               {'sport_id': 'c92e1921-32c2-45f4-a3a1-f63b5cf6cac3', 'v2_slug': 'rugby',             'v2_name': 'Rugby',             'home': 'Lions QA',          'away': 'Sharks QA'},
+    'cricket':             {'sport_id': '28da75b0-8835-4892-acfd-a56f824f79f7', 'v2_slug': 'cricket',           'v2_name': 'Cricket',           'home': 'Mumbai QA',         'away': 'Chennai QA'},
+    'boxe':                {'sport_id': 'ec0303c9-79b1-4da5-81b1-78137767e5ec', 'v2_slug': 'boxing',            'v2_name': 'Boxing',            'home': 'Fighter Red QA',    'away': 'Fighter Blue QA'},
+    'arti-marziali':       {'sport_id': '4554dd2c-8507-4093-b1e0-d76fe0bcff7d', 'v2_slug': 'mma',               'v2_name': 'MMA',               'home': 'MMA Red QA',        'away': 'MMA Blue QA'},
+    'football-americano':  {'sport_id': '63265903-76c3-4d3b-acf6-efcdf6699ad4', 'v2_slug': 'american-football', 'v2_name': 'American Football', 'home': 'Patriots QA',       'away': 'Cowboys QA'},
+    'snooker':             {'sport_id': 'cd11415b-f96a-4aef-bb6e-1e6858c149e3', 'v2_slug': 'snooker',           'v2_name': 'Snooker',           'home': "O'Sullivan QA",     'away': 'Trump QA'},
 }
 
 # Markets per sport (market_name in markets_v2 = source name; will be translated by view)
@@ -133,15 +137,15 @@ for slug, info in SPORTS.items():
     if r is None: print('  ❌ legacy event failed'); continue
     print(f'  legacy event {event_id[:8]}')
 
-    # 3. events_v2
+    # 3. events_v2 — sport_slug MUST be kiosk-style for v_player_events JOIN to populate
     r = req('POST', 'events_v2', {
         'id': event_id,
         'odds_api_id': 999000000 + abs(hash(slug)) % 1000000,
         'home': info['home'],
         'away': info['away'],
         'starts_at': starts_at,
-        'sport_slug': slug,
-        'sport_name': slug.replace('-', ' ').title(),
+        'sport_slug': info['v2_slug'],
+        'sport_name': info['v2_name'],
         'league_slug': league_slug,
         'league_name': f'QA Dummy {slug.title()} League',
         'status': 'pending',
