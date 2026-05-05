@@ -483,8 +483,29 @@ export default function EventDetailPageV2({ event, eventId, onSelectOutcome }: P
       m.market_type === "DC - 2T" ||
       m.market_type === "Double Chance";
 
+    // Defensive outcome filter: per i mercati 1X2/T/T/Vincente filtra outcome name garbage
+    // emessi da bookmaker tipo Bet365 (es. baseball "3-Way" outcomes "Money Line (Tie)",
+    // "Total (Tie) (null)", "Run Line (1) (1)"). Mantieni solo nomi canonici 1/X/2/Home/Draw/Away/Tie.
+    const is1X2Family = (
+      m.market_type === "1X2" ||
+      m.market_type === "T/T" ||
+      m.market_type === "T/T Match (Escl. Ritiro)" ||
+      m.market_type === "1X2 TR" ||
+      m.market_type === "1X2 - 1T" ||
+      m.market_type === "1X2 - 2T" ||
+      m.market_type === "1X2 Tempo Regolamentare" ||
+      m.market_type === "Vincente Incontro" ||
+      m.market_type === "DNB"
+    );
+    const filteredOutcomes = is1X2Family
+      ? (m.outcomes ?? []).filter((o) => {
+          const l = (o.name || "").toLowerCase().trim();
+          return l === "1" || l === "x" || l === "2" || l === "home" || l === "draw" || l === "away" || l === "tie";
+        })
+      : (m.outcomes ?? []);
+
     // Default: Hero in Principali tab for 1X2, otherwise Compact.
-    const rawOutcomes = toOutcomeRowData(m.outcomes);
+    const rawOutcomes = toOutcomeRowData(filteredOutcomes);
     const outcomes = (() => {
       if (isDoubleChance) {
         const labeled = rawOutcomes.map((o) => ({
