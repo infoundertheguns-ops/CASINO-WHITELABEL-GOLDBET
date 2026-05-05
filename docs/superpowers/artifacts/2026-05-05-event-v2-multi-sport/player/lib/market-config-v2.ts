@@ -640,6 +640,37 @@ export const CRICKET_TAB_ORDER = ["Principali", "U/O Runs", "Altri"];
 export const CRICKET_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Boxing ===
+// Survey: 1 market_type in v_player_markets (sport_slug=boxing, 54 rows total).
+// T/T 54 only — Method of Victory / Total Rounds / Round Betting / Will the Fight
+// Go the Distance NOT exposed in v_player_markets (odds-api maps these to other
+// classifier outputs, none currently surface). Slugs `boxe` (307 events legacy)
+// and `pugilato` (defensive register, 0 rows) both empty in v2 view today, but
+// registered for forward-compat. Hero is `T/T` (2-way fight winner). Minimal
+// 2-tab structure mirrors legacy `LIVE_DETAIL_TABS.boxing = ["Mercati Principali",
+// "Altro"]`. Title overrides cover the surveyed type plus 5 forward-compat
+// boxing-specific markets if classifier later surfaces them.
+export const BOXING_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                          // hero (2-way fight winner)
+      "Method of Victory",            // forward-compat (KO/TKO/Decision)
+      "Total Rounds@picker",          // forward-compat
+      "Round Betting@picker",         // forward-compat
+      "Will the Fight Go the Distance",
+      "DNB",                          // forward-compat
+    ],
+  },
+  "Altro": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const BOXING_TAB_ORDER = ["Mercati Principali", "Altro"];
+
+export const BOXING_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -665,6 +696,9 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   "rugby-league": RUGBY_TAB_MARKETS_V2,
   "rugby-sevens": RUGBY_TAB_MARKETS_V2,
   cricket: CRICKET_TAB_MARKETS_V2,
+  boxing: BOXING_TAB_MARKETS_V2,
+  boxe: BOXING_TAB_MARKETS_V2,
+  pugilato: BOXING_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -689,6 +723,9 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   "rugby-league": RUGBY_TAB_ORDER,
   "rugby-sevens": RUGBY_TAB_ORDER,
   cricket: CRICKET_TAB_ORDER,
+  boxing: BOXING_TAB_ORDER,
+  boxe: BOXING_TAB_ORDER,
+  pugilato: BOXING_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -713,6 +750,9 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   "rugby-league": RUGBY_DEFAULT_SUB_PILL,
   "rugby-sevens": RUGBY_DEFAULT_SUB_PILL,
   cricket: CRICKET_DEFAULT_SUB_PILL,
+  boxing: BOXING_DEFAULT_SUB_PILL,
+  boxe: BOXING_DEFAULT_SUB_PILL,
+  pugilato: BOXING_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -949,7 +989,36 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Top Bowler": "Top Lanciatore",
     "Highest Opening Partnership": "Maggiore Partnership Iniziale",
   },
-  // 4 new sports populated by tasks 14-17.
+  boxing: {
+    // Boxing: only T/T (54 rows) currently surfaced in v_player_markets. Other
+    // boxing-specific markets (Method of Victory, Total Rounds, Round Betting,
+    // Will the Fight Go the Distance) included for forward-compat once classifier
+    // exposes them. Hero is `T/T` (2-way fight winner — no draw outcome typical
+    // for pro boxing). DNB included defensively for rare draw-allowed bouts.
+    "T/T": "Vincente Match",
+    "Method of Victory": "Modo di Vittoria",
+    "Total Rounds": "Totale Round",
+    "Round Betting": "Round di Conclusione",
+    "DNB": "Draw No Bet",
+    "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
+  },
+  boxe: {
+    "T/T": "Vincente Match",
+    "Method of Victory": "Modo di Vittoria",
+    "Total Rounds": "Totale Round",
+    "Round Betting": "Round di Conclusione",
+    "DNB": "Draw No Bet",
+    "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
+  },
+  pugilato: {
+    "T/T": "Vincente Match",
+    "Method of Victory": "Modo di Vittoria",
+    "Total Rounds": "Totale Round",
+    "Round Betting": "Round di Conclusione",
+    "DNB": "Draw No Bet",
+    "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
+  },
+  // 3 new sports populated by tasks 15-17.
 };
 
 export function resolveTitleOverride(
