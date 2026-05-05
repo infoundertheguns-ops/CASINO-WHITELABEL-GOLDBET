@@ -260,7 +260,7 @@ export const BASKET_TAB_MARKETS_V2: SportTabConfig = {
       "Triple":   { markets: ["Player Threes Milestones@flat"] },
       "Assist":   { markets: ["Player Assists Milestones@flat"] },
       "First":    { markets: ["Player First Basket", "Player First Assist", "Player First Rebound"] },
-      "Altro":    { markets: ["Double Double", "Player Props@over-under-flat"] },
+      "Altri":    { markets: ["Double Double", "Player Props@over-under-flat"] },
     },
   },
   "Altri": {
@@ -324,12 +324,12 @@ export const BASEBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 // Survey: 3 market_types in v_player_markets (sport_slug=esports).
 // Handicap 1406 (Map Handicap), U/O 717 (Total Maps Over/Under), T/T 533 (Match Winner 2-way).
 // No per-map markets, no player props surfaced. Mirrors legacy LIVE_DETAIL_TABS.eleague
-// minimal 3-tab structure ["Mercati Principali", "Under/Over", "Altro"]. Registered for
+// minimal 3-tab structure ["Principali", "Under/Over", "Altri"]. Registered for
 // populated slugs only: esports (26890 events), honor-of-kings (16), rainbow-six (37).
 // Other esports slugs (dota/csgo/valorant/lol/cod/e-basketball) have 0 events in legacy
 // table — fall back to calcio default; can be added later if events appear.
 export const ESPORTS_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                          // hero (2-way match winner, no draw)
       "Handicap@picker",              // map handicap
@@ -339,12 +339,12 @@ export const ESPORTS_TAB_MARKETS_V2: SportTabConfig = {
   "Under/Over": {
     markets: ["U/O@picker"],
   },
-  "Altro": {
+  "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const ESPORTS_TAB_ORDER = ["Mercati Principali", "Under/Over", "Altro"];
+export const ESPORTS_TAB_ORDER = ["Principali", "Under/Over", "Altri"];
 
 export const ESPORTS_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -413,7 +413,7 @@ export const HANDBALL_DEFAULT_SUB_PILL: Record<string, string> = {
 // v_player_markets) + hockey-ghiaccio (legacy events.sport.slug, 4894 events)
 // registered defensively.
 export const ICE_HOCKEY_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "1X2 TR",                       // hero (3-way regular time)
       "T/T",                          // 2-way alt (incl. OT)
@@ -435,12 +435,12 @@ export const ICE_HOCKEY_TAB_MARKETS_V2: SportTabConfig = {
     // tab auto-hides via empty-tab filter. Slot reserved for forward-compat.
     markets: [],
   },
-  "Altro": {
+  "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const ICE_HOCKEY_TAB_ORDER = ["Mercati Principali", "Under/Over", "Periodi", "Altro"];
+export const ICE_HOCKEY_TAB_ORDER = ["Principali", "Under/Over", "Periodi", "Altri"];
 
 export const ICE_HOCKEY_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -459,7 +459,7 @@ export const ICE_HOCKEY_DEFAULT_SUB_PILL: Record<string, string> = {};
 // Per-set markets exposed: T/T 1° Set, T/T 2° Set (others may surface as
 // data accumulates — auto-hide via empty filter when missing).
 export const VOLLEYBALL_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                          // hero (2-way match winner)
       "T/T 1° Set",
@@ -493,7 +493,7 @@ export const VOLLEYBALL_TAB_MARKETS_V2: SportTabConfig = {
   },
 };
 
-export const VOLLEYBALL_TAB_ORDER = ["Mercati Principali", "Set", "U/O Punti", "Handicap", "Altri"];
+export const VOLLEYBALL_TAB_ORDER = ["Principali", "Set", "U/O Punti", "Handicap", "Altri"];
 
 export const VOLLEYBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -506,12 +506,12 @@ export const VOLLEYBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 // but legacy events.sport.slug uses `freccette` (1037 events) so register both
 // defensively. Hero is `T/T` (2-way match winner — darts has no draw outcome).
 // Mirrors legacy LIVE_DETAIL_TABS.darts 3-tab structure
-// ["Mercati Principali", "Set/Leg", "Altro"]. The set/leg distinction is implicit
+// ["Principali", "Set/Leg", "Altri"]. The set/leg distinction is implicit
 // in DB market_type names (Total Legs explicit; U/O is set-based). Per-set/per-leg
 // markets (e.g. "Most 180s", "Highest Checkout") not yet surfaced in the view —
 // "Set/Leg" tab auto-hides via empty filter when all member markets are missing.
 export const DARTS_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                          // hero (2-way match winner)
       "Handicap@picker",
@@ -525,12 +525,12 @@ export const DARTS_TAB_MARKETS_V2: SportTabConfig = {
       "Alternative Spread@picker",
     ],
   },
-  "Altro": {
+  "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const DARTS_TAB_ORDER = ["Mercati Principali", "Set/Leg", "Altro"];
+export const DARTS_TAB_ORDER = ["Principali", "Set/Leg", "Altri"];
 
 export const DARTS_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -647,11 +647,11 @@ export const CRICKET_DEFAULT_SUB_PILL: Record<string, string> = {};
 // classifier outputs, none currently surface). Slugs `boxe` (307 events legacy)
 // and `pugilato` (defensive register, 0 rows) both empty in v2 view today, but
 // registered for forward-compat. Hero is `T/T` (2-way fight winner). Minimal
-// 2-tab structure mirrors legacy `LIVE_DETAIL_TABS.boxing = ["Mercati Principali",
-// "Altro"]`. Title overrides cover the surveyed type plus 5 forward-compat
+// 2-tab structure mirrors legacy `LIVE_DETAIL_TABS.boxing = ["Principali",
+// "Altri"]`. Title overrides cover the surveyed type plus 5 forward-compat
 // boxing-specific markets if classifier later surfaces them.
 export const BOXING_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                          // hero (2-way fight winner)
       "Method of Victory",            // forward-compat (KO/TKO/Decision)
@@ -661,12 +661,12 @@ export const BOXING_TAB_MARKETS_V2: SportTabConfig = {
       "DNB",                          // forward-compat
     ],
   },
-  "Altro": {
+  "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const BOXING_TAB_ORDER = ["Mercati Principali", "Altro"];
+export const BOXING_TAB_ORDER = ["Principali", "Altri"];
 
 export const BOXING_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -677,10 +677,10 @@ export const BOXING_DEFAULT_SUB_PILL: Record<string, string> = {};
 // events legacy, 0 in v2 today) and `martial-arts` (0 rows, defensive register)
 // both empty in v2 view, but registered for forward-compat. Hero is `T/T`
 // (2-way fight winner). Minimal 2-tab structure mirrors legacy
-// `LIVE_DETAIL_TABS.mma = ["Mercati Principali", "Altro"]`. Method of Victory /
+// `LIVE_DETAIL_TABS.mma = ["Principali", "Altri"]`. Method of Victory /
 // Round Betting / Will the Fight Go the Distance / DNB included for forward-compat.
 export const MMA_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                          // hero (2-way fight winner)
       "Method of Victory",            // forward-compat (KO/Submission/Decision)
@@ -692,12 +692,12 @@ export const MMA_TAB_MARKETS_V2: SportTabConfig = {
       "DNB",                          // forward-compat
     ],
   },
-  "Altro": {
+  "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const MMA_TAB_ORDER = ["Mercati Principali", "Altro"];
+export const MMA_TAB_ORDER = ["Principali", "Altri"];
 
 export const MMA_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -714,7 +714,7 @@ export const MMA_DEFAULT_SUB_PILL: Record<string, string> = {};
 // (Touchdown Scorers surveyed; Passing Yards / Rushing Yards / Receiving Yards
 // forward-compat) grouped under "Player". Empty tabs auto-hide.
 export const AMERICAN_FOOTBALL_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                       // hero (2-way ML winner) — surveyed 8
       "Handicap@picker",           // surveyed 497 (Spread)
@@ -751,12 +751,12 @@ export const AMERICAN_FOOTBALL_TAB_MARKETS_V2: SportTabConfig = {
       "TD Scorer",                 // forward-compat (singular variant)
     ],
   },
-  "Altro": {
+  "Altri": {
     markets: [],  // catch-all uncategorized
   },
 };
 
-export const AMERICAN_FOOTBALL_TAB_ORDER = ["Mercati Principali", "Quarti", "Player", "Altro"];
+export const AMERICAN_FOOTBALL_TAB_ORDER = ["Principali", "Quarti", "Player", "Altri"];
 
 export const AMERICAN_FOOTBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 
@@ -769,10 +769,10 @@ export const AMERICAN_FOOTBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 // (2-way: only 2 players, no draw possible). Frame Handicap (Handicap@picker)
 // + Frame Total (U/O@picker) forward-compat for whenever bookmakers expose
 // them. "Highest Break" + "DNB" forward-compat. Empty tabs auto-hide so users
-// see only "Mercati Principali" with the live T/T market until Phase 4 dummy
+// see only "Principali" with the live T/T market until Phase 4 dummy
 // seeds widen coverage.
 export const SNOOKER_TAB_MARKETS_V2: SportTabConfig = {
-  "Mercati Principali": {
+  "Principali": {
     markets: [
       "T/T",                       // hero (2-way match winner) — surveyed 3
       "Handicap@picker",           // forward-compat (Frame Handicap)
@@ -791,7 +791,7 @@ export const SNOOKER_TAB_MARKETS_V2: SportTabConfig = {
   },
 };
 
-export const SNOOKER_TAB_ORDER = ["Mercati Principali", "U/O Frame", "Altri"];
+export const SNOOKER_TAB_ORDER = ["Principali", "U/O Frame", "Altri"];
 
 export const SNOOKER_DEFAULT_SUB_PILL: Record<string, string> = {};
 
