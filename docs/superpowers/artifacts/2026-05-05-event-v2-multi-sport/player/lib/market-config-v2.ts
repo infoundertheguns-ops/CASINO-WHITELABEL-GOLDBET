@@ -671,6 +671,37 @@ export const BOXING_TAB_ORDER = ["Mercati Principali", "Altro"];
 export const BOXING_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === MMA / Arti Marziali ===
+// Survey: 4 market_types in v_player_markets (sport_slug=mma, 136 rows total).
+// T/T 49, Total Rounds 50, U/O 23, Handicap 14. Slugs `arti-marziali` (508
+// events legacy, 0 in v2 today) and `martial-arts` (0 rows, defensive register)
+// both empty in v2 view, but registered for forward-compat. Hero is `T/T`
+// (2-way fight winner). Minimal 2-tab structure mirrors legacy
+// `LIVE_DETAIL_TABS.mma = ["Mercati Principali", "Altro"]`. Method of Victory /
+// Round Betting / Will the Fight Go the Distance / DNB included for forward-compat.
+export const MMA_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                          // hero (2-way fight winner)
+      "Method of Victory",            // forward-compat (KO/Submission/Decision)
+      "Total Rounds@picker",          // surveyed (50 rows)
+      "U/O@picker",                   // surveyed (23 rows) — total rounds O/U
+      "Handicap@picker",              // surveyed (14 rows) — round handicap
+      "Round Betting@picker",         // forward-compat
+      "Will the Fight Go the Distance",
+      "DNB",                          // forward-compat
+    ],
+  },
+  "Altro": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const MMA_TAB_ORDER = ["Mercati Principali", "Altro"];
+
+export const MMA_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -699,6 +730,9 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   boxing: BOXING_TAB_MARKETS_V2,
   boxe: BOXING_TAB_MARKETS_V2,
   pugilato: BOXING_TAB_MARKETS_V2,
+  mma: MMA_TAB_MARKETS_V2,
+  "arti-marziali": MMA_TAB_MARKETS_V2,
+  "martial-arts": MMA_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -726,6 +760,9 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   boxing: BOXING_TAB_ORDER,
   boxe: BOXING_TAB_ORDER,
   pugilato: BOXING_TAB_ORDER,
+  mma: MMA_TAB_ORDER,
+  "arti-marziali": MMA_TAB_ORDER,
+  "martial-arts": MMA_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -753,6 +790,9 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   boxing: BOXING_DEFAULT_SUB_PILL,
   boxe: BOXING_DEFAULT_SUB_PILL,
   pugilato: BOXING_DEFAULT_SUB_PILL,
+  mma: MMA_DEFAULT_SUB_PILL,
+  "arti-marziali": MMA_DEFAULT_SUB_PILL,
+  "martial-arts": MMA_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -1018,7 +1058,42 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "DNB": "Draw No Bet",
     "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
   },
-  // 3 new sports populated by tasks 15-17.
+  mma: {
+    // MMA: 4 market types surveyed (T/T 49, Total Rounds 50, U/O 23, Handicap 14).
+    // T/T is the 2-way fight winner. U/O in MMA context is total rounds O/U.
+    // Handicap is round-handicap (rare). Method of Victory / Round Betting / Will
+    // the Fight Go the Distance / DNB included for forward-compat once classifier
+    // exposes them.
+    "T/T": "Vincente Match",
+    "Method of Victory": "Modo di Vittoria",
+    "Total Rounds": "Totale Round",
+    "U/O": "Totale Round (Under/Over)",
+    "Handicap": "Handicap Round",
+    "Round Betting": "Round di Conclusione",
+    "DNB": "Draw No Bet",
+    "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
+  },
+  "arti-marziali": {
+    "T/T": "Vincente Match",
+    "Method of Victory": "Modo di Vittoria",
+    "Total Rounds": "Totale Round",
+    "U/O": "Totale Round (Under/Over)",
+    "Handicap": "Handicap Round",
+    "Round Betting": "Round di Conclusione",
+    "DNB": "Draw No Bet",
+    "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
+  },
+  "martial-arts": {
+    "T/T": "Vincente Match",
+    "Method of Victory": "Modo di Vittoria",
+    "Total Rounds": "Totale Round",
+    "U/O": "Totale Round (Under/Over)",
+    "Handicap": "Handicap Round",
+    "Round Betting": "Round di Conclusione",
+    "DNB": "Draw No Bet",
+    "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
+  },
+  // 2 new sports populated by tasks 16-17.
 };
 
 export function resolveTitleOverride(
