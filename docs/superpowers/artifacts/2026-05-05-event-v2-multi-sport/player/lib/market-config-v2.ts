@@ -761,6 +761,41 @@ export const AMERICAN_FOOTBALL_TAB_ORDER = ["Mercati Principali", "Quarti", "Pla
 export const AMERICAN_FOOTBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Snooker ===
+// Survey: 1 market_type in v_player_markets (sport_slug=snooker, 3 rows total
+// across 3 events — Tier C very low volume).
+//   T/T 3 (hero, 2-way match winner — "Vincente Match").
+// Skeleton 3-tab structure with forward-compat frame markets. Hero is `T/T`
+// (2-way: only 2 players, no draw possible). Frame Handicap (Handicap@picker)
+// + Frame Total (U/O@picker) forward-compat for whenever bookmakers expose
+// them. "Highest Break" + "DNB" forward-compat. Empty tabs auto-hide so users
+// see only "Mercati Principali" with the live T/T market until Phase 4 dummy
+// seeds widen coverage.
+export const SNOOKER_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                       // hero (2-way match winner) — surveyed 3
+      "Handicap@picker",           // forward-compat (Frame Handicap)
+      "U/O@picker",                // forward-compat (Total Frames)
+      "Highest Break",             // forward-compat
+      "DNB",                       // forward-compat (rarely applicable, kept for symmetry)
+    ],
+  },
+  "U/O Frame": {
+    markets: [
+      "U/O@picker",                // forward-compat (dedicated tab for frame totals once populated)
+    ],
+  },
+  "Altri": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const SNOOKER_TAB_ORDER = ["Mercati Principali", "U/O Frame", "Altri"];
+
+export const SNOOKER_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -794,6 +829,7 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   "martial-arts": MMA_TAB_MARKETS_V2,
   "american-football": AMERICAN_FOOTBALL_TAB_MARKETS_V2,
   "football-americano": AMERICAN_FOOTBALL_TAB_MARKETS_V2,
+  snooker: SNOOKER_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -826,6 +862,7 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   "martial-arts": MMA_TAB_ORDER,
   "american-football": AMERICAN_FOOTBALL_TAB_ORDER,
   "football-americano": AMERICAN_FOOTBALL_TAB_ORDER,
+  snooker: SNOOKER_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -858,6 +895,7 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   "martial-arts": MMA_DEFAULT_SUB_PILL,
   "american-football": AMERICAN_FOOTBALL_DEFAULT_SUB_PILL,
   "football-americano": AMERICAN_FOOTBALL_DEFAULT_SUB_PILL,
+  snooker: SNOOKER_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -1217,7 +1255,17 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "GG/NG": "Entrambe Segnano",
     "DNB": "Draw No Bet",
   },
-  // 1 new sport populated by task 17.
+  snooker: {
+    // Snooker: 1 market type surveyed (T/T 3 — 2-way match winner). Tier C
+    // very low volume, frame-based markets (Frame Handicap, Total Frames,
+    // Highest Break) forward-compat for Phase 4 dummy-data seed expansion.
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap Frame",
+    "U/O": "Totale Frame",
+    "Highest Break": "Break più Alto",
+    "DNB": "Draw No Bet",
+  },
+  // 12 new sports populated (tasks 6-17 complete) — Phase 2 done.
 };
 
 export function resolveTitleOverride(
