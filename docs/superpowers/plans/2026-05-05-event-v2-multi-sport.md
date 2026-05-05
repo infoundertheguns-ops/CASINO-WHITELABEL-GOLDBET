@@ -34,6 +34,53 @@ Expected:
 
 If divergence — investigate before proceeding.
 
+- [ ] **Step 0a-bis: Verify which alias slugs are actually populated**
+
+Spec Section 3 Step 7 lists alias slugs (e.g. esports has 10 aliases). Verify which actually exist in `events.sport.slug` (legacy table — that's what the flag matches against):
+
+```bash
+ssh scraper-vps "
+KEY=\$(grep SUPABASE_SERVICE_ROLE_KEY /root/betssolution-player/.env.local | cut -d= -f2)
+URL=\$(grep NEXT_PUBLIC_SUPABASE_URL /root/betssolution-player/.env.local | cut -d= -f2)
+python3 << 'PY'
+import urllib.request, json, collections, subprocess
+KEY = subprocess.check_output(['bash','-c','grep SUPABASE_SERVICE_ROLE_KEY /root/betssolution-player/.env.local | cut -d= -f2']).decode().strip()
+URL = subprocess.check_output(['bash','-c','grep NEXT_PUBLIC_SUPABASE_URL /root/betssolution-player/.env.local | cut -d= -f2']).decode().strip()
+counter = collections.Counter()
+for offset in range(0, 30000, 1000):
+    req = urllib.request.Request(
+        f'{URL}/rest/v1/events?select=sport_id&order=id.asc',
+        headers={'apikey': KEY, 'Authorization': f'Bearer {KEY}', 'Range': f'{offset}-{offset+999}'}
+    )
+    rows = json.loads(urllib.request.urlopen(req).read())
+    for r in rows: counter[r['sport_id']] += 1
+    if len(rows) < 1000: break
+# Now lookup sport.slug for each sport_id seen
+ids = list(counter.keys())
+req = urllib.request.Request(
+    f'{URL}/rest/v1/sports?select=id,slug&id=in.({\",\".join(map(str,ids))})',
+    headers={'apikey': KEY, 'Authorization': f'Bearer {KEY}'}
+)
+slug_map = {r['id']: r['slug'] for r in json.loads(urllib.request.urlopen(req).read())}
+slug_counter = collections.Counter()
+for sid, n in counter.items():
+    slug_counter[slug_map.get(sid, f'unknown:{sid}')] = n
+for s,n in slug_counter.most_common():
+    print(f'  {s:30s} {n:5d}')
+PY
+"
+```
+
+Document any unpopulated alias slugs from the spec table inline. Final flag value (Phase 5 Task 21) can drop unpopulated aliases without breaking anything (registry registration is harmless dead config), but pruning saves ENV string length.
+
+- [ ] **Step 0a-ter: Note pre-existing tsc baseline errors**
+
+```bash
+ssh scraper-vps "cd /root/betssolution-player && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -20"
+```
+
+Record baseline error count + identifiers (memory mentions a B2 pre-existing error in `resolve-flashscore-id.test.ts:66` from earlier session). Throughout Phase 1-2, after each `tsc` step, the count must equal baseline (no NEW errors introduced).
+
 - [ ] **Step 0b: Create artifacts mirror directory**
 
 ```bash
@@ -165,7 +212,14 @@ function resolveBasketOverride(marketType: string): string | null {
 }
 ```
 
-Delete both. Use `sed -i '/^const BASKET_TITLE_OVERRIDES/,/^};$/d'` or interactive edit (prefer interactive to avoid sed escaping pain — `vim`-style or use the Edit tool over an scp'd copy).
+**DO NOT use `sed` for this — the override values contain object-literal-like syntax and sed range matching is fragile against the closing `};` of the const.**
+
+Recommended approach: scp the file locally, edit with the Edit tool, scp back:
+```bash
+scp "scraper-vps:/root/betssolution-player/app/(kiosk)/event/[eventId]/page-v2.tsx" /tmp/page-v2.tsx
+# Edit tool removes the const and the function precisely
+scp /tmp/page-v2.tsx "scraper-vps:/root/betssolution-player/app/(kiosk)/event/[eventId]/page-v2.tsx"
+```
 
 - [ ] **Step 3d: Replace branch in `titleFor()`**
 
