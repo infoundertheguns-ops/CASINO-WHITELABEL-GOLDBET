@@ -131,13 +131,40 @@ Decisione mechanica per sport (vedi tabella sotto). Hero = mercato prominente in
 | am-football | T/T Match (ML) | 2-way |
 | snooker | T/T Match | 2-way |
 
-### Step 7: Alias DB-slug
-Per sport con alias multipli (volley, rugby, boxing, esports, mma, am-football), registrazione doppia:
+### Step 7: Alias DB-slug + slug events_v2
+Il flag matcha contro `events.sport.slug` (legacy DB-slug, sondato dalla `sports` table). I config registry usano lo stesso slug (verifica empirica durante refactor B). Per sport con alias multipli, registrazione N-volte. Lista concreta degli alias rilevanti dalla `sports` table:
+
+| Sport target | Slug DB attivi nella `sports` table |
+|---|---|
+| baseball | `baseball` |
+| esports | `esports`, `dota`, `dota-2`, `counter-strike`, `valorant`, `league-of-legends`, `rainbow-six`, `call-of-duty`, `honor-of-kings`, `e-basketball` |
+| handball | `pallamano` |
+| ice-hockey | `hockey-ghiaccio` |
+| volleyball | `pallavolo`, `volley` |
+| darts | `freccette` |
+| rugby | `rugby`, `rugby-league`, `rugby-union`, `rugby-sevens` |
+| cricket | `cricket` |
+| boxing | `boxe`, `pugilato` |
+| mma | `mma`, `arti-marziali`, `martial-arts` |
+| am-football | `football-americano` |
+| snooker | `snooker` |
+
+Pattern di registrazione (esempio volleyball):
 ```ts
-TAB_MARKETS_BY_SPORT["volley"]    = VOLLEY_TAB_MARKETS_V2;
-TAB_MARKETS_BY_SPORT["pallavolo"] = VOLLEY_TAB_MARKETS_V2;
+TAB_MARKETS_BY_SPORT["pallavolo"]      = VOLLEY_TAB_MARKETS_V2;
+TAB_MARKETS_BY_SPORT["volley"]         = VOLLEY_TAB_MARKETS_V2;
+TAB_ORDER_BY_SPORT["pallavolo"]        = VOLLEY_TAB_ORDER;
+TAB_ORDER_BY_SPORT["volley"]           = VOLLEY_TAB_ORDER;
+DEFAULT_SUB_PILL_BY_SPORT["pallavolo"] = VOLLEY_DEFAULT_SUB_PILL;
+DEFAULT_SUB_PILL_BY_SPORT["volley"]    = VOLLEY_DEFAULT_SUB_PILL;
+TITLE_OVERRIDES_BY_SPORT["pallavolo"]  = VOLLEY_TITLE_OVERRIDES;
+TITLE_OVERRIDES_BY_SPORT["volley"]     = VOLLEY_TITLE_OVERRIDES;
 ```
-Flag finale include tutti gli alias.
+
+Concrete flag value finale (atteso, refinement in Fase 1 Step 1 quando si verifica quali slug hanno effettivamente eventi):
+```
+NEXT_PUBLIC_NEW_EVENT_PAGE_SPORTS=calcio,tennis,basket,baseball,esports,dota,dota-2,counter-strike,valorant,league-of-legends,rainbow-six,call-of-duty,honor-of-kings,e-basketball,pallamano,hockey-ghiaccio,pallavolo,volley,freccette,rugby,rugby-league,rugby-union,rugby-sevens,cricket,boxe,pugilato,mma,arti-marziali,martial-arts,football-americano,snooker
+```
 
 ## 4. Rollout
 
@@ -155,14 +182,18 @@ Flag finale include tutti gli alias.
 5. Verifica `BUILD_ID` nuovo + service active + `/api/health` 200
 
 ### Fase 3: Seed dummy data (~10min)
-Per sport con volume insufficiente per smoke realistico (am-football 8, snooker 3, e tutti gli altri se il survey rivela copertura market_types incompleta), seed:
+**Threshold dummy data**: seed eventi dummy per ogni sport che soddisfa **almeno una** delle condizioni:
+- (a) `<10 eventi prematch` attualmente in `events_v2` (am-football=8, snooker=3 sicuramente; refresh count in Fase 1)
+- (b) il survey market_types rivela meno del 60% dei tab del config con almeno 1 mercato (es. snooker ha solo 3 eventi e potenzialmente solo 2 market_types coperti su 4 tab)
+
+Per ogni sport che soddisfa il threshold, seed:
 - 1 dummy event per sport via SQL insert in `events_v2` con marker `league_slug = 'QA-DUMMY-<sport>'`, `starts_at = NOW() + INTERVAL '7 days'`, `status = 'prematch'`
 - Markets rappresentativi (10-20 per sport) coprendo i tab del config in `markets_v2`
 - Outcomes plausibili (1.50-3.50 odds range) in `outcomes_v2`
 - Script: `scripts/seed-dummy-sports.sql` (idempotente: `INSERT ... ON CONFLICT DO NOTHING`)
 
 ### Fase 4: Flag flip + re-build (~10min)
-1. Edit `.env.local`: `NEXT_PUBLIC_NEW_EVENT_PAGE_SPORTS=<lista esaustiva 15 sport + alias>`
+1. Edit `.env.local` con il valore concreto enumerato in Sezione 3 Step 7 (eventualmente raffinato in Fase 1 dopo verifica quali alias sono effettivamente popolati)
 2. `npm run build` (NECESSARIO perché `NEXT_PUBLIC_*` è inlined a build time)
 3. Re-deploy steps di Fase 2
 4. Smoke 3 baseline (calcio + tennis + basket) per regressione
