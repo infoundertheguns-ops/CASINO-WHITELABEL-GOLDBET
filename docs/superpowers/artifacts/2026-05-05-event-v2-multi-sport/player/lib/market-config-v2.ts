@@ -603,6 +603,43 @@ export const RUGBY_DEFAULT_SUB_PILL: Record<string, string> = {
 };
 
 
+// === Cricket ===
+// Survey: 6 market_types in v_player_markets (sport_slug=cricket, 204 rows total).
+// T/T 106 (2-way Match Winner — T20/ODI rarely draw, classifier maps Match Winner→T/T),
+// To Win the Toss 37 (binary toss-winner side market), Total Match Runs 21 (total runs O/U,
+// surfaced as fixed bands not @picker since few rows), U/O 20 (generic O/U fallback),
+// Player of the Match 13 (single award market — rendered as compact list, no per-player
+// over/under), DNB 7. NO per-innings markets, NO Top Batsman/Bowler/Highest Opening
+// Partnership in this view, so the Player tab is intentionally OMITTED. Hero is `T/T`
+// (2-way match winner). 3-tab structure: Principali / U/O Runs / Altri. Single alias
+// (`cricket`) — events_v2.sport_slug and legacy events.sport.slug both use this slug.
+export const CRICKET_TAB_MARKETS_V2: SportTabConfig = {
+  "Principali": {
+    markets: [
+      "T/T",                          // hero (2-way match winner, no draw in T20/ODI)
+      "Total Match Runs@picker",
+      "U/O@picker",
+      "To Win the Toss",
+      "Player of the Match",
+      "DNB",
+    ],
+  },
+  "U/O Runs": {
+    markets: [
+      "Total Match Runs@picker",
+      "U/O@picker",
+    ],
+  },
+  "Altri": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const CRICKET_TAB_ORDER = ["Principali", "U/O Runs", "Altri"];
+
+export const CRICKET_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -627,6 +664,7 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   "rugby-union": RUGBY_TAB_MARKETS_V2,
   "rugby-league": RUGBY_TAB_MARKETS_V2,
   "rugby-sevens": RUGBY_TAB_MARKETS_V2,
+  cricket: CRICKET_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -650,6 +688,7 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   "rugby-union": RUGBY_TAB_ORDER,
   "rugby-league": RUGBY_TAB_ORDER,
   "rugby-sevens": RUGBY_TAB_ORDER,
+  cricket: CRICKET_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -673,6 +712,7 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   "rugby-union": RUGBY_DEFAULT_SUB_PILL,
   "rugby-league": RUGBY_DEFAULT_SUB_PILL,
   "rugby-sevens": RUGBY_DEFAULT_SUB_PILL,
+  cricket: CRICKET_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -892,7 +932,24 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Player To Score": "Marcatore Try",
     "Try Scorer": "Marcatore Try",
   },
-  // 5 new sports populated by tasks 13-17.
+  cricket: {
+    // Cricket: 6 market types. T/T is 2-way Match Winner (T20/ODI rarely draw).
+    // Total Match Runs is the canonical total-runs O/U; U/O is the generic O/U
+    // fallback. To Win the Toss is the binary toss-winner side market. Player of
+    // the Match is the single award market (compact list, no per-player O/U).
+    // Top Batsman/Top Bowler/Highest Opening Partnership not surfaced in the view
+    // — translations included for forward-compat if classifier later exposes them.
+    "T/T": "Vincente Match",
+    "Total Match Runs": "Totale Runs Match",
+    "U/O": "Totale Runs",
+    "To Win the Toss": "Vincitore Sorteggio",
+    "Player of the Match": "Giocatore del Match",
+    "DNB": "Draw No Bet",
+    "Top Batsman": "Top Battitore",
+    "Top Bowler": "Top Lanciatore",
+    "Highest Opening Partnership": "Maggiore Partnership Iniziale",
+  },
+  // 4 new sports populated by tasks 14-17.
 };
 
 export function resolveTitleOverride(
