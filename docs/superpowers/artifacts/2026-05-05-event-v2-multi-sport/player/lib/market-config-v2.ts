@@ -320,6 +320,35 @@ export const BASEBALL_TAB_ORDER = ["Principali", "Run Line", "U/O", "Altri"];
 export const BASEBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Esports ===
+// Survey: 3 market_types in v_player_markets (sport_slug=esports).
+// Handicap 1406 (Map Handicap), U/O 717 (Total Maps Over/Under), T/T 533 (Match Winner 2-way).
+// No per-map markets, no player props surfaced. Mirrors legacy LIVE_DETAIL_TABS.eleague
+// minimal 3-tab structure ["Mercati Principali", "Under/Over", "Altro"]. Registered for
+// populated slugs only: esports (26890 events), honor-of-kings (16), rainbow-six (37).
+// Other esports slugs (dota/csgo/valorant/lol/cod/e-basketball) have 0 events in legacy
+// table — fall back to calcio default; can be added later if events appear.
+export const ESPORTS_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                          // hero (2-way match winner, no draw)
+      "Handicap@picker",              // map handicap
+      "U/O@picker",                   // total maps over/under
+    ],
+  },
+  "Under/Over": {
+    markets: ["U/O@picker"],
+  },
+  "Altro": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const ESPORTS_TAB_ORDER = ["Mercati Principali", "Under/Over", "Altro"];
+
+export const ESPORTS_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -328,6 +357,9 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   tennis: TENNIS_TAB_MARKETS_V2,
   basket: BASKET_TAB_MARKETS_V2,
   baseball: BASEBALL_TAB_MARKETS_V2,
+  esports: ESPORTS_TAB_MARKETS_V2,
+  "honor-of-kings": ESPORTS_TAB_MARKETS_V2,
+  "rainbow-six": ESPORTS_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -335,6 +367,9 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   tennis: TENNIS_TAB_ORDER,
   basket: BASKET_TAB_ORDER,
   baseball: BASEBALL_TAB_ORDER,
+  esports: ESPORTS_TAB_ORDER,
+  "honor-of-kings": ESPORTS_TAB_ORDER,
+  "rainbow-six": ESPORTS_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -342,6 +377,9 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   tennis: TENNIS_DEFAULT_SUB_PILL,
   basket: BASKET_DEFAULT_SUB_PILL,
   baseball: BASEBALL_DEFAULT_SUB_PILL,
+  esports: ESPORTS_DEFAULT_SUB_PILL,
+  "honor-of-kings": ESPORTS_DEFAULT_SUB_PILL,
+  "rainbow-six": ESPORTS_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -386,7 +424,24 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "First Team To Score": "Prima Squadra a Segnare",
     "DNB": "Draw No Bet",
   },
-  // 11 new sports populated by tasks 7-17.
+  esports: {
+    // Esports survey: 3 market types only (T/T, Handicap, U/O).
+    // T/T → 2-way match winner; Handicap → map handicap; U/O → total maps over/under.
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap Mappe",
+    "U/O": "Totale Mappe",
+  },
+  "honor-of-kings": {
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap Mappe",
+    "U/O": "Totale Mappe",
+  },
+  "rainbow-six": {
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap Mappe",
+    "U/O": "Totale Mappe",
+  },
+  // 10 new sports populated by tasks 8-17.
 };
 
 export function resolveTitleOverride(
