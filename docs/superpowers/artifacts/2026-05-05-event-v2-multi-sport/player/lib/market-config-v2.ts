@@ -399,6 +399,52 @@ export const HANDBALL_DEFAULT_SUB_PILL: Record<string, string> = {
 };
 
 
+// === Ice-Hockey ===
+// Survey (sport_slug=ice-hockey, 6467 rows, 17 types, ~27 events with v2 data):
+// Gol Tot. TR 2440, Handicap TR 2194, 3-Way 374, Handicap 283, T/T 174, 1X2 TR 159,
+// DC TR 147, GG/NG 143, DNB 103, To Score 2+ Goals 94, Exact Total Goals 79,
+// Player Points Milestones 76, Player Shots 66, Player Assists Milestones 57,
+// To Score 3+ Goals 36, Marcatore 22, Player Props 20.
+// Hero is `1X2 TR` (3-way regular time per mig 167-169). The `TR` suffix = Tempo
+// Regolamentare (excludes overtime/shootout). T/T (2-way) coexists when bookmakers
+// expose moneyline incl. OT. NO per-period market_types surfaced in the view —
+// "Periodi" tab is reserved but auto-hides via empty-tab filter for now.
+// Aliases: ice-hockey (events_v2 slug, 182 events; only this slug populated in
+// v_player_markets) + hockey-ghiaccio (legacy events.sport.slug, 4894 events)
+// registered defensively.
+export const ICE_HOCKEY_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "1X2 TR",                       // hero (3-way regular time)
+      "T/T",                          // 2-way alt (incl. OT)
+      "Gol Tot. TR@picker",
+      "Handicap TR@picker",
+      "DNB",
+      "GG/NG",
+      "DC TR",
+    ],
+  },
+  "Under/Over": {
+    markets: [
+      "Gol Tot. TR@picker",
+      "Exact Total Goals",
+    ],
+  },
+  "Periodi": {
+    // No per-period market_types observed in v_player_markets for ice-hockey;
+    // tab auto-hides via empty-tab filter. Slot reserved for forward-compat.
+    markets: [],
+  },
+  "Altro": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const ICE_HOCKEY_TAB_ORDER = ["Mercati Principali", "Under/Over", "Periodi", "Altro"];
+
+export const ICE_HOCKEY_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -412,6 +458,8 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   "rainbow-six": ESPORTS_TAB_MARKETS_V2,
   handball: HANDBALL_TAB_MARKETS_V2,
   pallamano: HANDBALL_TAB_MARKETS_V2,
+  "ice-hockey": ICE_HOCKEY_TAB_MARKETS_V2,
+  "hockey-ghiaccio": ICE_HOCKEY_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -424,6 +472,8 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   "rainbow-six": ESPORTS_TAB_ORDER,
   handball: HANDBALL_TAB_ORDER,
   pallamano: HANDBALL_TAB_ORDER,
+  "ice-hockey": ICE_HOCKEY_TAB_ORDER,
+  "hockey-ghiaccio": ICE_HOCKEY_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -436,6 +486,8 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   "rainbow-six": ESPORTS_DEFAULT_SUB_PILL,
   handball: HANDBALL_DEFAULT_SUB_PILL,
   pallamano: HANDBALL_DEFAULT_SUB_PILL,
+  "ice-hockey": ICE_HOCKEY_DEFAULT_SUB_PILL,
+  "hockey-ghiaccio": ICE_HOCKEY_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -509,7 +561,29 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "DNB": "Draw No Bet",
     "3-Way Result HT": "1X2 1° Tempo",
   },
-  // 9 new sports populated by tasks 9-17.
+  "ice-hockey": {
+    // Ice-hockey: most market_types use the `TR` (Tempo Regolamentare) suffix
+    // marking regular-time variants. Override anglosaxon labels + clarify TR.
+    "1X2 TR": "Vincente Tempi Regolamentari",
+    "T/T": "Vincente Match (incl. OT)",
+    "Gol Tot. TR": "Totale Gol (Tempi Reg.)",
+    "Handicap TR": "Handicap (Tempi Reg.)",
+    "DC TR": "Doppia Chance (Tempi Reg.)",
+    "DNB": "Draw No Bet",
+    "3-Way": "1X2 (3-Way)",
+    "Exact Total Goals": "Numero Esatto Gol",
+  },
+  "hockey-ghiaccio": {
+    "1X2 TR": "Vincente Tempi Regolamentari",
+    "T/T": "Vincente Match (incl. OT)",
+    "Gol Tot. TR": "Totale Gol (Tempi Reg.)",
+    "Handicap TR": "Handicap (Tempi Reg.)",
+    "DC TR": "Doppia Chance (Tempi Reg.)",
+    "DNB": "Draw No Bet",
+    "3-Way": "1X2 (3-Way)",
+    "Exact Total Goals": "Numero Esatto Gol",
+  },
+  // 8 new sports populated by tasks 10-17.
 };
 
 export function resolveTitleOverride(
