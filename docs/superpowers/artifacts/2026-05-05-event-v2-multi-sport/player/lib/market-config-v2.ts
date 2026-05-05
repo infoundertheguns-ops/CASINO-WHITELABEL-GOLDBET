@@ -702,6 +702,65 @@ export const MMA_TAB_ORDER = ["Mercati Principali", "Altro"];
 export const MMA_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === American Football / Football Americano ===
+// Survey: 8 market_types in v_player_markets (sport_slug=american-football,
+// 721 rows total across 8 events; sport_slug=football-americano 0 rows).
+//   Handicap 497 (Spread), U/O 167 (Total Points), U/O - 1T 37, T/T 8 (hero),
+//   1X2 - 1T 4, ML 1Q 4, Handicap - 1T 2, Touchdown Scorers 2 (player prop seed).
+// Tier C low-volume: skeleton 4-tab structure with forward-compat per-quarter
+// markets. Hero is `T/T` (2-way moneyline winner). Spread@picker dominates so
+// gets dedicated tab. Per-quarter markets (ML 1Q surveyed; ML 2Q/3Q/4Q,
+// Spread 1Q-4Q, U/O 1Q-4Q forward-compat) grouped under "Quarti". Player props
+// (Touchdown Scorers surveyed; Passing Yards / Rushing Yards / Receiving Yards
+// forward-compat) grouped under "Player". Empty tabs auto-hide.
+export const AMERICAN_FOOTBALL_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                       // hero (2-way ML winner) — surveyed 8
+      "Handicap@picker",           // surveyed 497 (Spread)
+      "U/O@picker",                // surveyed 167 (Total Points)
+      "1X2 - 1T",                  // surveyed 4 (1H 3-way w/ tie)
+      "U/O - 1T@picker",           // surveyed 37 (1H Total)
+      "Handicap - 1T@picker",      // surveyed 2 (1H Spread)
+      "GG/NG",                     // forward-compat
+      "DNB",                       // forward-compat
+    ],
+  },
+  "Quarti": {
+    markets: [
+      "ML 1Q",                     // surveyed 4
+      "ML 2Q",                     // forward-compat
+      "ML 3Q",                     // forward-compat
+      "ML 4Q",                     // forward-compat
+      "Handicap 1Q@picker",        // forward-compat
+      "Handicap 2Q@picker",        // forward-compat
+      "Handicap 3Q@picker",        // forward-compat
+      "Handicap 4Q@picker",        // forward-compat
+      "U/O 1Q@picker",             // forward-compat
+      "U/O 2Q@picker",             // forward-compat
+      "U/O 3Q@picker",             // forward-compat
+      "U/O 4Q@picker",             // forward-compat
+    ],
+  },
+  "Player": {
+    markets: [
+      "Touchdown Scorers",         // surveyed 2 (player prop seed)
+      "Passing Yards@picker",      // forward-compat
+      "Rushing Yards@picker",      // forward-compat
+      "Receiving Yards@picker",    // forward-compat
+      "TD Scorer",                 // forward-compat (singular variant)
+    ],
+  },
+  "Altro": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const AMERICAN_FOOTBALL_TAB_ORDER = ["Mercati Principali", "Quarti", "Player", "Altro"];
+
+export const AMERICAN_FOOTBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -733,6 +792,8 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   mma: MMA_TAB_MARKETS_V2,
   "arti-marziali": MMA_TAB_MARKETS_V2,
   "martial-arts": MMA_TAB_MARKETS_V2,
+  "american-football": AMERICAN_FOOTBALL_TAB_MARKETS_V2,
+  "football-americano": AMERICAN_FOOTBALL_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -763,6 +824,8 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   mma: MMA_TAB_ORDER,
   "arti-marziali": MMA_TAB_ORDER,
   "martial-arts": MMA_TAB_ORDER,
+  "american-football": AMERICAN_FOOTBALL_TAB_ORDER,
+  "football-americano": AMERICAN_FOOTBALL_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -793,6 +856,8 @@ export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> =
   mma: MMA_DEFAULT_SUB_PILL,
   "arti-marziali": MMA_DEFAULT_SUB_PILL,
   "martial-arts": MMA_DEFAULT_SUB_PILL,
+  "american-football": AMERICAN_FOOTBALL_DEFAULT_SUB_PILL,
+  "football-americano": AMERICAN_FOOTBALL_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -1093,7 +1158,66 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "DNB": "Draw No Bet",
     "Will the Fight Go the Distance": "Il Match Va Alla Distanza",
   },
-  // 2 new sports populated by tasks 16-17.
+  "american-football": {
+    // American Football: 8 market types surveyed (Handicap 497, U/O 167,
+    // U/O - 1T 37, T/T 8, 1X2 - 1T 4, ML 1Q 4, Handicap - 1T 2,
+    // Touchdown Scorers 2). T/T is 2-way ML winner. Handicap is Spread (Punti).
+    // U/O is Total Points. Per-quarter ML 1Q-4Q + Spread/U-O 1Q-4Q forward-compat.
+    // Player props (yards / TD scorer) forward-compat.
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap (Punti)",
+    "U/O": "Totale Punti",
+    "1X2 - 1T": "1X2 1° Tempo",
+    "U/O - 1T": "Totale Punti 1° Tempo",
+    "Handicap - 1T": "Handicap (Punti) 1° Tempo",
+    "ML 1Q": "Vincente 1° Quarto",
+    "ML 2Q": "Vincente 2° Quarto",
+    "ML 3Q": "Vincente 3° Quarto",
+    "ML 4Q": "Vincente 4° Quarto",
+    "Handicap 1Q": "Handicap 1° Quarto",
+    "Handicap 2Q": "Handicap 2° Quarto",
+    "Handicap 3Q": "Handicap 3° Quarto",
+    "Handicap 4Q": "Handicap 4° Quarto",
+    "U/O 1Q": "Totale Punti 1° Quarto",
+    "U/O 2Q": "Totale Punti 2° Quarto",
+    "U/O 3Q": "Totale Punti 3° Quarto",
+    "U/O 4Q": "Totale Punti 4° Quarto",
+    "Touchdown Scorers": "Marcatori Touchdown",
+    "TD Scorer": "Marcatore Touchdown",
+    "Passing Yards": "Yard Lanciate",
+    "Rushing Yards": "Yard di Corsa",
+    "Receiving Yards": "Yard di Ricezione",
+    "GG/NG": "Entrambe Segnano",
+    "DNB": "Draw No Bet",
+  },
+  "football-americano": {
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap (Punti)",
+    "U/O": "Totale Punti",
+    "1X2 - 1T": "1X2 1° Tempo",
+    "U/O - 1T": "Totale Punti 1° Tempo",
+    "Handicap - 1T": "Handicap (Punti) 1° Tempo",
+    "ML 1Q": "Vincente 1° Quarto",
+    "ML 2Q": "Vincente 2° Quarto",
+    "ML 3Q": "Vincente 3° Quarto",
+    "ML 4Q": "Vincente 4° Quarto",
+    "Handicap 1Q": "Handicap 1° Quarto",
+    "Handicap 2Q": "Handicap 2° Quarto",
+    "Handicap 3Q": "Handicap 3° Quarto",
+    "Handicap 4Q": "Handicap 4° Quarto",
+    "U/O 1Q": "Totale Punti 1° Quarto",
+    "U/O 2Q": "Totale Punti 2° Quarto",
+    "U/O 3Q": "Totale Punti 3° Quarto",
+    "U/O 4Q": "Totale Punti 4° Quarto",
+    "Touchdown Scorers": "Marcatori Touchdown",
+    "TD Scorer": "Marcatore Touchdown",
+    "Passing Yards": "Yard Lanciate",
+    "Rushing Yards": "Yard di Corsa",
+    "Receiving Yards": "Yard di Ricezione",
+    "GG/NG": "Entrambe Segnano",
+    "DNB": "Draw No Bet",
+  },
+  // 1 new sport populated by task 17.
 };
 
 export function resolveTitleOverride(
