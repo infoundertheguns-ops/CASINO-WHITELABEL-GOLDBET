@@ -279,6 +279,47 @@ export const BASKET_DEFAULT_SUB_PILL: Record<string, string> = {
 };
 
 
+// === Baseball ===
+// Survey: 10 market_types in v_player_markets (sport_slug=baseball).
+// Top: Handicap 7679 (Run Line), Run totali 6289 (Totals), 1X2 746, T/T 731,
+// Alternative Run Line 476, GG/NG 277, P/D 217, DNB 181, Total Bases O/U 108,
+// First Team To Score 102. No per-inning markets and no individual player props
+// surfaced in the view, so Innings/Player tabs are intentionally omitted —
+// uncategorized markets fall through to "Altri".
+export const BASEBALL_TAB_MARKETS_V2: SportTabConfig = {
+  "Principali": {
+    markets: [
+      "T/T",                          // hero (2-way moneyline, no draw)
+      "1X2",                          // 3-way when bookmakers expose draw
+      "Run totali@picker",
+      "Handicap@picker",              // Run Line
+      "DNB",
+      "GG/NG",
+      "P/D",
+    ],
+  },
+  "Run Line": {
+    markets: [
+      "Handicap@picker",
+      "Alternative Run Line@picker",
+    ],
+  },
+  "U/O": {
+    markets: [
+      "Run totali@picker",
+      "Total Bases O/U@picker",
+    ],
+  },
+  "Altri": {
+    markets: [],  // catch-all uncategorized (incl. First Team To Score and any new types)
+  },
+};
+
+export const BASEBALL_TAB_ORDER = ["Principali", "Run Line", "U/O", "Altri"];
+
+export const BASEBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -286,18 +327,21 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   calcio: FOOTBALL_TAB_MARKETS_V2,
   tennis: TENNIS_TAB_MARKETS_V2,
   basket: BASKET_TAB_MARKETS_V2,
+  baseball: BASEBALL_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   calcio: FOOTBALL_TAB_ORDER,
   tennis: TENNIS_TAB_ORDER,
   basket: BASKET_TAB_ORDER,
+  baseball: BASEBALL_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
   calcio: FOOTBALL_DEFAULT_SUB_PILL,
   tennis: TENNIS_DEFAULT_SUB_PILL,
   basket: BASKET_DEFAULT_SUB_PILL,
+  baseball: BASEBALL_DEFAULT_SUB_PILL,
 };
 
 export function parseMarketSpec(spec: MarketSpec): { marketType: string; suffix: string | null } {
@@ -332,7 +376,17 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Player First Assist": "Primo Assist",
     "Player First Rebound": "Primo Rimbalzo",
   },
-  // 12 new sports populated by tasks 6-17.
+  baseball: {
+    // Italian-friendly labels for ugly DB market_types. Markets already in
+    // Italian (Handicap, Run totali, GG/NG, P/D) are intentionally untouched.
+    "T/T": "Vincente Match",
+    "Handicap": "Run Line",
+    "Alternative Run Line": "Run Line Alternative",
+    "Total Bases O/U": "Totale Basi (Under/Over)",
+    "First Team To Score": "Prima Squadra a Segnare",
+    "DNB": "Draw No Bet",
+  },
+  // 11 new sports populated by tasks 7-17.
 };
 
 export function resolveTitleOverride(
