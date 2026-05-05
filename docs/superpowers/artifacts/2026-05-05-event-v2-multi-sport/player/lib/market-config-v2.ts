@@ -498,6 +498,43 @@ export const VOLLEYBALL_TAB_ORDER = ["Mercati Principali", "Set", "U/O Punti", "
 export const VOLLEYBALL_DEFAULT_SUB_PILL: Record<string, string> = {};
 
 
+// === Darts ===
+// Survey (sport_slug=darts, 1262 rows, 5 types):
+// Handicap 420 (Set/Leg handicap), Alternative Spread 391, U/O 225 (Total Legs O/U),
+// T/T 131 (Match Winner 2-way), Total Legs 95.
+// Other slug candidates queried (freccette) returned 0 rows in v_player_markets,
+// but legacy events.sport.slug uses `freccette` (1037 events) so register both
+// defensively. Hero is `T/T` (2-way match winner — darts has no draw outcome).
+// Mirrors legacy LIVE_DETAIL_TABS.darts 3-tab structure
+// ["Mercati Principali", "Set/Leg", "Altro"]. The set/leg distinction is implicit
+// in DB market_type names (Total Legs explicit; U/O is set-based). Per-set/per-leg
+// markets (e.g. "Most 180s", "Highest Checkout") not yet surfaced in the view —
+// "Set/Leg" tab auto-hides via empty filter when all member markets are missing.
+export const DARTS_TAB_MARKETS_V2: SportTabConfig = {
+  "Mercati Principali": {
+    markets: [
+      "T/T",                          // hero (2-way match winner)
+      "Handicap@picker",
+      "U/O@picker",
+      "DNB",
+    ],
+  },
+  "Set/Leg": {
+    markets: [
+      "Total Legs@picker",
+      "Alternative Spread@picker",
+    ],
+  },
+  "Altro": {
+    markets: [],  // catch-all uncategorized
+  },
+};
+
+export const DARTS_TAB_ORDER = ["Mercati Principali", "Set/Leg", "Altro"];
+
+export const DARTS_DEFAULT_SUB_PILL: Record<string, string> = {};
+
+
 // Per-sport lookup maps. Defaults fall back to calcio so an unconfigured sport_slug
 // still renders something (the availableTabs filter then strips empty tabs, leaving
 // at most Altri with all markets visible).
@@ -516,6 +553,8 @@ export const TAB_MARKETS_BY_SPORT: Record<string, SportTabConfig> = {
   volleyball: VOLLEYBALL_TAB_MARKETS_V2,
   volley: VOLLEYBALL_TAB_MARKETS_V2,
   pallavolo: VOLLEYBALL_TAB_MARKETS_V2,
+  darts: DARTS_TAB_MARKETS_V2,
+  freccette: DARTS_TAB_MARKETS_V2,
 };
 
 export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
@@ -533,6 +572,8 @@ export const TAB_ORDER_BY_SPORT: Record<string, string[]> = {
   volleyball: VOLLEYBALL_TAB_ORDER,
   volley: VOLLEYBALL_TAB_ORDER,
   pallavolo: VOLLEYBALL_TAB_ORDER,
+  darts: DARTS_TAB_ORDER,
+  freccette: DARTS_TAB_ORDER,
 };
 
 export const DEFAULT_SUB_PILL_BY_SPORT: Record<string, Record<string, string>> = {
@@ -680,7 +721,27 @@ export const TITLE_OVERRIDES_BY_SPORT: Record<string, Record<string, string>> = 
     "Handicap": "Handicap Set",
     "DNB": "Draw No Bet",
   },
-  // 7 new sports populated by tasks 11-17.
+  darts: {
+    // Darts: 5 market types (T/T, Handicap, Alternative Spread, U/O, Total Legs).
+    // Most labels are anglosaxon — translate to IT-friendly equivalents. Handicap
+    // and U/O are leg-based in darts (sets are matches of legs), Total Legs is the
+    // explicit total-legs O/U variant.
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap Leg",
+    "Alternative Spread": "Handicap Leg Alternativo",
+    "U/O": "Totale Leg",
+    "Total Legs": "Totale Leg (Esatto)",
+    "DNB": "Draw No Bet",
+  },
+  freccette: {
+    "T/T": "Vincente Match",
+    "Handicap": "Handicap Leg",
+    "Alternative Spread": "Handicap Leg Alternativo",
+    "U/O": "Totale Leg",
+    "Total Legs": "Totale Leg (Esatto)",
+    "DNB": "Draw No Bet",
+  },
+  // 6 new sports populated by tasks 12-17.
 };
 
 export function resolveTitleOverride(
