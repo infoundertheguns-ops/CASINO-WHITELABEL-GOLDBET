@@ -41,6 +41,9 @@
 
 **Files:**
 - Create: `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/RUNBOOK.md` (header + baseline section only)
+- Create: `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/__tests__/` directory tree (empty, for mirrors in T1+)
+
+**Note on duplicate baselines**: T0 captures a *sanity-check* baseline now (early sighting of by_sport ratios in case anything looks dramatically off). T6 captures the *authoritative* baseline immediately before service restart, used for success-criteria comparison. The T0 capture is intentionally *not* the comparison reference — production traffic between T0 and deploy will shift the numbers slightly.
 
 - [ ] **Step 1: Capture /stats baseline from VPS**
 
@@ -80,11 +83,18 @@ Captured immediately before B1.A deploy, used as the comparison reference for su
 [paste table from hidden markets query]
 ```
 
-- [ ] **Step 4: Commit baseline**
+- [ ] **Step 4: Create mirror directory tree (so subsequent commits don't fail)**
 
 ```bash
-git add docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/{RUNBOOK.md,baseline-stats.json}
-git commit -m "fs-id B1.A T0: baseline stats + RUNBOOK skeleton"
+mkdir -p docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/__tests__
+touch docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/.gitkeep
+```
+
+- [ ] **Step 5: Commit baseline + skeleton**
+
+```bash
+git add docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/
+git commit -m "fs-id B1.A T0: baseline stats + RUNBOOK skeleton + mirror dir"
 ```
 
 ---
@@ -352,8 +362,13 @@ export function matchTeams(a: NormalizedTeam, b: NormalizedTeam): boolean {
   if (a.key.length === 0 || b.key.length === 0) return false;
   if (!setsEqual(a.reserveMarkers, b.reserveMarkers)) return false;
   if (a.key === b.key) return true;
-  // Stage 3: subset on discriminating tokens — use union of both sides' reserve sets
-  // for the filter, since we already verified reserve sets are equal.
+  // Stage 3: subset on discriminating tokens. We use a.reserveMarkers (== b.reserveMarkers
+  // by Stage 1 gate) instead of a module-level RESERVE_MARKERS set. Behavior equivalence
+  // depends on the constraint that any sport-specific RESERVE_MARKERS_BY_SPORT[X] entries
+  // ≥ DISCRIMINATING_MIN_LEN (4 chars) must always also appear in normalizeTeam's tokens
+  // when the team string contains them — which is true since reserveMarkers are populated
+  // from `tokens` in normalizeTeam itself. If B1.B adds tennis reserve markers with len≥4,
+  // ensure they pass through tokenize (i.e. are not on the per-sport NOISE list).
   const reserve = a.reserveMarkers;
   const aDisc = new Set(a.tokens.filter((t) => t.length >= DISCRIMINATING_MIN_LEN && !reserve.has(t)));
   const bDisc = new Set(b.tokens.filter((t) => t.length >= DISCRIMINATING_MIN_LEN && !reserve.has(t)));
@@ -382,7 +397,7 @@ function isSubset<T>(a: Set<T>, b: Set<T>): boolean {
 ```bash
 cd flashscore-scraper && pnpm vitest run src/__tests__/normalize.test.ts
 ```
-Expected: All 22 existing tests + 1 new = 23 PASS.
+Expected: All existing tests + 1 new regression test PASS. The current `normalize.test.ts` mirror contains ~36 individual `it(...)` cases across 8 describe blocks (basic + Eastern European + alias + reserve markers + Stage 2 strict eq loop + Stage 3 + Stage 1 mismatch + edge cases). Exact count varies — anything ≥ pre-refactor count + 1 is acceptable; what matters is **zero regressions** on existing cases.
 
 - [ ] **Step 5: Commit**
 
@@ -502,7 +517,7 @@ Expected: 3 new tests FAIL (tennis test → 404 because 10min applied; sample te
 
 - [ ] **Step 3: Modify search.ts**
 
-Apply this diff to `flashscore-scraper/src/search.ts`:
+Apply this diff to `flashscore-scraper/src/search.ts`. **Preserve all existing exports**: `searchEvent` (this is the rewrite below), `searchCache` (unchanged), `dayOffsetFromIso` (unchanged — used by tests), `SearchResult` and `SearchInput` types (unchanged). The `// ... unchanged ...` comments below are guidelines for the reader; the implementer must keep the actual code in those gaps verbatim from v2.
 
 ```ts
 import { fetchResultsFeed } from "./flashscore-client.js";
@@ -916,6 +931,13 @@ If smoke green: proceed to T7.
 
 **Files:**
 - Update: `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/RUNBOOK.md`
+
+**Executor handoff guidance**: Task 7 has a long wait window (60-120 min) that should NOT block a subagent or executor session. After T6 deploy completes successfully, the executor should:
+1. Record T6 commit + push,
+2. Tell the orchestrator "B1.A deployed, exiting for wait window — resume T7 after ≥60 min",
+3. Exit cleanly without polling.
+
+The orchestrator (or a `ScheduleWakeup`-driven follow-up session) re-enters the workflow at T7 Step 1 onwards. The wait is *real wall-clock time for production traffic accumulation*, not a polling gap to fill.
 
 - [ ] **Step 1: Wait 60-120 minutes**
 
