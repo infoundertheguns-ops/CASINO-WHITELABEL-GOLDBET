@@ -50,7 +50,12 @@ const NOISE_TOKENS_BY_SPORT: Record<string, Set<string>> = {
 
 const RESERVE_MARKERS_BY_SPORT: Record<string, Set<string>> = {
   _default: _DEFAULT_RESERVE,
-  // tennis, baseball populated in B1.B if needed
+  // Tennis intentionally NOT overridden: b/c collisions handled at the NOISE
+  // layer instead (see _TENNIS_NOISE rationale above). Empty override would
+  // also work but loses visibility of the b/c stripping in token-introspection
+  // tests and stack traces. Baseball intentionally NOT overridden either —
+  // captured samples show failures are FS coverage gaps (minor league/college),
+  // not reserve-marker collisions.
 };
 
 function noiseFor(slug: string): Set<string> {
