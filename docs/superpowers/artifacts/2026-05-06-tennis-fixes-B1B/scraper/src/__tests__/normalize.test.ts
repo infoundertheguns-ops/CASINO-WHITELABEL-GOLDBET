@@ -245,4 +245,22 @@ describe("normalizeTeam — tennis (B1.B comma + paren + NOISE)", () => {
     expect(r.tokens).toContain("li");
     expect(r.tokens).toContain("na");
   });
+
+  // Token-introspection tests — lock the NOISE_TOKENS_BY_SPORT.tennis
+  // contract directly. Without these, a missing _TENNIS_NOISE Set still
+  // passes the matchTeams-outcome tests above because q1/wc are 2-3 chars
+  // and below DISCRIMINATING_MIN_LEN=4 → silently excluded from Stage 3
+  // anyway. The assertions here verify the NOISE filter actually fires.
+  it("tennis NOISE strips Q1 from tokens (not just below disc-min)", () => {
+    const r = normalizeTeam("Korda S Q1", "tennis");
+    expect(r.tokens).not.toContain("q1");
+    expect(r.tokens).toContain("korda");
+  });
+
+  it("Q1 NOT stripped for football (per-sport NOISE isolation)", () => {
+    // This locks the per-sport contract: football falls back to _default
+    // NOISE which does NOT contain q1, so the token survives.
+    const r = normalizeTeam("Team Q1", "football");
+    expect(r.tokens).toContain("q1");
+  });
 });
