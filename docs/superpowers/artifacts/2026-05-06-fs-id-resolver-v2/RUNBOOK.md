@@ -117,3 +117,59 @@ Affected services on deploy:
 - `odds-api-ingester.service` (rebuild + restart for resolver call-site / sport_id mapping changes)
 
 Frontend stays on whatever `NEXT_PUBLIC_READ_FROM_V2` is currently set to (live: `true`). New fs_ids populate `events_v2.flashscore_id` directly; the player app reads it on next request. No bundle change, no SSR cache invalidation needed.
+
+## T1 — Sport ID corrections
+
+Deployed 2026-05-06 ~13:11 UTC. Single restart of `flashscore-scraper.service`. Mirrored to `scraper/{config.json,src/sport-id-map.json,src/search.ts}` for git tracking.
+
+### Changes applied
+
+| File | Pre | Post |
+|------|-----|------|
+| `config.json` (push-loop "sports" array) | baseball=11, pallamano=6, futsal absent | baseball=6, pallamano=7, futsal=11 added |
+| `src/sport-id-map.json` (search-endpoint slug→id) | baseball=11, handball=6, futsal absent, no "pallamano" alias | baseball=6, handball=7, pallamano=7, futsal=11 added |
+| `src/search.ts` SPORT_NAMES (cosmetic log labels) | 6=Handball, 11=Baseball | 6=Baseball, 7=Handball, 11=Futsal added |
+
+Backups on VPS: `/root/flashscore-scraper/{config.json,src/sport-id-map.json,src/search.ts}.bak-prefix-T1-1778073018`.
+
+### Sanity gates
+
+- vitest: 19/19 pass (unchanged) — no test logic touched yet (T2 territory).
+- systemctl: pre-restart `active (running)` PID 3065580 (5 days uptime); post-restart `active (running)` PID 1167535, `/health` reports `{"ok":true,"uptime_sec":20+}`. No errors in `journalctl -n 10` post-restart.
+
+### Smoke probes
+
+| # | Sport | League | Home | Away | HTTP | Result |
+|---|-------|--------|------|------|------|--------|
+| Manual | baseball | MLB | Philadelphia Phillies | Athletics | **200** | matchId `jNdAe5JO`, viaDayOffset=2 |
+| MLB-1 | baseball | USA-MLB | Tampa Bay Rays | Toronto Blue Jays | **200** | matchId `Uu2LwkB5`, viaDayOffset=0 |
+| MLB-2 | baseball | USA-MLB | St. Louis Cardinals | Milwaukee Brewers | 404 | no_match (likely T3 normalize territory) |
+| MLB-3 | baseball | USA-MLB | Houston Astros | Los Angeles Dodgers | **200** | matchId `UP1XghrK`, viaDayOffset=0 |
+| Minor-1 | baseball | Eastern League | Harrisburg Senators | Erie Seawolves | 404 | no_match (minor league — weak FS coverage) |
+| Minor-2 | baseball | Eastern League | Chesapeake Baysox | Altoona Curve | 404 | no_match (minor league) |
+| Minor-3 | baseball | Triple-A | Worcester Red Sox | Scranton/Wilkes-Barre Railriders | 404 | no_match (minor league) |
+| Hand-1 | handball | Russia Superliga | Dinamo Astrakhan | Sgau-Saratov | 404 | no_match (T3 normalize) |
+| Hand-2 | handball | Estonia Esiliiga | HC Polva | HC Tallas 2 | 404 | no_match (T3 normalize) |
+| Hand-3 | handball | Norway 1. Div Women | HK Rygge | Fyllingen | 404 | no_match (T3 normalize) |
+
+**Headline result**: 3/4 MLB (top-tier) baseball probes return matchIds. Pre-T1 these would have hit sport_id=11 (futsal feed) → guaranteed 0% match. The fix takes effect.
+
+Minor-league baseball + handball remain at 0% — expected per plan (handball needs T3 normalize for non-Latin/Cyrillic team names; lower-tier baseball needs FS coverage which doesn't exist for some affiliates). Not a regression and not a blocker — T3 will re-test after normalize lands.
+
+### Audit decision
+
+Pre-T1 audit (T0) confirmed 0 cross-canonical false positives. After T1 deploy, no new fs_ids have been written yet (only `/search` requests probed; `Upserter.maybeResolveFsId` runs on each ingester tick, T2-T4 will follow before next backfill). No cleanup needed.
+
+### Coverage delta (probe-level proxy, pre vs. post-T1)
+
+Direct DB coverage hasn't changed yet (no resolver call has populated rows post-restart in this 5-min window). The right delta is **probe success rate**:
+- baseball pre-T1: 0% match (sport_id=11 → wrong feed). Today: 3/4 = **75%** on MLB probes.
+- handball pre-T1: 0% match (sport_id=6 → wrong feed). Today: 0/3 — sport_id is now correct (=7) but team-name normalization (T3) blocks all 3 Eastern European league probes.
+
+T6 will measure DB-level coverage after T2-T5 land and the backfill v2 sweeps.
+
+### Commits
+
+- `2a3e435` — mirror config.json + sport-id-map.json + search.ts to artifacts
+- `this commit` — RUNBOOK.md T1 section
+
