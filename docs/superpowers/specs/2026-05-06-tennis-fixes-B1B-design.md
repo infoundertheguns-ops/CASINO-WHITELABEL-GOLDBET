@@ -139,8 +139,12 @@ const NOISE_TOKENS_BY_SPORT: Record<string, Set<string>> = {
 
 ### Why no behavior changes for football/baseball/etc
 
-- The tokenize regex change is GLOBAL (affects all sports). But the additions only matter for inputs containing `,` or `()` — football team names captured in 36 existing tests don't have these. Defensive: regression test confirms zero behavior change on existing fixtures.
-- The NOISE map change is per-sport. Only `noiseFor("tennis")` returns the new tokens. Other sports continue to use `_default`. Football tokens explicitly verified unchanged.
+- The tokenize regex change is GLOBAL (affects all sports). But the additions only matter for inputs containing `,` or `()` — none of the 36 existing normalize.test.ts football fixtures contain those characters. The regression check IS the existing 36 tests continuing to pass; no separate audit is performed.
+- The NOISE map change is per-sport. Only `noiseFor("tennis")` returns the new tokens. Other sports continue to use `_default`. The 36 existing tests all use `"football"` slug → exercise `_default` path → output unchanged.
+
+### Cross-Set invariant note (matchTeams Stage 3)
+
+The B1.A T2 `matchTeams` Stage 3 filter uses `a.reserveMarkers` (the team's own reserve markers) instead of a module-level RESERVE set. The B1.A T2 inline comment notes this is safe under the constraint "any sport-specific RESERVE_MARKERS_BY_SPORT[X] entries ≥ DISCRIMINATING_MIN_LEN must always also appear in normalizeTeam's tokens (i.e. not on the per-sport NOISE list)". B1.B introduces NO new tennis RESERVE markers (the tennis RESERVE slot stays at `_default`), so this invariant is trivially preserved. The 8 new tennis NOISE tokens are all <= 4 chars (`qualifier` is len 9 but it's a NOISE token, not a RESERVE marker — different concern entirely).
 
 ### Match algorithm (Stage 1/2/3) — unchanged
 
@@ -235,10 +239,11 @@ it("Sinner J. matches Sinner, Jannik", ...)        // reverse direction
 
 **Comma-format negative tests** (2 tests):
 ```ts
-it("Sabalenka, Aryna does NOT match Sabalenka, Iga", () => {
-  // different first names → still distinct
-  const a = normalizeTeam("Sabalenka, Aryna", "tennis");
-  const b = normalizeTeam("Sabalenka, Iga", "tennis");
+it("Korda, Sebastian does NOT match Korda, Petr", () => {
+  // both first names ≥ 4 chars → both are discriminating tokens; subset
+  // match must NOT collapse father/son players sharing surname
+  const a = normalizeTeam("Korda, Sebastian", "tennis");
+  const b = normalizeTeam("Korda, Petr", "tennis");
   expect(matchTeams(a, b)).toBe(false);
 });
 it("Sabalenka, A does NOT match Pegula, A", ...)  // same first initial, different surname
@@ -250,17 +255,25 @@ it("Sinner J. (ITA) matches Sinner Jannik", ...)
 it("Alcaraz C. (ESP) matches Alcaraz Carlos", ...)
 ```
 
-**Tennis NOISE token tests** (2 tests):
+**Tennis NOISE token tests** (3 tests — 2 positive + 1 negative regression guard):
 ```ts
 it("Korda S. (Q1) matches Korda Sebastian (qualifier marker stripped)", ...)
 it("Maric F. WC matches Maric Filip (wildcard marker stripped)", ...)
+it("Li N. tokens preserve 'li' (2-char Chinese surname NOT in NOISE)", () => {
+  // Regression guard: future maintainer must NOT add common 2-char tokens to
+  // tennis NOISE without checking surname collision risk. "li" is a real
+  // surname for many Asian players (Na Li, etc.). This test locks the intent.
+  const r = normalizeTeam("Li, Na", "tennis");
+  expect(r.tokens).toContain("li");
+  expect(r.tokens).toContain("na");
+});
 ```
 
 ### Regression coverage
 
 The 60 existing tests (5 cache + 6 sample-collector + 37 normalize incl B1.A regression + 12 search) MUST continue to pass with zero changes. The `tokenize` regex modifications are global but operate only on input characters that don't appear in football/basketball test fixtures. The regression test from B1.A T2 (tennis-falls-back-to-default) STILL passes because tennis now has its own NOISE list — the test explicitly compares tennis vs football for inputs without comma/paren, where both produce identical output.
 
-**Total tests post-B1.B**: 60 existing + 12 new = **72 tests**.
+**Total tests post-B1.B**: 60 existing + 13 new = **73 tests** (6 positive comma + 2 negative comma + 2 paren + 3 NOISE).
 
 ## Deploy plan (B1.B)
 
@@ -308,6 +321,7 @@ The B1.A artifact mirror at `docs/superpowers/artifacts/2026-05-06-tennis-fixes-
 | Tests pass | 72/72 green | `vitest run` on VPS |
 | Type check | 0 errors | `tsc --noEmit` on VPS |
 | /stats by_sport.tennis.ok / total | **≥ 5%** at T+30 (hard target); **≥ 3%** (soft min for ship) | `/stats` |
+|  Threshold derivation: 0.59% B1.A baseline × ~10× recovery factor (since 54.7% comma + 5.2% multi-word = ~60% of failures targeted by fix) gives ~5.9% expected upper bound. 5% hard target = 85% of theoretical max; 3% soft = 50% of theoretical max (allows for noise/partial coverage). | | |
 | /stats/samples residual pattern | post-fix `Surname, Firstname` should drop from 54.7% to ≤20% of unique residual samples | `/stats/samples?sport=tennis&reason=name_mismatch&limit=200` analysis |
 | Football ok rate | ≥ T-0-B1.B baseline | `/stats by_sport.football` |
 | Basketball ok rate | ≥ T-0-B1.B baseline | idem |
@@ -327,7 +341,7 @@ None at this writing. The fix is data-grounded (94 unique samples confirm comma 
 | File | Action | LoC delta |
 |------|--------|-----------|
 | `flashscore-scraper/src/normalize.ts` | modify | +12 (tokenize regex + tennis NOISE Set) |
-| `flashscore-scraper/src/__tests__/normalize.test.ts` | extend | +60 (1 describe, 12 tests) |
+| `flashscore-scraper/src/__tests__/normalize.test.ts` | extend | +65 (1 describe, 13 tests) |
 | `docs/superpowers/specs/2026-05-06-tennis-fixes-B1B-design.md` | NEW (this file) | — |
 | `docs/superpowers/plans/2026-05-06-tennis-fixes-B1B.md` | NEW (next step) | — |
 | `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1B/RUNBOOK.md` | NEW (during impl) | — |
