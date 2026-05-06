@@ -173,3 +173,77 @@ T6 will measure DB-level coverage after T2-T5 land and the backfill v2 sweeps.
 - `2a3e435` — mirror config.json + sport-id-map.json + search.ts to artifacts
 - `this commit` — RUNBOOK.md T1 section
 
+
+## T2 — normalize.ts TDD: failing tests
+
+Mirrored 2026-05-06 (single commit `5e58a7a` per task list). Wrote 36 vitest cases covering: basic normalization, Eastern European prefix stripping, alias dictionary lookup, reserve-marker capture, and `matchTeams` Stage 1/2/3 behaviour. Pre-T3 baseline: **24 failed, 22 passed** out of 46 (cache 5 + normalize 36 + search 5).
+
+Mirror only — no production changes. Service untouched.
+
+## T3 — normalize.ts rewrite (token-based)
+
+Deployed 2026-05-06 ~13:27 UTC. Single restart of `flashscore-scraper.service`. Mirrored to `scraper/src/{normalize.ts, search.ts, __tests__/search.test.ts}`.
+
+### Changes applied
+
+| File | Pre | Post |
+|------|-----|------|
+| `src/normalize.ts` | 22 LoC, regex-based suffix strip, `normalizeTeam: string -> string`, `matchTeams: (string,string) -> boolean` | 86 LoC, token-based, `normalizeTeam: -> NormalizedTeam {tokens, key, reserveMarkers}`, `matchTeams` 3-stage (reserve guard / strict eq / discriminating subset) |
+| `src/search.ts` | calls `normalizeTeam` (treated opaquely; `matchTeams` consumes them) | unchanged at the source level (new return type flows via inference; tsc clean) |
+| `src/__tests__/search.test.ts` | mocks `normalize.js` is NOT done (uses real module) | unchanged; tests still pass without mock changes |
+
+`NOISE_TOKENS` (30 entries):
+- Generic affixes: `fc/ac/cf/sc/sk/ss/ssc/usl/calcio/afc/cfc/usd`
+- Eastern European prefixes (from discovery): `gks/kkp/kf/fk/mfk/ks/bk/ofk/zsk/nk/hnk/gnk/ffk/fck/rfk`
+- Women's marker: `d` (FS appends to women's club names)
+- Filler: `club/team/sport/sports`
+
+`RESERVE_MARKERS` (preserved separately so `Roma` ≠ `Roma B`):
+`ii/iii/b/c/u17/u19/u20/u21/u23/2/3/youth/academy/reserves`
+
+`matchTeams` 3-stage:
+1. Reserve marker mismatch → hard fail (e.g. `Roma` ≠ `Roma B`).
+2. Strict eq on canonical key → match (fast path; covers all post-prefix-strip exact matches).
+3. Subset on discriminating tokens (length ≥ 4, non-reserve) → match (handles city-qualifier divergence: `Shkendija Tetovo` ↔ `Shkendija`).
+
+Backups on VPS: `/root/flashscore-scraper/src/{normalize.ts,search.ts}.bak-T3-1778073900`.
+
+### Sanity gates
+
+- vitest: **46/46 pass** (cache 5 + normalize 36 + search 5). Was 22/46 pre-T3.
+- tsc --noEmit: **0 errors** (NormalizedTeam type flows through search.ts via inference; no call-site change needed).
+- systemctl: pre-restart PID 1167535; post-restart PID 1178126, `/health` reports `{ok:true,uptime_sec:5+}`. No errors in journalctl.
+
+### Smoke probes (T3 — football discovery cases)
+
+| # | Home | Away | Time UTC | HTTP | Result |
+|---|------|------|----------|------|--------|
+| F-1 | GKS Katowice | KKP Stomilanki Olsztyn | 2026-05-06T13:00 | 404 | no_match (FS feed has 0 candidates within ±10min — game not on FS today) |
+| F-2 | FC Prishtina | Prishtina E Re | 2026-05-06T13:00 | 404 | no_match (FS feed has 0 candidates within ±10min — Kosovan league not tracked today) |
+| F-3 | AS Muhanga | Rayon Sports FC | 2026-05-06T13:00 | 404 | no_match (FS feed has 0 candidates within ±10min — Rwandan league not tracked today) |
+| F-4 | KF Shkendija Haracine | Shkendija Tetovo | 2026-05-06T14:00 | **200** | matchId `StvqC7KG`, viaDayOffset=0 — Stage 3 subset matching (city qualifier divergence) |
+| F-5 | FC Dinamo City | FK Vora | 2026-05-06T14:00 | 404 | no_match — FS has `Din. Tirana vs Vora` at 14:00 (away matches; home `dinamo city` ≠ `din tirana` — alias problem, not normalize) |
+
+**Headline result**: 1/5 = 200 (was 0/5 pre-T3). The successful F-4 case proves Stage 3 subset matching (city qualifier divergence) works. The remaining 4 break down as:
+- F-1, F-2, F-3 (3/5): legitimate `no_match` — verified via direct FS feed dump that no candidate fixtures exist within ±10min for those slots/sports today. Not a normalize issue.
+- F-5 (1/5): FS has the away team match (`vora`) but the home team name on FS (`Din. Tirana`) is a different label for what the odds-api calls `Dinamo City`. This is an **alias-dictionary problem**, not a normalize problem. Adding `football:dinamo city` → `tirana` (or a separate alias entry) would resolve it.
+
+The 1/5 is below the optimistic 3/5 plan estimate, but the actual signal is correct: where FS HAS the game, normalize now finds it. The other failures are not normalize-fixable — they need FS feed data to exist (3/5) or alias entries (1/5). Improvement vs all-404 baseline confirmed.
+
+Cross-checked diagnosis via `probe-fs2.mjs` (in /tmp on VPS):
+- F-1/F-2/F-3: filter candidates within ±10min returns 6 fixtures, none related to those teams/leagues. No normalize tweak helps.
+- F-4: 21 candidates within ±10min, exactly one matches `[HA]` → `Shkendija Haracine vs Shkendija` → resolved.
+- F-5: 21 candidates within ±10min, exactly one matches `[.A]` (away `vora` only). Home label divergence is alias work, not normalize.
+
+### Coverage delta (probe-level proxy, pre vs. post-T3)
+
+- Football discovery cases pre-T3: 0/5 (regex strip didn't handle multi-token prefixes, no Stage 3 subset).
+- Football discovery cases post-T3: 1/5 (Shkendija subset case fixed).
+- Other 4 are non-normalize bottlenecks (3 absent from FS feed, 1 alias divergence).
+
+T6 will measure DB-level coverage after T4 (telemetry tags) and T5 (backfill v2) land.
+
+### Commits
+
+- `<this commit>` — mirror normalize.ts + search.ts + search.test.ts to artifacts
+- `<next commit>` — RUNBOOK.md T2 + T3 sections
