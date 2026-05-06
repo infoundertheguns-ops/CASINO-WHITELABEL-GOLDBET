@@ -19,6 +19,52 @@
 
 ---
 
+## Working environment (READ FIRST)
+
+`flashscore-scraper` is **NOT a local directory**. The actual source lives on `scraper-vps` at `~/flashscore-scraper/`. The local repo only contains a *partial* mirror at `docs/superpowers/artifacts/<date>-<topic>/scraper/` (just `src/` + `config.json` — no `package.json`, `node_modules`, `parser.ts`, etc).
+
+**SSH config**: `scraper-vps` is configured in `~/.ssh/config` (HostName 46.225.222.33, User root, IdentityFile ~/.ssh/id_ed25519, ForwardAgent yes). Tested working without password prompt.
+
+**Local toolchain**: `node v24` is available; `pnpm` is NOT installed locally. All `pnpm vitest`, `pnpm tsc`, `pnpm build` commands MUST run on `scraper-vps` via ssh.
+
+**Working environment setup (T1 first step)**:
+
+```bash
+# Sync remote source to a local working directory (excludes node_modules/dist)
+mkdir -p /tmp/flashscore-scraper-work
+rsync -avz --delete \
+  --exclude node_modules --exclude dist --exclude '.git' --exclude 'src/*.bak*' \
+  scraper-vps:~/flashscore-scraper/ /tmp/flashscore-scraper-work/
+
+# This local working copy gives you read access to all transitive files (parser.ts,
+# cache.ts, types.ts, package.json, tsconfig.json) so you can write tests that
+# reference real exports. You edit ONLY files within `src/` and `src/__tests__/`
+# in this working dir.
+```
+
+**Per-task edit/test cycle**:
+
+```bash
+# 1. Edit locally in /tmp/flashscore-scraper-work/src/...
+# 2. Push the modified files to VPS:
+scp /tmp/flashscore-scraper-work/src/<changed-files> \
+    scraper-vps:~/flashscore-scraper/src/
+# 3. Run tests on VPS:
+ssh scraper-vps "cd ~/flashscore-scraper && pnpm vitest run src/__tests__/<test-file> 2>&1"
+# 4. On green, copy the final files into the artifacts mirror and commit (mirror
+#    is what lives in git; the local /tmp/ working copy is throwaway):
+cp /tmp/flashscore-scraper-work/src/<changed-files> \
+   docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/
+git add docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/
+git commit -m "..."
+```
+
+**Plan-text path convention**: when the plan says "modify `flashscore-scraper/src/normalize.ts`", interpret as **`/tmp/flashscore-scraper-work/src/normalize.ts`** (your local working file) and **mirror to `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/normalize.ts`** for git history. The test paths (`flashscore-scraper/src/__tests__/...`) map identically.
+
+**T6 deploy step** (later): the scp at deploy is from the **mirror**, not from `/tmp/` — the mirror is the source-of-truth committed to git.
+
+---
+
 ## File Structure
 
 | File | Action | Responsibility |
