@@ -171,6 +171,8 @@ function tolFor(slug: string): number {
 
 Replace single constant `TIME_TOLERANCE_SEC` lookups inside `searchEvent` with `tolFor(input.sportSlug)`.
 
+**Symmetric expansion**: tolerance applies as `Math.abs(f.timestamp - eventTs) <= tolFor(slug)` — same predicate as today, only the threshold is sport-aware. ±20min for tennis/baseball means events scheduled up to 20min before *or* after the bookmaker's announced start are accepted candidates. Asymmetric expansion is *not* part of this design.
+
 ### Per-sport NOISE/RESERVE scaffold (normalize.ts)
 
 ```ts
@@ -224,7 +226,7 @@ if (reason !== "feed_empty") {
 return { status: 404, body: { error: "no_match", reason } };
 ```
 
-`lastInWindow` is the `inWindow` accumulator from the last day-offset iteration (we keep a reference; today it's a per-iteration local). Zero impact on the success path.
+`lastInWindow` mechanism — explicit choice: **declare a `let lastInWindow: FlashscoreFixture[] = []` before the day-offset loop and reassign each iteration with the current iteration's `inWindow` array (overwrite, not accumulate)**. Rationale: the existing loop returns `200` from inside the loop on first match, so we only reach the trailing 404 branch when all offsets exhausted. The "last" iteration's window is the most temporally relevant for sample diagnosis (closest to query date). Accumulating across offsets would inflate `fs_candidates` with day±1 fixtures that the matcher already considered and rejected by `time_window_miss`. Zero impact on the success path.
 
 ## Error handling
 
@@ -283,16 +285,27 @@ Total new+extended: 10 tests. With existing 5 tests from v2: 15 unit tests in sc
 
 ## Rollback
 
-Hard trigger: `/stats by_sport.tennis.ok` strictly *lower* than baseline (currently 1.0%, ~29 ok / 2895 total). Allowing the failed deploy to run risks producing more `time_window_miss → name_mismatch` reclassifications that pollute samples we'll later mine in B1.B.
+Hard trigger: `/stats by_sport.tennis.ok` strictly *lower* than baseline snapshot. **Baseline is sampled immediately pre-deploy** by curling `/stats` on the running scraper — not the table values in this spec, which were taken during the v2 deploy and may have drifted as traffic continued. The plan must include a "T-0 baseline capture" step before the restart.
 
-Steps:
+Allowing a failed deploy to run risks producing reclassified misses that pollute samples we'll later mine in B1.B.
+
+Steps (`flashscore-scraper` is **non-git** on the VPS — git stash is inapplicable):
 ```bash
-ssh scraper-vps "cd ~/flashscore-scraper && git stash && pnpm build && systemctl restart flashscore-scraper.service"
+# Reverse-scp from prior-good mirror back into ~/flashscore-scraper/src/
+scp docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/src/normalize.ts \
+    docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/src/search.ts \
+    docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/src/server.ts \
+    scraper-vps:~/flashscore-scraper/src/
+ssh scraper-vps "rm -f ~/flashscore-scraper/src/sample-collector.ts \
+                       ~/flashscore-scraper/src/__tests__/sample-collector.test.ts && \
+                cd ~/flashscore-scraper && pnpm build && systemctl restart flashscore-scraper.service"
 ```
 
-If git is dirty, restore from artifacts mirror via reverse `scp`. The mirror in `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/` contains the post-deploy state; the previous-good state is mirror at `docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/`.
+The "previous-good" state is the v2 mirror at `docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/`. Post-rollback verification: `curl /stats` should show no `samples` endpoint (404) and pre-B1.A by_sport counters resuming.
 
 ## Success criteria — B1.A
+
+**T-0 baseline capture** required before deploy: `curl -H "x-api-key: $K" localhost:8090/stats > baseline.json` on scraper-vps. All "vs baseline" comparisons below use this captured snapshot, not the table numbers in the Problem section.
 
 | Criterion | Threshold | Source |
 |-----------|-----------|--------|
@@ -301,9 +314,9 @@ If git is dirty, restore from artifacts mirror via reverse `scp`. The mirror in 
 | `/stats/samples` endpoint live | 200 with array shape | curl post-deploy |
 | Sample accumulation tennis (1-2h) | ≥100 `name_mismatch` records | `/stats/samples?sport=tennis&reason=name_mismatch&limit=200` |
 | Sample accumulation baseball (1-2h) | ≥30 records (any reason) | `/stats/samples?sport=baseball&limit=100` |
-| Tennis time-window improvement | `no_match_time / total` strictly lower vs baseline 28% | `/stats by_sport.tennis` |
-| No `ok` regression | `tennis.ok` ≥ baseline 1.0% | `/stats by_sport.tennis` |
-| Memory delta | scraper RSS ≤ +5MB post-deploy | `ps aux | grep flashscore` |
+| Tennis time-window improvement | `tennis.no_match_time / tennis.total` strictly lower vs T-0 baseline | `/stats by_sport.tennis` compared to baseline.json |
+| No `ok` regression | `tennis.ok / tennis.total` ≥ T-0 baseline ratio | idem |
+| Memory delta | scraper RSS ≤ +5MB post-deploy | `ps aux \| grep flashscore` |
 | Sample collector no-throw | 0 `console.warn` from collector in 1h logs | `journalctl -u flashscore-scraper` |
 
 If criteria 4 and 5 met → enter B1.B. Otherwise extend wait window or investigate why traffic is low.
