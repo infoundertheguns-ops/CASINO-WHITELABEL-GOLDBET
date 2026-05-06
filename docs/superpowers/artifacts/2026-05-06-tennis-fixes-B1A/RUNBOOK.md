@@ -101,9 +101,98 @@ NOTE: all VPS files have already been scp'd during the subagent dev cycle (each 
 
 **Backup of pre-B1.A v2 state**: VPS has `~/flashscore-scraper/src/normalize.ts.bak-T3-1778073900` (preserved from FS-id v2 deploy) — additional rollback safety beyond the artifact mirror at `docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/`.
 
-## Deploy log
+## Deploy log (T6)
 
-[populated by T6]
+### T-0 baseline (re-captured immediately pre-deploy)
+
+Source: `baseline-stats-T0-deploy.json` (this directory). Captured ~30s before service restart.
+
+Post-T5 mirror sync state on VPS — md5 confirmed before restart:
+```
+b5585287dba38e581fd8beb3afba1516  src/sample-collector.ts
+89cf976b697ecc247eac514d899cb9c4  src/normalize.ts
+d8390c8b7ee6eaaafe688f91a89d0461  src/search.ts
+f39c14a3231594522344fb22f2b43ecd  src/server.ts
+02858324558c7936c7b7779d3cbb5fa3  src/cache.ts
+```
+
+T-0 by_sport (authoritative for success criteria):
+```
+uptime_sec: 25256 (~7h since v2 deploy yesterday)
+search_requests_total: 66389
+| Sport      | ok  | feed_empty | time | name  | total | ok rate |
+|------------|----:|-----------:|-----:|------:|------:|--------:|
+| football   | 425 | 1237       | 1750 | 18938 | 22350 | 1.90%   |
+| basketball |  72 |  289       | 2404 |  2445 |  5210 | 1.38%   |
+| tennis     | 126 | 1092       | 6788 | 14427 | 22433 | 0.56%   |
+| baseball   |  37 |  217       | 1560 |  1543 |  3357 | 1.10%   |
+| handball   |  38 |  250       | 1271 |  1008 |  2567 | 1.48%   |
+```
+Tennis remains worst-performing sport. Tennis no_match_time 6788 (30% of tennis reqs) is the time-window expansion target.
+
+### Deploy timestamp
+
+Service restart: `2026-05-06 20:40:53 UTC`
+PID before: 1184549 (started 2026-05-06 13:39:34 UTC, +7h uptime)
+PID after: 1312509
+
+### Restart log
+
+```
+● flashscore-scraper.service - Flashscore Feed Scraper
+     Active: active (running) since Wed 2026-05-06 20:40:53 UTC
+   Main PID: 1312509 (node)
+      Tasks: 23 (limit: 75295)
+     Memory: 67.0M (max: 500.0M; tsx cold-start peak)
+     CGroup: /system.slice/flashscore-scraper.service
+             ├─1312509 node ./node_modules/.bin/tsx src/index.ts
+             └─1312522 tsx loader subprocess
+```
+
+No `dist/` artifacts — service runs `tsx src/index.ts` directly (TypeScript runtime, no build step). Previous-version code unloaded with PID 1184549.
+
+### Smoke results (post-restart, all PASS)
+
+| Probe | Got | Expected | Pass |
+|-------|-----|----------|------|
+| `/stats` (no_param) | counters reset, uptime_sec=25 | reset | ✅ |
+| `/stats/samples` (no sport) | `{"error":"missing_param","param":"sport"}` | 400 missing_param | ✅ |
+| `/stats/samples?sport=tennis&limit=5` | 200, count=5, samples populated | 200 array | ✅ |
+| `/stats/samples?sport=tennis&reason=invalid` | 200, reason="all", samples populated | 200 with all | ✅ |
+| `/stats/samples` (no x-api-key header) | `{"error":"unauthorized"}` (401) | 401 | ✅ |
+
+### Sample collection rate (first 25 seconds)
+
+Tennis samples accumulated: **42 in 25 seconds** = ~100 samples/min projected. Far exceeds the 60min target of ≥100 — likely to saturate the 500/sport ring buffer within ~5 minutes of T6.
+
+### Memory delta
+
+| Metric | Pre-deploy | Post-deploy | Delta |
+|--------|-----------:|------------:|------:|
+| RSS (KB) | 53356 | 53408 | +52 KB |
+| MemoryCurrent (cgroup) | ~138MB | 78MB | -60MB (cold-start cleanup) |
+
+Well under the spec threshold of +5MB RSS delta.
+
+### Sample-collector warning count
+
+Zero `[sample-collector]` console.warn lines in `journalctl -u flashscore-scraper.service` since T+0. (Search path never throws into the collector.)
+
+### Discovery: `fs_candidates: []` on most samples
+
+All 42 captured tennis samples have `fs_candidates: []` even when `reason === "name_mismatch"`. Cause: `lastInWindow` hoist holds the LAST iteration's window (`base-1` offset). For most tennis events the FS data is at `base+0` or `base+1` and matches happen there, but if no match (name_mismatch), `lastInWindow` gets overwritten by `base-1`'s typically-empty in-window — losing the relevant candidates.
+
+This is the exact issue flagged by the T3 code-reviewer (Important #2 + #3). It does NOT block B1.A — the *query strings* alone (e.g. `"Heide, Gustavo"` vs `"Tabilo, Alejandro"`) reveal the dominant tennis name pattern: **bookmaker uses `Surname, Firstname` format**, vs FS's likely `Firstname Surname` or `Surname F.` format. This is exactly the kind of pattern B1.B will encode in tennis-specific NOISE/normalize logic.
+
+For B1.B planning: the lastInWindow choice should switch to "store the inWindow with smallest min(|ts_diff_sec|)" or "log the day-fixture closest to event time" before B1.B mining starts in earnest. Sample query strings alone are sufficient for the immediate name-pattern mining; FS candidates would be additive.
+
+### Decision: PROCEED to T7 wait window
+
+All success criteria met or trivially met. No regressions. Move forward to 1-2h sample accumulation, then validate end-of-window criteria.
+
+## Post-window validation (T+60 to T+120 min)
+
+[populated by T7]
 
 ## Post-window validation (T+60 to T+120 min)
 
