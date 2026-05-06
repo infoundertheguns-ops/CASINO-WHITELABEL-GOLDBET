@@ -55,7 +55,10 @@ async function fetchAndCache(sportId: number, dayOffset: number): Promise<Flashs
 
 export type SearchResult =
   | { status: 200; body: { matchId: string; matchedHome: string; matchedAway: string; viaDayOffset: number } }
-  | { status: 400 | 404 | 409 | 503; body: Record<string, unknown> };
+  | { status: 400; body: { error: "unknown_sport"; sport_slug: string } }
+  | { status: 404; body: { error: "no_match"; reason: "feed_empty" | "time_window_miss" | "name_mismatch" } }
+  | { status: 409; body: { error: "ambiguous"; candidates: Array<{ matchId: string; home: string; away: string }> } }
+  | { status: 503; body: { error: "flashscore_unavailable" } };
 
 export interface SearchInput {
   sportSlug: string;
@@ -75,6 +78,9 @@ export async function searchEvent(input: SearchInput): Promise<SearchResult> {
   const homeNorm = normalizeTeam(input.home, input.sportSlug);
   const awayNorm = normalizeTeam(input.away, input.sportSlug);
 
+  let anyFixturesLoaded = false;
+  let anyInTimeWindow = false;
+
   for (const off of offsets) {
     let fixtures: FlashscoreFixture[];
     try {
@@ -82,9 +88,12 @@ export async function searchEvent(input: SearchInput): Promise<SearchResult> {
     } catch {
       return { status: 503, body: { error: "flashscore_unavailable" } };
     }
+    if (fixtures.length > 0) anyFixturesLoaded = true;
 
-    const matches = fixtures.filter((f) => {
-      if (Math.abs(f.timestamp - eventTs) > TIME_TOLERANCE_SEC) return false;
+    const inWindow = fixtures.filter((f) => Math.abs(f.timestamp - eventTs) <= TIME_TOLERANCE_SEC);
+    if (inWindow.length > 0) anyInTimeWindow = true;
+
+    const matches = inWindow.filter((f) => {
       const hN = normalizeTeam(f.homeTeam, input.sportSlug);
       const aN = normalizeTeam(f.awayTeam, input.sportSlug);
       return matchTeams(homeNorm, hN) && matchTeams(awayNorm, aN);
@@ -112,7 +121,11 @@ export async function searchEvent(input: SearchInput): Promise<SearchResult> {
     }
   }
 
-  return { status: 404, body: { error: "no_match" } };
+  const reason: "feed_empty" | "time_window_miss" | "name_mismatch" =
+    !anyFixturesLoaded ? "feed_empty"
+    : !anyInTimeWindow ? "time_window_miss"
+    : "name_mismatch";
+  return { status: 404, body: { error: "no_match", reason } };
 }
 
 export const searchCache = cache;
