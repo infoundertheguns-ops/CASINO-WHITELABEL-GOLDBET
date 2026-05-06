@@ -49,6 +49,7 @@
     "fase3-files",
     "fase-fix-v2",
     "vitest.config.ts",
-    "tests"
+    "tests",
+    "docs"
   ]
 }
