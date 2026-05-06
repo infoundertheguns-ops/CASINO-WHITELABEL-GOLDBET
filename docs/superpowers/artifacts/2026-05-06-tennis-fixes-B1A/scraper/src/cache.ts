@@ -26,8 +26,12 @@ export class TtlCache<T> {
     this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs });
   }
 
-  /** Clear all entries. Used in tests to prevent cross-test cache pollution. */
-  clear(): void { this.store.clear(); }
+  /** Clear all entries and reset counters. Used in tests to prevent cross-test cache pollution. */
+  clear(): void {
+    this.store.clear();
+    this.hitCount = 0;
+    this.missCount = 0;
+  }
 
   size(): number { return this.store.size; }
   hits(): number { return this.hitCount; }
