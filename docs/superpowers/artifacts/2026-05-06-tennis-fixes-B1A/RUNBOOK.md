@@ -45,13 +45,61 @@ by_sport (selected, full data in baseline-stats.json):
 - **Football no_match_name=17596** is huge but proportionally smaller (football has many more searches). Most likely lower-division/friendlies that FS doesn't cover at all (will surface as `feed_empty` after future fixes).
 - darts/boxing/mma have name_mismatch but baseline 0 ok — sport_id mappings missing (B2 scope).
 
-## Pre-deploy validation (local)
+## Pre-deploy validation (T5)
 
-[populated by T5]
+All implementation work complete via subagent-driven-development. Per-task summary:
+
+| Task | Action | Commit | Tests | Notes |
+|------|--------|--------|------:|-------|
+| T0 | Baseline + RUNBOOK skeleton + mirror dir | `4c87fce` | — | Tennis ok rate degraded 1.0%→0.42% since v2; tennis no_match_time=6070 dominates |
+| T1 | SampleCollector ring buffer 500/sport + 6 tests | `1c3f5fc` | 6/6 | Approved 1st iter on both reviews |
+| T2 | normalize.ts per-sport NOISE/RESERVE scaffold | `1477551` | 37/37 (incl regression) | Byte-identical behavior verified |
+| T3 | search.ts time tolerance + sample hook + lastInWindow hoist | `b113e44` | 60/60 | +cache.ts `clear()` for test isolation |
+| T3.fu | TtlCache.clear() resets hit/miss counters | `baf553e` | 60/60 | Reviewer Important #1 fix |
+| T4 | GET /stats/samples endpoint behind x-api-key | `9785d7d` | 60/60 | Smoke verified all 4 endpoint branches |
+
+Final state: **4 test files, 60 tests passing on VPS, tsc --noEmit 0 errors.**
+
+```
+✓ src/__tests__/cache.test.ts (5 tests) 4ms
+✓ src/__tests__/sample-collector.test.ts (6 tests) 6ms
+✓ src/__tests__/normalize.test.ts (37 tests) 9ms
+✓ src/__tests__/search.test.ts (12 tests) 25ms
+Test Files  4 passed (4)
+     Tests  60 passed (60)
+```
+
+### Reviewer concerns deferred to B1.B planning
+- T3 Important #2: `lastInWindow` logs "most-recent" offset, not "most-relevant". Spec choice — flag B1.B brainstorm whether to switch to closest-by-`|ts_diff|`.
+- T3 Important #3: `fs_candidates: []` on `time_window_miss` (no FS in window by definition). Flag B1.B whether to fall back to top-N closest fixtures across the day for tolerance-mining purposes.
+
+### Reviewer concerns deferred to Bundle B4 (operational hygiene)
+- T4 Important I1: tighten `getSamples(reason: string | undefined)` to `getSamples(reason: FailedSample["reason"] | undefined)` for compile-time safety at call sites.
+- T4 Important I2: defend against array-form repeated query params (`?sport=a&sport=b`) — current code returns 200 with `sport: [...]` echo.
 
 ## Pre-deploy file inventory (mirror → scraper-vps)
 
-[populated by T5]
+Files to scp from mirror to `scraper-vps:~/flashscore-scraper/src/`:
+
+| Source | Destination | Type |
+|--------|-------------|------|
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/sample-collector.ts` | `~/flashscore-scraper/src/sample-collector.ts` | NEW |
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/normalize.ts` | `~/flashscore-scraper/src/normalize.ts` | MODIFY |
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/search.ts` | `~/flashscore-scraper/src/search.ts` | MODIFY |
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/server.ts` | `~/flashscore-scraper/src/server.ts` | MODIFY |
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/cache.ts` | `~/flashscore-scraper/src/cache.ts` | MODIFY (test infra: `clear()` method) |
+
+Files to scp to `~/flashscore-scraper/src/__tests__/`:
+
+| Source | Destination | Type |
+|--------|-------------|------|
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/__tests__/sample-collector.test.ts` | `~/flashscore-scraper/src/__tests__/sample-collector.test.ts` | NEW |
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/__tests__/normalize.test.ts` | `~/flashscore-scraper/src/__tests__/normalize.test.ts` | MODIFY (+1 regression test) |
+| `docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1A/scraper/src/__tests__/search.test.ts` | `~/flashscore-scraper/src/__tests__/search.test.ts` | MODIFY (+4 tests) |
+
+NOTE: all VPS files have already been scp'd during the subagent dev cycle (each subagent test-on-VPS step kept VPS in sync). T6 will re-confirm + run authoritative deploy build/restart.
+
+**Backup of pre-B1.A v2 state**: VPS has `~/flashscore-scraper/src/normalize.ts.bak-T3-1778073900` (preserved from FS-id v2 deploy) — additional rollback safety beyond the artifact mirror at `docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/scraper/`.
 
 ## Deploy log
 
