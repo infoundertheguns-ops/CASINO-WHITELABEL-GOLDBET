@@ -240,18 +240,23 @@ describe("normalizeTeam — tennis (B1.B comma + paren + NOISE)", () => {
 });
 ```
 
-- [ ] **Step 3: scp test file to VPS and run — verify all 13 NEW tests fail**
+- [ ] **Step 3: scp test file to VPS and run full suite — verify expected fail count**
 
 ```bash
 scp /tmp/flashscore-scraper-work/src/__tests__/normalize.test.ts scraper-vps:~/flashscore-scraper/src/__tests__/
-ssh scraper-vps "source /root/.nvm/nvm.sh && cd ~/flashscore-scraper && ./node_modules/.bin/vitest run src/__tests__/normalize.test.ts 2>&1 | tail -30"
+ssh scraper-vps "source /root/.nvm/nvm.sh && cd ~/flashscore-scraper && ./node_modules/.bin/vitest run 2>&1 | tail -30"
 ```
 
 Expected:
-- 60 existing tests still PASS (37 normalize + the cache/sample-collector/search ones if vitest runs the whole file).
-- 13 new tests in the new describe block FAIL. The most likely failure mode: the `Sabalenka, Aryna matches Sabalenka A.` test (and similar comma tests) returns `false` because `tokenize` doesn't split on comma. Failure messages will look like `expected false to be true` for positive tests; the 2 negative tests + the `Li, Na tokens` test may pass coincidentally pre-fix (the negatives are guards, not regressions).
+- 60 pre-existing tests still PASS (5 cache + 6 sample-collector + 37 normalize + 12 search) — these don't depend on the new tests.
+- Among the 13 NEW tests in the new describe block: **~10 FAIL, ~3 PASS-COINCIDENTALLY**:
+  - 8 positive tests (6 comma + 2 paren) → ALL FAIL pre-fix (comma still attached to tokens; parens not stripped). Failure messages will look like `expected false to be true`.
+  - 2 NOISE positive tests (Korda Q1, Maric WC) → FAIL pre-fix because tennis NOISE list is empty.
+  - 2 negative tests (Korda Sebastian/Petr, Sabalenka/Pegula) → PASS coincidentally even pre-fix because surnames differ in discriminating tokens.
+  - 1 regression-guard test (Li, Na tokens) → PASS pre-fix (no NOISE tennis entries means li/na pass through unchanged).
+- Net expected: **70 PASS / 3 FAIL** before fix. (Hedge on the math: actual count may vary by ±1 depending on subtle Stage 3 edge interactions — what matters is the comma-positive tests definitively FAIL.)
 
-Either way: **do NOT proceed to Step 4 until you've confirmed the comma-positive tests fail**. If they unexpectedly pass, the working copy may be out of date with current normalize.ts state — investigate before continuing.
+**Sanity gate**: do NOT proceed to Task 2 until you've confirmed at least the 6 comma-positive tests are failing. If they unexpectedly pass, the working copy may be stale — refresh from VPS via the tar command and retry.
 
 - [ ] **Step 4: Commit failing tests as TDD checkpoint**
 
@@ -292,7 +297,7 @@ In `/tmp/flashscore-scraper-work/src/normalize.ts`, find the `tokenize` function
 .split(/[\s\-/&,]+/)
 ```
 
-That's it for Modification A — 1 character added to strip regex (`(`+`)` collapsed into one regex char-class addition), 1 character (`,`) added to split regex.
+That's it for Modification A — 2 characters added to strip regex (`(` and `)`), 1 character (`,`) added to split regex.
 
 - [ ] **Step 2: Apply Modification B — populate NOISE_TOKENS_BY_SPORT.tennis**
 
@@ -524,13 +529,14 @@ ssh scraper-vps "curl -s -H 'x-api-key: 9da2486093af1366d92024f4cf311ceee9365902
 
 - [ ] **Step 3: Compute success criteria deltas**
 
-Compare `post-window-stats.json` to `baseline-stats-T0.json`:
+Compare `post-window-stats.json` to `baseline-stats-T0.json`. **Note on counter semantics**: T-0 baseline counters reflect cumulative traffic since the last service restart (likely many hours of pre-deploy uptime → averaged behavior). T+30 counters reset to zero at deploy and accumulate only 30 min of post-fix traffic. The **rates** (ok%, time%, name%) remain valid for comparison since each is normalized to its own total. Absolute counter deltas are not meaningful (compare ratios, not raw counts).
 
 ```bash
 python3 << 'EOF'
 import json
 b = json.load(open('docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1B/baseline-stats-T0.json'))
 p = json.load(open('docs/superpowers/artifacts/2026-05-06-tennis-fixes-B1B/post-window-stats.json'))
+print(f"NOTE: T-0 counters cumulative pre-deploy ({b['uptime_sec']}s uptime); T+30 counters since restart ({p['uptime_sec']}s uptime). Compare RATES, not raw totals.\n")
 
 def share(c):
     total = sum(c.values())
