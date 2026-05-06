@@ -161,9 +161,12 @@ cd /root/betssolution-admin && /root/.nvm/versions/node/v22.22.1/bin/node script
 cat /tmp/audit.txt"
 ```
 
-**Decision rule**: if "Cross-canonical FALSE POSITIVES" returns 0 rows for all sports, **no cleanup needed** (corrupt records dormant). If any sport has >0, add a cleanup migration in a follow-up task before T1 deploy.
+**Decision rule** (concrete thresholds):
+- **0 cross-canonical false positives** → no cleanup needed (records dormant). Proceed to T1.
+- **1-49 events** → log + skip cleanup (impact negligible vs. effort; flag in RUNBOOK as known residual).
+- **≥50 events** → write a cleanup SQL migration `NULL`ing the corrupt rows BEFORE deploying T1, to prevent step 2 (canonical_chain) of the resolver returning wrong FS-ids on the first ingester run post-fix.
 
-Append result to RUNBOOK.
+Append result + decision to RUNBOOK.
 
 - [ ] **Step 4: Cleanup temp scripts + commit RUNBOOK section 0**
 
@@ -171,7 +174,12 @@ Append result to RUNBOOK.
 ssh scraper-vps "rm -f /root/betssolution-admin/scripts/db/_tmp-baseline.mjs /root/betssolution-admin/scripts/db/_tmp-audit.mjs"
 ```
 
-Then create RUNBOOK locally (you, the agent), populate with the BEFORE metrics + audit findings, scp to VPS:
+Then create RUNBOOK locally (you, the agent), populate with:
+- BEFORE metrics from steps 1-2
+- Audit findings + cleanup decision from step 3
+- **Scope note**: "This change touches `flashscore-scraper` and `services/odds-api-ingester` only. **No `betssolution-player` rebuild required.** No frontend / kiosk impact. The `.env.local` symlink footgun in `.next/standalone/` does NOT apply here."
+
+scp to VPS:
 
 ```bash
 scp /tmp/RUNBOOK.md scraper-vps:/root/betssolution-admin/docs/superpowers/artifacts/2026-05-06-fs-id-resolver-v2/RUNBOOK.md
@@ -325,13 +333,22 @@ ssh scraper-vps "cd /root/flashscore-scraper && PATH=/root/.nvm/versions/node/v2
 
 Expected: `Test Files 3 passed (3), Tests 19 passed (19)`. (No tests touch SPORT_NAMES/config.json/sport-id-map.json directly.)
 
-- [ ] **Step 6: Restart flashscore-scraper service**
+- [ ] **Step 6: Restart flashscore-scraper service (with pre+post status check)**
 
+Pre-restart capture (sanity — confirm service was running before):
 ```bash
-ssh scraper-vps "systemctl restart flashscore-scraper && sleep 5 && systemctl status flashscore-scraper --no-pager | head -10 && curl -sS http://127.0.0.1:8090/health"
+ssh scraper-vps "systemctl status flashscore-scraper --no-pager | head -20"
+```
+Expected: `Active: active (running)` with main PID present.
+
+Restart + post-check:
+```bash
+ssh scraper-vps "systemctl restart flashscore-scraper && sleep 5 && systemctl status flashscore-scraper --no-pager | head -20 && echo '---' && curl -sS http://127.0.0.1:8090/health"
 ```
 
-Expected: `Active: active (running)`, `{"ok":true,"uptime_sec":<small>}`.
+Expected: `Active: active (running)` with NEW main PID, recent start timestamp, no errors in last 5 lines, `{"ok":true,"uptime_sec":<small>}` from /health.
+
+If status shows `failed` or `activating (auto-restart)`, check logs: `journalctl -u flashscore-scraper -n 50 --no-pager`. Do NOT proceed to step 7 until status is stable for 10s.
 
 - [ ] **Step 7: Smoke test — known MLB matchup should now resolve**
 
@@ -738,15 +755,23 @@ ssh scraper-vps "cd /root/flashscore-scraper && PATH=/root/.nvm/versions/node/v2
 
 Expected: ALL tests pass (~28-32 tests across describe blocks, depending on count). If any fail, debug — DO NOT proceed until green.
 
-- [ ] **Step 5: Run full test suite (cache + normalize + search)**
+- [ ] **Step 5: Run full test suite (cache + normalize + search) — fix search.test.ts mocks if broken**
 
 ```bash
-ssh scraper-vps "cd /root/flashscore-scraper && PATH=/root/.nvm/versions/node/v22.22.1/bin:\$PATH npx vitest run 2>&1 | tail -15"
+ssh scraper-vps "cd /root/flashscore-scraper && PATH=/root/.nvm/versions/node/v22.22.1/bin:\$PATH npx vitest run 2>&1 | tail -25"
 ```
 
-Expected: ALL tests pass. The `search.test.ts` tests use mocks of `normalizeTeam` results — verify they still align with the new `NormalizedTeam` shape. If the mocks return `string`, they will fail and you must update them.
+Expected: ALL tests pass.
 
-If `search.test.ts` mocks need updating: edit only the mock return values from `string` to `{ tokens: [...], key: "...", reserveMarkers: new Set() }`. Do NOT change test logic.
+**Sub-step 5a (only if search.test.ts tests fail)**: the existing 5 tests in `search.test.ts` use `vi.mock` for `normalizeTeam`/`matchTeams` returning the OLD `string` shape. Update those mock return values:
+- Wherever a mock returns a `string` (e.g. `"team-name"`), replace with a `NormalizedTeam` literal: `{ tokens: ["team","name"], key: "team name", reserveMarkers: new Set() }`
+- Use the actual normalized tokens for the mock (lowercase + diacritics-stripped + non-NOISE)
+- Do NOT change test logic / assertions / structure
+- Do NOT change `matchTeams` mock return values (they're booleans)
+
+After mock updates, re-run vitest and confirm green.
+
+If you encounter an existing search.test.ts mock that's hard to update without changing logic, document the deviation in RUNBOOK and proceed (we'll address in a fast-follow if needed). Goal is GREEN test suite, not perfect mocks.
 
 - [ ] **Step 6: Restart flashscore-scraper**
 
@@ -1025,7 +1050,9 @@ Expected: `{ uptime_sec, search_requests_total, cache_hits, cache_misses, cache_
 ssh scraper-vps "sleep 300 && curl -sS -H 'X-API-Key: 9da2486093af1366d92024f4cf311ceee93659020a6d1c95' http://127.0.0.1:8090/stats | python3 -m json.tool"
 ```
 
-Expected: `by_sport` has entries for sports the ingester is calling (probably football + at least one other). Each sport entry has counters.
+Expected: `by_sport` has entries for high-traffic sports (football certainly; basketball/tennis likely). The shape of each sport entry: `{ ok, no_match_feed_empty, no_match_time, no_match_name, ambiguous, unavailable, unknown_sport }`.
+
+**Note on low-traffic sports**: volley, darts, snooker, MMA, boxing, cricket may not appear in `by_sport` after 5min — the ingester's tier scheduler hits them at 30min/1h cadence (per memory: ~92% saturation of 5000/h Pro tier). Their absence is **not a failure**; only football/baseball/basketball/tennis are expected guaranteed within the 5min window. The full population will surface during the T6 backfill run (which calls ALL sports).
 
 - [ ] **Step 8: Mirror to admin artifacts and commit**
 
@@ -1307,9 +1334,9 @@ ssh scraper-vps "curl -sS -H 'X-API-Key: 9da2486093af1366d92024f4cf311ceee936590
 
 Check `by_sport.baseball.ok > 0` (the critical sanity check).
 
-- [ ] **Step 4: Verify success criteria**
+- [ ] **Step 4: Verify success criteria + decide ship/iterate**
 
-Compare BEFORE vs AFTER. Each criterion below must pass; if not, document in RUNBOOK and decide rollback per spec.
+Compare BEFORE vs AFTER. Fill in:
 
 | Criterion | Threshold | Actual? |
 |---|---|---|
@@ -1319,6 +1346,20 @@ Compare BEFORE vs AFTER. Each criterion below must pass; if not, document in RUN
 | Baseball coverage ≥ 85% | from 0% | ___ |
 | /stats by_sport.baseball.ok > 0 | from 0 | ___ |
 | Zero regression on basket/tennis | unchanged or up | ___ |
+
+**Decision tree** (if criteria fall short):
+
+| Outcome | Action |
+|---|---|
+| **All pass** | Ship — proceed to step 5 (RUNBOOK + commit) |
+| **Global fs-id 70-74%** (just shy) | Ship anyway — diminishing returns, capture in RUNBOOK as known. The Phase 1.5 filter does its job; remaining ~5% may simply not be on FS. |
+| **Global fs-id <70%** | Investigate via /stats by_sport breakdown. If `name_mismatch` dominates → iterate normalize.ts (NOISE_TOKENS / RESERVE_MARKERS extension based on a 50-event sample of unresolved). If `feed_empty` dominates → genuine FS coverage gap, document and skip. |
+| **Football 80-89%** | Ship — same logic, residual is hard cases (lower divisions, friendlies). |
+| **Football <80%** | Sample 50 unresolved football events, classify failures by /stats reason, prioritize next iteration. Don't rollback — partial improvement still positive. |
+| **Baseball <60%** | Investigate FS sport_id mapping again — maybe the wrong feed shape for some leagues (NPB/KBO different from MLB?). Do NOT rollback T1 (it fixes more than it breaks). |
+| **Regression on basket/tennis** | This would be unexpected. Capture exact events that flipped, debug `matchTeams` / NOISE token list. May require a hot-fix commit before considering rollback. |
+
+**Hard rollback trigger**: if `/stats no_match` rate doesn't drop below ~50% within 24h post-deploy → rollback ③ (normalize.ts) per spec, keep ① ② ④ ⑤.
 
 - [ ] **Step 5: Write RUNBOOK final section + commit**
 
@@ -1334,7 +1375,23 @@ ssh scraper-vps "cd /root/betssolution-admin && git add docs/superpowers/artifac
 ssh scraper-vps "rm -f /root/betssolution-admin/scripts/db/_tmp-baseline.mjs /root/betssolution-admin/scripts/db/_tmp-audit.mjs"
 ```
 
-- [ ] **Step 7: Push branch to origin**
+- [ ] **Step 7: Verify no NEW errors in ingester logs (5-min window)**
+
+The resolver is called fire-and-forget from `Upserter.maybeResolveFsId` — failures are silent in normal flow. Check ingester logs for unexpected error patterns post-deploy:
+
+```bash
+ssh scraper-vps "journalctl -u odds-api-ingester --since '10 minutes ago' --no-pager | grep -iE 'error|fail|exception|unhandled' | tail -30"
+```
+
+Expected: only pre-existing benign warnings (e.g., rate limit 429s, occasional 503s on FS feed). Look for NEW patterns:
+- `error.*flashscore` repeating
+- `TypeError|SyntaxError` (sign of code break)
+- `unhandled rejection` (sign of resolver crash)
+
+If new error pattern surfaces, capture sample lines + RUNBOOK entry. Fix or rollback per nature. Common pre-existing benign:
+- `[fs-id] search failed` (these are expected on individual events; only worry if rate exceeds 10% of total resolves)
+
+- [ ] **Step 8: Push branch to origin**
 
 ```bash
 ssh scraper-vps "cd /root/betssolution-admin && git push origin feature/plan-d-settlement-d1 && git log --oneline origin/feature/plan-d-settlement-d1 | head -10"
@@ -1375,6 +1432,8 @@ Then re-run with corrected resolver/normalize.
 - [ ] All 6 tasks complete with green tests
 - [ ] All commits on `feature/plan-d-settlement-d1` pushed to origin
 - [ ] RUNBOOK has BEFORE/AFTER metrics filled in
-- [ ] Success criteria all met (or deviations documented)
+- [ ] Success criteria all met (or deviations documented per T6 step 4 decision tree)
+- [ ] No NEW error patterns in ingester logs (T6 step 7)
+- [ ] No player/kiosk rebuild required confirmed in RUNBOOK
 - [ ] Plan D pending registry updated (mark T11/B1 closed)
 - [ ] Memory updated with session summary
