@@ -122,6 +122,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...stats, reason: "unknown_sport" });
   }
 
+  // FS fixtures feed covers ~next 48h. Constrain to events starting in
+  // [-6h, +72h] window so high-volume sports (tennis backlog ~1.7k pending)
+  // don't drop the most recent ones to the 1000-row cap, and order by
+  // starts_at so partial pages still cover the matchable horizon.
+  const fxFromIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+  const fxToIso = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
   const { data: events, error: evErr } = await supabase
     .from("events_v2")
     .select(
@@ -130,6 +136,9 @@ export async function POST(req: NextRequest) {
     .eq("status", "pending")
     .is("flashscore_id", null)
     .in("sport_slug", slugsEn)
+    .gte("starts_at", fxFromIso)
+    .lte("starts_at", fxToIso)
+    .order("starts_at", { ascending: true })
     .limit(1000);
 
   if (evErr || !events) {

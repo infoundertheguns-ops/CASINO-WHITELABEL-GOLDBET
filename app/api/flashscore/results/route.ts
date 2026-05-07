@@ -66,20 +66,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...stats, reason: "unknown_sport" });
   }
 
-  // 1. Find finished unsettled events_v2 rows for this sport
+  // 1. Find finished unsettled events_v2 rows for this sport.
+  //    FS results feed covers ONLY today + yesterday — fetching older events
+  //    is wasted budget AND (with limit+ASC order) starves the recent ones.
+  //    Window must span FS coverage: 48h backwards is plenty.
+  const sinceIso = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const { data: events, error: evErr } = await supabase
     .from("events_v2")
     .select(
       "id, odds_api_id, home, away, score_home, score_away, starts_at, live_data, flashscore_id"
     )
     // events_v2 lifecycle: pending → live → settled (cron mig 179 flips live→settled).
-    // No 'finished' status. Filter on post-game states with settled_at still NULL
-    // (not yet bet-settled). FS only pushes results for finished matches, so the
-    // name+timestamp match itself implicitly filters out currently-active games.
+    // No 'finished' status. Filter on post-game states with last_settled_at still NULL
+    // (not yet bet-settled).
     .in("status", ["live", "settled"])
     .is("last_settled_at", null)
     .in("sport_slug", slugsEn)
-    .order("updated_at", { ascending: true })
+    .gte("starts_at", sinceIso)
+    .order("starts_at", { ascending: false })
     .limit(500);
 
   if (evErr || !events) {
