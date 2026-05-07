@@ -6,7 +6,8 @@ import { ENRICHMENT_KEYS } from "../enrichment/_lib";
 export async function GET(_req: NextRequest) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { global: { fetch: (input, init) => fetch(input, { ...(init as RequestInit), cache: 'no-store' }) } },
   );
 
   // matched_total + by_sport
