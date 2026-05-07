@@ -6,6 +6,7 @@ import type { FlashscoreLive } from "@/lib/flashscore";
 import {
   computeEnrichmentUpdate,
   findFuzzyMatch,
+  swapFsLiveOrientation,
   type V2LiveEvent,
 } from "./_lib";
 
@@ -100,20 +101,26 @@ export async function POST(req: NextRequest) {
   const fuzzyEvents = events.filter((ev) => !directSet.has(ev.id));
   const usedFs = new Set<number>();
   for (const ev of fuzzyEvents) {
-    const { idx } = findFuzzyMatch(ev, live, usedFs);
+    const { idx, swapped } = findFuzzyMatch(ev, live, usedFs);
     if (idx < 0) continue;
     usedFs.add(idx);
-    const fs = live[idx];
+    const rawFs = live[idx];
+    const fs = swapped ? swapFsLiveOrientation(rawFs) : rawFs;
     try {
       const didUpdate = await applyAndPersist(supabase, ev, fs, sport);
       stats.matched++;
       stats.matched_fuzzy++;
       if (didUpdate) stats.updated++;
 
-      if (!ev.flashscore_id) {
+      // Persist fsid only when orientation matches: future cycles use direct
+      // lookup which reads FS payload as-is. If we save fsid on a swapped
+      // pairing, subsequent score updates would be persisted with home/away
+      // inverted forever. Forcing re-fuzzy each cycle costs ~1 fuzzy pass per
+      // swapped event but keeps score orientation correct.
+      if (!ev.flashscore_id && !swapped) {
         await supabase
           .from("events_v2")
-          .update({ flashscore_id: fs.matchId })
+          .update({ flashscore_id: rawFs.matchId })
           .eq("id", ev.id);
       }
     } catch (err) {

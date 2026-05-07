@@ -131,9 +131,10 @@ export function findFuzzyMatch(
   ev: V2LiveEvent,
   candidates: FlashscoreLive[],
   used: Set<number>,
-): { idx: number; score: number } {
+): { idx: number; score: number; swapped: boolean } {
   let bestIdx = -1;
   let bestScore = 0;
+  let bestSwapped = false;
   for (let i = 0; i < candidates.length; i++) {
     if (used.has(i)) continue;
     const fs = candidates[i];
@@ -141,17 +142,82 @@ export function findFuzzyMatch(
       const dbTime = new Date(ev.starts_at).getTime() / 1000;
       if (Math.abs(dbTime - fs.timestamp) > 4 * 3600) continue;
     }
-    const hs = teamMatchScore(ev.home, fs.homeTeam);
-    const as = teamMatchScore(ev.away, fs.awayTeam);
-    if (hs < 0.5 || as < 0.5) continue;
-    const combined = hs + as;
+    // Same orientation
+    const hsSame = teamMatchScore(ev.home, fs.homeTeam);
+    const asSame = teamMatchScore(ev.away, fs.awayTeam);
+    const sameOk = hsSame >= 0.5 && asSame >= 0.5;
+    const sameScore = sameOk ? hsSame + asSame : 0;
+    // Swapped orientation — happens when FS lists home/away inverted vs odds-api
+    // (observed: hockey IIHF Switzerland-Finland vs FS Finland-Switzerland;
+    //  esports Misa-Dark Passage vs FS Dark Passage-Misa).
+    const hsSwap = teamMatchScore(ev.home, fs.awayTeam);
+    const asSwap = teamMatchScore(ev.away, fs.homeTeam);
+    const swapOk = hsSwap >= 0.5 && asSwap >= 0.5;
+    const swapScore = swapOk ? hsSwap + asSwap : 0;
+
+    let combined = 0;
+    let swapped = false;
+    if (sameScore >= swapScore && sameOk) {
+      combined = sameScore;
+    } else if (swapOk) {
+      combined = swapScore;
+      swapped = true;
+    } else {
+      continue;
+    }
+
     if (combined > bestScore) {
       bestScore = combined;
       bestIdx = i;
+      bestSwapped = swapped;
     }
   }
-  if (bestScore <= 1.0) return { idx: -1, score: bestScore };
-  return { idx: bestIdx, score: bestScore };
+  if (bestScore <= 1.0) return { idx: -1, score: bestScore, swapped: false };
+  return { idx: bestIdx, score: bestScore, swapped: bestSwapped };
+}
+
+/**
+ * Return a clone of the FS payload with home/away inverted (incl. score and
+ * any incidents tagged team=1/2). Used when findFuzzyMatch reports `swapped:true`
+ * so downstream `computeEnrichmentUpdate` can treat the FS data as if it were
+ * already aligned with the events_v2 row's orientation.
+ */
+export function swapFsLiveOrientation(fs: FlashscoreLive): FlashscoreLive {
+  const swapped: FlashscoreLive = {
+    ...fs,
+    homeTeam: fs.awayTeam,
+    awayTeam: fs.homeTeam,
+    scoreHome: fs.scoreAway,
+    scoreAway: fs.scoreHome,
+    periods: fs.periods.map((p) => [p[1], p[0]]),
+  };
+  if (fs.summary) {
+    swapped.summary = {
+      ...fs.summary,
+      periods: fs.summary.periods.map((p) => ({
+        ...p,
+        homeScore: p.awayScore,
+        awayScore: p.homeScore,
+        homeTiebreak: p.awayTiebreak,
+        awayTiebreak: p.homeTiebreak,
+      })),
+      incidents: fs.summary.incidents.map((inc) => ({
+        ...inc,
+        team: inc.team === 1 ? 2 : 1,
+        scoreAfter: inc.scoreAfter
+          ? { home: inc.scoreAfter.away, away: inc.scoreAfter.home }
+          : undefined,
+      })),
+    };
+  }
+  if (fs.stats) {
+    swapped.stats = fs.stats.map((s) => ({
+      ...s,
+      home: s.away,
+      away: s.home,
+    }));
+  }
+  return swapped;
 }
 
 function arraysEqual(a: number[] | undefined, b: number[] | undefined): boolean {
