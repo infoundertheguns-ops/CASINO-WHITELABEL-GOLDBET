@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       if (!ev.flashscore_id && !swapped) {
         await supabase
           .from("events_v2")
-          .update({ flashscore_id: rawFs.matchId })
+          .update({ flashscore_id: rawFs.matchId, updated_at: new Date().toISOString() })
           .eq("id", ev.id);
       }
     } catch (err) {
@@ -143,6 +143,7 @@ async function applyAndPersist(
 ): Promise<boolean> {
   const { update } = computeEnrichmentUpdate({ ev, fs, sport });
   if (!update) return false;
+  update.updated_at = new Date().toISOString();
   const { error } = await supabase.from("events_v2").update(update).eq("id", ev.id);
   if (error) throw new Error(error.message);
   return true;
