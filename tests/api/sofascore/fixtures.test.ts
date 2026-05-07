@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapSofaSport, matchSofaToCandidate, type SofaFixture, type Candidate } from "../fixtures/_lib";
+import { mapSofaSport, matchSofaToCandidate, type SofaFixture, type Candidate } from "@/app/api/sofascore/fixtures/_lib";
 
 describe("mapSofaSport", () => {
   it("maps known sports", () => {
