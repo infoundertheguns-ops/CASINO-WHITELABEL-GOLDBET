@@ -47,12 +47,16 @@ export interface FlashscoreLive {
   awayTeam: string;
   scoreHome: number | null;
   scoreAway: number | null;
-  periods: number[][]; // partial per-period breakdown
+  periods: number[][]; // partial per-period breakdown (legacy flat — backwards compat)
   stageCode: string;
   timestamp: number;
   country: string;
   league: string;
   sport: string;
+  // Optional enrichment from df_su_1_{matchId} + df_st_1_{matchId} fetched
+  // by the standalone scraper per-match. Admin persists into events_v2.live_data.
+  summary?: FlashscoreSummary;
+  stats?: FlashscoreStat[];
 }
 
 export interface FlashscoreMatchDetail {
@@ -65,12 +69,70 @@ export interface FlashscoreMatchDetail {
   status: string;
   timestamp: number;
   stats: FlashscoreStat[];
+  summary?: FlashscoreSummary;
 }
 
 export interface FlashscoreStat {
+  // Legacy fields preserved for callers reading `${section}: ${name}`.
   name: string;
   home: string | number;
   away: string | number;
+  // New optional structured fields (df_st_1 SE/SF/SD/SG/SH/SI). Populated when
+  // stats come from the new structured parser; legacy admin-side path leaves them undefined.
+  section?: string;   // SE — "Match" / "1st Half" / "Set 1" / etc.
+  category?: string;  // SF — "Top stats" / "Shots" / "Service" / etc.
+  code?: number | null; // SD — stable canonical stat code
+}
+
+// ═══ Summary feed (df_su_1_) types ═══
+
+export interface FlashscorePeriod {
+  name: string; // "1st Half" / "2nd Half" / "Extra Time" / "Penalties" / "Q1" / "Set 1" / "1st Period"
+  homeScore: number | null;
+  awayScore: number | null;
+  durationSec?: number | null; // tennis set durations (RC/RD/RE)
+  homeTiebreak?: number | null;
+  awayTiebreak?: number | null;
+}
+
+export interface FlashscorePlayer {
+  name: string;
+  id: string;  // stable FS player ID
+  url: string; // /player/slug/id/
+}
+
+export interface FlashscoreIncident {
+  id: string;       // III — incident UUID
+  period: string;   // inherited from most-recent AC header
+  team: 1 | 2;      // IA: 1=home, 2=away
+  minute: string;   // IB raw — "23'" / "09:49"
+  typeCode: number | null; // IE primary
+  label: string;    // IK primary — "Goal" / "Yellow Card" / "Red Card" / "Substitution"
+  subLabel?: string; // IL — "Power-play"
+  player: FlashscorePlayer;
+  scoreAfter?: { home: number; away: number }; // INX/IOX
+  related?: Array<{
+    typeCode: number | null;
+    label: string; // "Assistance" / "Assistance 2" / "Substituted out"
+    player: FlashscorePlayer;
+  }>;
+}
+
+export interface FlashscoreMatchMeta {
+  referee?: { name: string; country?: string; code?: string };
+  venue?: string;
+  town?: string;
+  capacity?: number | null;
+  attendance?: number | null;
+  liveStatus?: string; // LS — toss/strategic notes
+  rawCodes?: string;   // AC raw integer codes
+}
+
+export interface FlashscoreSummary {
+  matchId: string;
+  periods: FlashscorePeriod[];
+  incidents: FlashscoreIncident[];
+  meta: FlashscoreMatchMeta;
 }
 
 export interface MatchedEvent {

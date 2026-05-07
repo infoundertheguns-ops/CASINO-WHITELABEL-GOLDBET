@@ -3,7 +3,11 @@
 // Pure helpers extracted from route.ts for unit testability.
 // No supabase / fetch / NextResponse — only data transforms.
 
-import type { FlashscoreLive } from "@/lib/flashscore";
+import type {
+  FlashscoreLive,
+  FlashscoreSummary,
+  FlashscoreStat,
+} from "@/lib/flashscore";
 import { derivePeriodLabel, teamMatchScore } from "@/lib/flashscore";
 
 export interface V2LiveEvent {
@@ -59,6 +63,53 @@ export function computeEnrichmentUpdate(args: {
       ldChanged = true;
     }
   }
+
+  // Structured periods from df_su_1 (named: "1st Half"/"Q1"/"Set 1"/...).
+  // Replaces (or supersedes) the flat halfScoreHome/halfScoreAway arrays for
+  // consumers that need labelled periods. Kept alongside the flat arrays for
+  // backwards compatibility with anything still reading the legacy shape.
+  if (fs.summary && fs.summary.periods.length > 0) {
+    const newPeriods = fs.summary.periods;
+    const prevPeriods = existingLd.periods as FlashscoreSummary["periods"] | undefined;
+    if (!periodsEqual(prevPeriods, newPeriods)) {
+      mergedLd.periods = newPeriods;
+      ldChanged = true;
+    }
+  }
+
+  // Incidents timeline (goals/cards/subs/assists). Idempotent on count+last id.
+  if (fs.summary && fs.summary.incidents.length > 0) {
+    const newIncidents = fs.summary.incidents;
+    const prev = existingLd.incidents as Array<{ id: string }> | undefined;
+    const prevLen = Array.isArray(prev) ? prev.length : 0;
+    const prevLastId = prevLen > 0 ? prev![prevLen - 1].id : "";
+    const newLastId = newIncidents[newIncidents.length - 1].id;
+    if (newIncidents.length !== prevLen || newLastId !== prevLastId) {
+      mergedLd.incidents = newIncidents;
+      ldChanged = true;
+    }
+  }
+
+  // Match meta (referee, venue, attendance). Set once; only update when changed.
+  if (fs.summary && fs.summary.meta && Object.keys(fs.summary.meta).length > 0) {
+    const newMeta = fs.summary.meta;
+    const prevMeta = existingLd.matchMeta as Record<string, unknown> | undefined;
+    if (!shallowMetaEqual(prevMeta, newMeta as Record<string, unknown>)) {
+      mergedLd.matchMeta = newMeta;
+      ldChanged = true;
+    }
+  }
+
+  // By-section stats (with stable SD code). Replaces the flat stats array on
+  // every change since stats values are continuously updated during a match.
+  if (fs.stats && fs.stats.length > 0) {
+    const prev = existingLd.stats as FlashscoreStat[] | undefined;
+    if (!statsEqual(prev, fs.stats)) {
+      mergedLd.stats = fs.stats;
+      ldChanged = true;
+    }
+  }
+
   if (ldChanged) update.live_data = mergedLd;
 
   // score overwrite
@@ -107,5 +158,53 @@ function arraysEqual(a: number[] | undefined, b: number[] | undefined): boolean 
   if (!a || !b) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function periodsEqual(
+  a: FlashscoreSummary["periods"] | undefined,
+  b: FlashscoreSummary["periods"]
+): boolean {
+  if (!a) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].name !== b[i].name ||
+      a[i].homeScore !== b[i].homeScore ||
+      a[i].awayScore !== b[i].awayScore
+    )
+      return false;
+  }
+  return true;
+}
+
+function shallowMetaEqual(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown>
+): boolean {
+  if (!a) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) {
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) return false;
+  }
+  return true;
+}
+
+function statsEqual(
+  a: FlashscoreStat[] | undefined,
+  b: FlashscoreStat[]
+): boolean {
+  if (!a) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].name !== b[i].name ||
+      a[i].home !== b[i].home ||
+      a[i].away !== b[i].away
+    )
+      return false;
+  }
   return true;
 }
