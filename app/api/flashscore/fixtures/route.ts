@@ -1,17 +1,19 @@
 export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getSportSlugsEn } from "@/lib/sport-slug-it-to-en";
 import {
   matchFixtures,
-  getSportGroup,
 } from "@/lib/flashscore";
 import type { FlashscoreFixture } from "@/lib/flashscore";
 
 // ═══════════════════════════════════════════════════
-// Flashscore Fixtures Endpoint
-// Receives fixtures from standalone flashscore-scraper
-// 1. Pre-matches with DB events to save flashscore_id
-// 2. Saves all fixtures to be_fixtures for admin view
+// Flashscore Fixtures Endpoint (events_v2 path)
+// Receives fixtures from standalone flashscore-scraper.
+// 1. Saves all fixtures to be_fixtures for admin Fixtures page.
+// 2. Pre-matches with events_v2 prematch rows to save flashscore_id.
+// (Plan D S6 cutover: legacy `events` is no longer the prematch source;
+// we read+write events_v2 directly.)
 // ═══════════════════════════════════════════════════
 
 const CHUNK_SIZE = 500;
@@ -113,26 +115,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 2. Pre-match with DB events (save flashscore_id) ──
-  const sportGroup = getSportGroup(sport);
-  let evQuery = supabase
-    .from("events")
-    .select(
-      "id, external_id, home_team, away_team, score_home, score_away, starts_at, live_data, flashscore_id, sports!inner(name)"
-    )
-    .eq("status", "prematch")
-    .is("flashscore_id", null);
-
-  if (sportGroup.length === 1) {
-    evQuery = evQuery.ilike("sports.name", sportGroup[0]);
-  } else {
-    evQuery = evQuery.or(
-      sportGroup.map((s) => `name.ilike.${s}`).join(","),
-      { referencedTable: "sports" }
-    );
+  // ── 2. Pre-match with events_v2 (save flashscore_id) ──
+  const slugsEn = getSportSlugsEn(sport);
+  if (slugsEn.length === 0) {
+    await stampLastRun(supabase, "last_run_flashscore_fixtures");
+    return NextResponse.json({ ...stats, reason: "unknown_sport" });
   }
 
-  const { data: events, error: evErr } = await evQuery.limit(1000);
+  const { data: events, error: evErr } = await supabase
+    .from("events_v2")
+    .select(
+      "id, odds_api_id, home, away, score_home, score_away, starts_at, live_data, flashscore_id"
+    )
+    .eq("status", "pending")
+    .is("flashscore_id", null)
+    .in("sport_slug", slugsEn)
+    .limit(1000);
 
   if (evErr || !events) {
     return NextResponse.json({
@@ -141,24 +139,28 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Count already matched
+  // Count already matched (events_v2 with flashscore_id non-null for this sport)
   const { count: alreadyMatched } = await supabase
-    .from("events")
+    .from("events_v2")
     .select("*", { count: "exact", head: true })
-    .eq("status", "prematch")
+    .eq("status", "pending")
     .not("flashscore_id", "is", null)
-    .ilike("sports.name", sport || "%");
+    .in("sport_slug", slugsEn);
   stats.already_matched = alreadyMatched || 0;
 
   if (events.length === 0) {
+    await stampLastRun(supabase, "last_run_flashscore_fixtures");
     return NextResponse.json(stats);
   }
 
+  // Adapt events_v2 shape → DbEvent shape used by matchFixtures.
+  // events_v2 uses `home`/`away`; matchFixtures expects `home_team`/`away_team`.
+  // `external_id` on legacy events was odds-api:NNN; we synthesize it here.
   const dbEvents = events.map((ev) => ({
     id: ev.id,
-    external_id: ev.external_id,
-    home_team: ev.home_team,
-    away_team: ev.away_team,
+    external_id: ev.odds_api_id ? `odds-api:${ev.odds_api_id}` : "",
+    home_team: ev.home,
+    away_team: ev.away,
     score_home: ev.score_home,
     score_away: ev.score_away,
     starts_at: ev.starts_at,
@@ -171,7 +173,7 @@ export async function POST(req: NextRequest) {
 
   for (const m of matched) {
     const { error } = await supabase
-      .from("events")
+      .from("events_v2")
       .update({ flashscore_id: m.flashscoreId })
       .eq("id", m.eventId);
 

@@ -1775,10 +1775,13 @@ export async function settleEvent(
   eventId: string,
   manualResult?: { home: number; away: number }
 ): Promise<SettleOutcome> {
-  // 1. Fetch event with sport name
+  // 1. Fetch event with sport slug.
+  // Plan D S6 cutover: read from events_v2 (English sport_slug, no JOIN).
+  // The `sport` string passed to buildResult/classifiers below tolerates both
+  // English ("football") and Italian ("calcio") forms — see buildResult.
   const { data: event, error: evErr } = await supabase
-    .from("events")
-    .select("id, source, score_home, score_away, status, live_data, settled_at, period, sport_id, sports!inner(name)")
+    .from("events_v2")
+    .select("id, score_home, score_away, status, live_data, last_settled_at, period, sport_slug")
     .eq("id", eventId)
     .single();
 
@@ -1787,7 +1790,7 @@ export async function settleEvent(
   }
 
   // 2. Already settled?
-  if (event.settled_at) {
+  if ((event as { last_settled_at?: string | null }).last_settled_at) {
     return { already_settled: true };
   }
 
@@ -1797,7 +1800,7 @@ export async function settleEvent(
   }
 
   // 4. Build result from DB data (or manual override)
-  const sport = (event.sports as any)?.name?.toLowerCase() || "";
+  const sport = ((event as { sport_slug?: string }).sport_slug || "").toLowerCase();
   const result = buildResult(event, manualResult, sport);
   if (!result) {
     return { skipped_no_scores: true, error: "No scores available" };
@@ -1805,10 +1808,10 @@ export async function settleEvent(
 
   // 5. Optimistic lock — claim this event for settlement
   const { data: locked, error: lockErr } = await supabase
-    .from("events")
-    .update({ settled_at: new Date().toISOString() })
+    .from("events_v2")
+    .update({ last_settled_at: new Date().toISOString() })
     .eq("id", eventId)
-    .is("settled_at", null)
+    .is("last_settled_at", null)
     .select("id");
 
   if (lockErr || !locked?.length) {
@@ -1838,7 +1841,10 @@ export async function settleEvent(
   // 6b. Pre-load canonical lookup maps for this event (Phase B).
   // Used only when the regex fast-path in resolveSettlerKey misses,
   // which is the common case for non-Kambi-Italian market naming.
-  const eventSource = (event as { source?: string | null }).source ?? null;
+  // Plan D S6 cutover: events_v2 is fed exclusively by the odds-api ingester,
+  // so we hardcode the source rather than reading it from a column that no
+  // longer exists.
+  const eventSource = "odds-api";
   const legMarketTypes = legs.map(
     (l) => (l.markets as unknown as { market_type: string }).market_type,
   );
@@ -1943,8 +1949,8 @@ export async function settleEvent(
   // so a future settlement attempt (after stats arrive) can process them
   if (legsSkipped > 0) {
     await supabase
-      .from("events")
-      .update({ settled_at: null })
+      .from("events_v2")
+      .update({ last_settled_at: null })
       .eq("id", eventId);
   }
 
@@ -2151,10 +2157,10 @@ async function voidAllLegs(
 ): Promise<SettleOutcome> {
   // Lock event
   const { data: locked } = await supabase
-    .from("events")
-    .update({ settled_at: new Date().toISOString() })
+    .from("events_v2")
+    .update({ last_settled_at: new Date().toISOString() })
     .eq("id", eventId)
-    .is("settled_at", null)
+    .is("last_settled_at", null)
     .select("id");
 
   if (!locked?.length) return { already_settled: true };
@@ -2218,7 +2224,7 @@ export async function deactivateEvent(
 
   // Set event to ended
   await supabase
-    .from("events")
+    .from("events_v2")
     .update({ status: "ended", updated_at: now })
     .eq("id", eventId);
 

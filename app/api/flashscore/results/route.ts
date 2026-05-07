@@ -2,10 +2,9 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { settleEvent } from "@/lib/settlement";
+import { getSportSlugsEn } from "@/lib/sport-slug-it-to-en";
 import {
   matchEvents,
-  SPORT_MAP,
-  getSportGroup,
   fetchMatchDetail as fsFetchMatchDetail,
   delay,
 } from "@/lib/flashscore";
@@ -13,9 +12,13 @@ import type { FlashscoreResult, FlashscoreStat } from "@/lib/flashscore";
 import { buildUpdatedLiveData } from "./_lib";
 
 // ═══════════════════════════════════════════════════
-// Flashscore Results Endpoint
-// Receives results from standalone flashscore-scraper
-// Matches with DB events, verifies scores, settles
+// Flashscore Results Endpoint (events_v2 path)
+// Receives results from standalone flashscore-scraper.
+// 1. Fetches finished, unsettled events_v2 rows for this sport.
+// 2. Direct-lookup matches via flashscore_id, fuzzy fallback otherwise.
+// 3. For each match: persist verified score+stats into events_v2,
+//    then call settleEvent() (which itself reads/writes events_v2).
+// (Plan D S6 cutover: legacy `events` is no longer the settlement source.)
 // ═══════════════════════════════════════════════════
 
 
@@ -57,26 +60,25 @@ export async function POST(req: NextRequest) {
     errors: [] as string[],
   };
 
-  // 1. Find finished unsettled events for this sport (handles grouped sports)
-  const sportGroup = getSportGroup(sport);
-  let query = supabase
-    .from("events")
-    .select(
-      "id, external_id, home_team, away_team, score_home, score_away, starts_at, live_data, flashscore_id, sports!inner(name)"
-    )
-    .eq("status", "finished")
-    .is("settled_at", null);
-
-  if (sportGroup.length === 1) {
-    query = query.ilike("sports.name", sportGroup[0]);
-  } else {
-    query = query.or(
-      sportGroup.map((s) => `name.ilike.${s}`).join(","),
-      { referencedTable: "sports" }
-    );
+  const slugsEn = getSportSlugsEn(sport);
+  if (slugsEn.length === 0) {
+    await stampLastRun(supabase, "last_run_flashscore_results");
+    return NextResponse.json({ ...stats, reason: "unknown_sport" });
   }
 
-  const { data: events, error: evErr } = await query
+  // 1. Find finished unsettled events_v2 rows for this sport
+  const { data: events, error: evErr } = await supabase
+    .from("events_v2")
+    .select(
+      "id, odds_api_id, home, away, score_home, score_away, starts_at, live_data, flashscore_id"
+    )
+    // events_v2 lifecycle: pending → live → settled (cron mig 179 flips live→settled).
+    // No 'finished' status. Filter on post-game states with settled_at still NULL
+    // (not yet bet-settled). FS only pushes results for finished matches, so the
+    // name+timestamp match itself implicitly filters out currently-active games.
+    .in("status", ["live", "settled"])
+    .is("last_settled_at", null)
+    .in("sport_slug", slugsEn)
     .order("updated_at", { ascending: true })
     .limit(500);
 
@@ -99,18 +101,20 @@ export async function POST(req: NextRequest) {
       await verifyAndSettle(supabase, ev, fsResult, sport, stats);
       stats.direct_lookups++;
     } catch (err) {
-      stats.errors.push(`${ev.home_team}: ${err instanceof Error ? err.message : String(err)}`);
+      stats.errors.push(`${ev.home}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   // 3. Fuzzy match for events without flashscore_id
   const fuzzyEvents = events.filter((ev) => !ev.flashscore_id);
   if (fuzzyEvents.length > 0 && results.length > 0) {
+    // Adapt events_v2 shape → DbEvent shape used by matchEvents.
+    // events_v2 uses `home`/`away`; matchEvents expects `home_team`/`away_team`.
     const dbEvents = fuzzyEvents.map((ev) => ({
       id: ev.id,
-      external_id: ev.external_id,
-      home_team: ev.home_team,
-      away_team: ev.away_team,
+      external_id: ev.odds_api_id ? `odds-api:${ev.odds_api_id}` : "",
+      home_team: ev.home,
+      away_team: ev.away,
       score_home: ev.score_home,
       score_away: ev.score_away,
       starts_at: ev.starts_at,
@@ -124,9 +128,9 @@ export async function POST(req: NextRequest) {
 
     for (const m of matched) {
       try {
-        // Save flashscore_id
+        // Save flashscore_id on events_v2
         await supabase
-          .from("events")
+          .from("events_v2")
           .update({ flashscore_id: m.flashscoreId })
           .eq("id", m.eventId);
 
@@ -148,7 +152,7 @@ export async function POST(req: NextRequest) {
 
 async function verifyAndSettle(
   supabase: any,
-  ev: any,
+  ev: { id: string; home: string; away: string; live_data: unknown },
   fsResult: FlashscoreResult,
   sport: string,
   stats: {
@@ -163,7 +167,7 @@ async function verifyAndSettle(
   const existingLiveData =
     (
       await supabase
-        .from("events")
+        .from("events_v2")
         .select("live_data")
         .eq("id", ev.id)
         .single()
@@ -197,7 +201,7 @@ async function verifyAndSettle(
   });
 
   const { error: updateErr } = await supabase
-    .from("events")
+    .from("events_v2")
     .update({
       score_home: fsResult.scoreHome,
       score_away: fsResult.scoreAway,
@@ -207,7 +211,7 @@ async function verifyAndSettle(
     .eq("id", ev.id);
 
   if (updateErr) {
-    stats.errors.push(`Update ${ev.home_team}: ${updateErr.message}`);
+    stats.errors.push(`Update ${ev.home}: ${updateErr.message}`);
     return;
   }
 
@@ -217,6 +221,6 @@ async function verifyAndSettle(
   if (settleRes.success) {
     stats.settled++;
   } else if (settleRes.error) {
-    stats.errors.push(`Settle ${ev.home_team}: ${settleRes.error}`);
+    stats.errors.push(`Settle ${ev.home}: ${settleRes.error}`);
   }
 }
