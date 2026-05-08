@@ -1,33 +1,61 @@
 import { describe, it, expect } from "vitest";
-import { mapSofaSport, matchSofaToCandidate, type SofaFixture, type Candidate } from "@/app/api/sofascore/fixtures/_lib";
+import {
+  matchSofaToCandidate,
+  buildPoolQuery,
+  SOFA_VALID_SPORTS,
+  type SofaFixture,
+  type Candidate,
+} from "@/app/api/sofascore/fixtures/_lib";
 
-describe("mapSofaSport", () => {
-  it("maps known sports", () => {
-    expect(mapSofaSport("football")).toBe("calcio");
-    expect(mapSofaSport("tennis")).toBe("tennis");
-    expect(mapSofaSport("basketball")).toBe("basket");
+describe("SOFA_VALID_SPORTS", () => {
+  it("contains exactly the three EN slugs", () => {
+    expect(SOFA_VALID_SPORTS.has("football")).toBe(true);
+    expect(SOFA_VALID_SPORTS.has("tennis")).toBe(true);
+    expect(SOFA_VALID_SPORTS.has("basketball")).toBe(true);
+    expect(SOFA_VALID_SPORTS.size).toBe(3);
   });
-  it("returns null for unknown", () => {
-    expect(mapSofaSport("snooker")).toBeNull();
+  it("does NOT contain Italian slugs (regression guard)", () => {
+    expect(SOFA_VALID_SPORTS.has("calcio")).toBe(false);
+    expect(SOFA_VALID_SPORTS.has("basket")).toBe(false);
+  });
+});
+
+describe("buildPoolQuery", () => {
+  it("returns EN slug array (regression guard for bug #1)", () => {
+    const q = buildPoolQuery();
+    expect(q.slugs).toEqual(["football", "tennis", "basketball"]);
+  });
+  it("returns valid status values matching events_v2 constraint (regression guard for bug #2)", () => {
+    const q = buildPoolQuery();
+    // pending+live cover prematch+inplay; route.ts adds settled-recent via .or()
+    expect(q.statuses).toContain("pending");
+    expect(q.statuses).toContain("live");
+    expect(q.statuses).not.toContain("prematch");
   });
 });
 
 describe("matchSofaToCandidate", () => {
   const baseFx: SofaFixture = {
-    sofa_event_id: 1, sofa_sport: "football",
-    home: "FC Bayern München", away: "Paris Saint-Germain",
+    sofa_event_id: 1,
+    sofa_sport: "football",
+    home: "FC Bayern München",
+    away: "Paris Saint-Germain",
     kickoff_at: "2026-05-07T19:00:00Z",
     sofa_status: "finished",
-    tournament_name: "UEFA Champions League", category_name: "Europe",
+    tournament_name: "UEFA Champions League",
+    category_name: "Europe",
   };
   const baseC: Candidate = {
-    id: "uuid-1", sport_slug: "calcio",
-    home: "Bayern Munich", away: "PSG",
+    id: "uuid-1",
+    sport_slug: "football",
+    home: "Bayern Munich",
+    away: "PSG",
     starts_at: "2026-05-07T19:05:00Z",
-    status: "live", sofascore_id: null,
+    status: "pending",
+    sofascore_id: null,
   };
 
-  it("returns matched_fuzzy on close name + kickoff", () => {
+  it("returns matched_fuzzy on close name + kickoff with EN slug", () => {
     const r = matchSofaToCandidate(baseFx, [baseC]);
     expect(r.kind).toBe("matched_fuzzy");
     if (r.kind === "matched_fuzzy") expect(r.candidate.id).toBe("uuid-1");
@@ -48,8 +76,8 @@ describe("matchSofaToCandidate", () => {
     expect(r.kind).toBe("no_match_name");
   });
 
-  it("does NOT match across sports", () => {
-    const r = matchSofaToCandidate(baseFx, [{ ...baseC, sport_slug: "basket" }]);
+  it("does NOT match across sports (basketball candidate vs football fixture)", () => {
+    const r = matchSofaToCandidate(baseFx, [{ ...baseC, sport_slug: "basketball" }]);
     expect(r.kind).toBe("no_time_window");
   });
 
@@ -61,6 +89,14 @@ describe("matchSofaToCandidate", () => {
   it("returns skipped_unknown_sport for unsupported sofa_sport", () => {
     const r = matchSofaToCandidate({ ...baseFx, sofa_sport: "rugby" }, [baseC]);
     expect(r.kind).toBe("skipped_unknown_sport");
+  });
+
+  it("EN slug pool match — regression guard against re-introducing IT slugs", () => {
+    // candidate has EN slug, fixture has EN sport — must match (this is the bug we're fixing)
+    const fxBasket: SofaFixture = { ...baseFx, sofa_sport: "basketball", sofa_event_id: 2 };
+    const cBasket: Candidate = { ...baseC, sport_slug: "basketball", id: "uuid-b" };
+    const r = matchSofaToCandidate(fxBasket, [cBasket]);
+    expect(r.kind).toBe("matched_fuzzy");
   });
 });
 
@@ -87,21 +123,17 @@ function makeSupabaseMock(handlers: MockHandlers) {
   };
   return {
     from: vi.fn((table: string) => {
-      // chainable builder per .from() call
       const builder: any = {};
-      // SELECT chain (events_v2 pool)
       builder.select = vi.fn(() => builder);
       builder.in = vi.fn(() => builder);
       builder.or = vi.fn(() => builder);
       builder.limit = vi.fn(() => Promise.resolve(handlers.poolResult ?? { data: [], error: null }));
-      // UPDATE chain (events_v2)
       builder.update = vi.fn((payload: Record<string, unknown>) => {
         captured.updates.push({ table, ...payload });
         const eqBuilder: any = {};
         eqBuilder.eq = vi.fn(() => Promise.resolve(handlers.updateResult ?? { error: null }));
         return eqBuilder;
       });
-      // UPSERT (system_config)
       builder.upsert = vi.fn((payload: Record<string, unknown>) => {
         captured.upserts.push({ table, ...payload });
         return Promise.resolve(handlers.upsertResult ?? { error: null });
@@ -149,32 +181,31 @@ describe("POST /api/sofascore/fixtures", () => {
     expect(res.status).toBe(400);
   });
 
-  it("processes fixtures and returns stats + matched array", async () => {
+  it("processes fixtures and returns stats + matched array (EN slugs)", async () => {
     const futureIso = "2026-05-07T19:05:00Z";
     const poolRows = [
       {
-        id: "uuid-calcio",
-        sport_slug: "calcio",
+        id: "uuid-football",
+        sport_slug: "football",
         home: "Bayern Munich",
         away: "PSG",
         starts_at: futureIso,
-        status: "prematch",
+        status: "pending",
         sofascore_id: null,
       },
       {
-        id: "uuid-basket",
-        sport_slug: "basket",
+        id: "uuid-basketball",
+        sport_slug: "basketball",
         home: "Lakers",
         away: "Celtics",
         starts_at: futureIso,
-        status: "prematch",
+        status: "pending",
         sofascore_id: null,
       },
     ];
     _activeMock = makeSupabaseMock({ poolResult: { data: poolRows, error: null } });
 
     const fixtures = [
-      // matches calcio fuzzy
       {
         sofa_event_id: 1001,
         sofa_sport: "football",
@@ -185,7 +216,6 @@ describe("POST /api/sofascore/fixtures", () => {
         tournament_name: "UCL",
         category_name: "Europe",
       },
-      // unrelated names → no_match_name (calcio sport mapping, in time window)
       {
         sofa_event_id: 1002,
         sofa_sport: "football",
@@ -196,7 +226,6 @@ describe("POST /api/sofascore/fixtures", () => {
         tournament_name: "X",
         category_name: null,
       },
-      // unknown sport
       {
         sofa_event_id: 1003,
         sofa_sport: "rugby",
@@ -218,18 +247,18 @@ describe("POST /api/sofascore/fixtures", () => {
     expect(json.matched).toHaveLength(1);
     expect(json.matched[0]).toMatchObject({
       sofa_event_id: 1001,
-      event_v2_id: "uuid-calcio",
-      sport_slug: "calcio",
+      event_v2_id: "uuid-football",
+      sport_slug: "football",
     });
   });
 
-  it("includes recently-finished events in candidate pool", async () => {
+  it("includes recently-finished events in candidate pool (status=settled within 6h)", async () => {
     const recentSettledIso = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
     const fxIso = recentSettledIso;
     const poolRows = [
       {
         id: "uuid-recent",
-        sport_slug: "calcio",
+        sport_slug: "football",
         home: "Bayern Munich",
         away: "PSG",
         starts_at: recentSettledIso,
