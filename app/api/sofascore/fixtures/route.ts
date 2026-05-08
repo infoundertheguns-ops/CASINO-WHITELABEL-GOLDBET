@@ -28,14 +28,16 @@ export async function POST(req: NextRequest) {
   );
 
   const sixHoursAgoIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const fortyEightHoursAheadIso = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
   const { slugs, statuses } = buildPoolQuery();
   const { data: rows, error: poolErr } = await supabase
     .from("events_v2")
     .select("id, sport_slug, home, away, starts_at, status, sofascore_id")
     .in("sport_slug", slugs)
-    .or(
-      `status.in.(${statuses.join(",")}),and(status.eq.settled,starts_at.gte.${sixHoursAgoIso})`,
-    )
+    .gte("starts_at", sixHoursAgoIso)
+    .lte("starts_at", fortyEightHoursAheadIso)
+    .in("status", [...statuses, "settled"])
+    .order("starts_at", { ascending: true })
     .limit(5000);
   if (poolErr || !rows) {
     return NextResponse.json(

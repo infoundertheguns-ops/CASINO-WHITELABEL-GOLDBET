@@ -127,6 +127,9 @@ function makeSupabaseMock(handlers: MockHandlers) {
       builder.select = vi.fn(() => builder);
       builder.in = vi.fn(() => builder);
       builder.or = vi.fn(() => builder);
+      builder.gte = vi.fn(() => builder);
+      builder.lte = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
       builder.limit = vi.fn(() => Promise.resolve(handlers.poolResult ?? { data: [], error: null }));
       builder.update = vi.fn((payload: Record<string, unknown>) => {
         captured.updates.push({ table, ...payload });
