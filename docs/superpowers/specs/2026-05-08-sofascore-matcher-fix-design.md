@@ -115,8 +115,8 @@ matching events_v2 directly. **No conversion layer needed** — `mapSofaSport` b
 
 | File | Change |
 |---|---|
-| `app/api/sofascore/fixtures/route.ts` | `.in("sport_slug", ["football","tennis","basketball"])` + status filter `pending` instead of `prematch` |
-| `app/api/sofascore/fixtures/_lib.ts` | Remove `mapSofaSport`. `matchSofaToCandidate` validates `fx.sofa_sport` against `{football,tennis,basketball}` directly. Inner candidate filter compares sport_slug to fx.sofa_sport |
+| `app/api/sofascore/fixtures/route.ts` | `.in("sport_slug", ["football","tennis","basketball"])` + status filter `pending` instead of `prematch`. Extract pool-query candidate-builder into a small helper exported from `_lib.ts` so unit tests can drive it without mocking Supabase (see Test coverage below) |
+| `app/api/sofascore/fixtures/_lib.ts` | Remove `mapSofaSport`. Add `SOFA_VALID_SPORTS = new Set(["football","tennis","basketball"])`. `matchSofaToCandidate` returns `kind="skipped_unknown_sport"` when `!SOFA_VALID_SPORTS.has(fx.sofa_sport)` (preserves existing telemetry kind). Inner candidate filter compares `c.sport_slug` to `fx.sofa_sport` directly |
 | `app/api/sofascore/stats/route.ts` | `.in("sport_slug", ["football","tennis","basketball"])` + `by_sport = { football:0, tennis:0, basketball:0 }` |
 | `app/api/sofascore/enrichment/route.ts` | Update `sport_slug` TypeScript union type to `"football"\|"tennis"\|"basketball"` |
 
@@ -134,13 +134,15 @@ UI views (`v_player_events`, admin event-v2): no change. They use IT slugs via `
 
 ### Test coverage
 
-New file: `__tests__/sofascore-fixtures.test.ts` (vitest). Tests for `matchSofaToCandidate`:
+New file: `__tests__/sofascore-fixtures.test.ts` (vitest). Tests for `matchSofaToCandidate` (pure function — Candidate[] passed in, no Supabase mocking required):
 
-1. **skipped_unknown_sport**: sofa_sport="hockey" → returns kind="skipped_unknown_sport"
+1. **skipped_unknown_sport**: sofa_sport="hockey" → returns kind="skipped_unknown_sport" (regression guard for the telemetry kind that previously came from mapSofaSport returning null)
 2. **no_time_window**: |startTime − fxTime| > 20min → returns kind="no_time_window"
 3. **matched_direct**: candidate has sofascore_id matching fx.sofa_event_id → returns kind="matched_direct"
 4. **matched_fuzzy**: name token-overlap above threshold + within window → returns kind="matched_fuzzy"
-5. **status pending in pool**: regression guard — fixture pool builder includes pending rows (uses dependency injection or direct fixture construction)
+5. **EN slug pool match**: candidate with `sport_slug="football"` is reachable when fx.sofa_sport="football" (regression guard — fails if anyone re-introduces IT slug filter)
+
+Test #5 covers the bug indirectly: the unit test passes `Candidate[]` rows with EN slugs and verifies `matchSofaToCandidate` finds them. The Supabase pool query (which currently uses IT slugs) is not unit-testable without refactor; covering the candidate-builder requires extracting it to `_lib.ts`. The seam choice is: **extract `buildPoolQuery` (the `.in("sport_slug", ...)` + `.or(status...)` clause builder) to `_lib.ts` returning the slug array + status array as plain values**, then unit-test those arrays equal `["football","tennis","basketball"]` and `["pending","live"]`. Concrete and free of Supabase mocking.
 
 Smoke E2E: post-deploy curl POST to `/api/sofascore/fixtures` with 3 sample fixtures (one per sport), verify response `matched_*` > 0 for the three sports.
 
@@ -159,7 +161,7 @@ Post-deploy: do not wait for next 04:00 UTC discovery. Trigger an on-demand disc
 ## Acceptance Criteria
 
 1. `/api/sofascore/stats` returns `by_sport.football > 0` and `by_sport.basketball > 0` within 30 min of deploy
-2. `/api/sofascore/fixtures` log shows `no_time_window < 200` (down from 1313)
+2. `/api/sofascore/fixtures` log shows `no_time_window / received < 0.30` (was 1313/1435 = 0.91). Phrased as ratio, not absolute count, so daily fixture-count fluctuation does not falsely fail the gate
 3. All 5 vitest unit tests pass + existing 18/18 admin test suite still green
 4. `tsc --noEmit` clean
 5. enrichment endpoint continues to populate `event_enrichment.statistics` for both football and basketball within 60 min
@@ -168,3 +170,4 @@ Post-deploy: do not wait for next 04:00 UTC discovery. Trigger an on-demand disc
 
 - Tennis match rate is 6.4% (45/706). Likely name-normalize gap on player names with accents/qualifiers (Slam tennis tournaments). Out of scope for this fix.
 - Phase-0 measure mode (`SOFA_PHASE_0_MEASURE_MODE=true`) gate decision is independent. To be re-evaluated after this fix lands and football+basket actually populate.
+- **Existing 45 tennis matches**: no backfill or revalidation needed. The tennis pool query was accidentally correct (slug `tennis` identical EN/IT, and live/settled-recent rows passed the broken status filter). Those 45 `events_v2.sofascore_id` values are valid and will continue to receive enrichment. The fix only adds new matches — it does not invalidate or rewrite existing ones.
