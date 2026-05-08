@@ -1,6 +1,11 @@
 import { teamMatchScore } from "@/lib/betexplorer";
 
-const TIME_TOLERANCE_SEC = 20 * 60;
+const TIME_TOLERANCE_DEFAULT_SEC = 20 * 60;
+const TIME_TOLERANCE_BY_SPORT: Record<SofaSport, number> = {
+  football: 20 * 60,
+  tennis: 30 * 60,
+  basketball: 60 * 60,
+};
 
 const SOFA_SPORTS = ["football", "tennis", "basketball"] as const;
 export type SofaSport = (typeof SOFA_SPORTS)[number];
@@ -61,11 +66,12 @@ export function matchSofaToCandidate(fx: SofaFixture, pool: Candidate[]): MatchR
 
   // 2. Time-window filter (and exclude already-mapped to OTHER sofa events)
   const fxTime = new Date(fx.kickoff_at).getTime() / 1000;
+  const tolerance = TIME_TOLERANCE_BY_SPORT[fx.sofa_sport as SofaSport] ?? TIME_TOLERANCE_DEFAULT_SEC;
   const inWindow = pool.filter(
     (c) =>
       c.sport_slug === fx.sofa_sport &&
       c.sofascore_id == null &&
-      Math.abs(new Date(c.starts_at).getTime() / 1000 - fxTime) <= TIME_TOLERANCE_SEC,
+      Math.abs(new Date(c.starts_at).getTime() / 1000 - fxTime) <= tolerance,
   );
   if (inWindow.length === 0) return { kind: "no_time_window" };
 

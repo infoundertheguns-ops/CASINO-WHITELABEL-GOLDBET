@@ -71,6 +71,28 @@ describe("matchSofaToCandidate", () => {
     expect(r.kind).toBe("no_time_window");
   });
 
+  it("uses 60min tolerance for basketball (sport-specific)", () => {
+    // basketball fixture at 19:00, candidate at 19:45 (45min off — within 60min basketball tolerance)
+    const fxBasket: SofaFixture = { ...baseFx, sofa_sport: "basketball", sofa_event_id: 7 };
+    const cBasket: Candidate = { ...baseC, sport_slug: "basketball", id: "uuid-bk", home: "Lakers", away: "Celtics", starts_at: "2026-05-07T19:45:00Z" };
+    const r = matchSofaToCandidate({ ...fxBasket, home: "Lakers LA", away: "Boston Celtics" }, [cBasket]);
+    expect(r.kind).toBe("matched_fuzzy");
+  });
+
+  it("uses 30min tolerance for tennis (sport-specific)", () => {
+    // tennis fixture at 19:00, candidate at 19:25 (25min off — within 30min tennis tolerance)
+    const fxTennis: SofaFixture = { ...baseFx, sofa_sport: "tennis", sofa_event_id: 8, home: "Rafael Nadal", away: "Djokovic Novak" };
+    const cTennis: Candidate = { ...baseC, sport_slug: "tennis", id: "uuid-tn", home: "Nadal Rafael", away: "Novak Djokovic", starts_at: "2026-05-07T19:25:00Z" };
+    const r = matchSofaToCandidate(fxTennis, [cTennis]);
+    expect(r.kind).toBe("matched_fuzzy");
+  });
+
+  it("football retains 20min default tolerance (does NOT match at 25min off)", () => {
+    // football fixture at 19:00, candidate at 19:25 (25min off — outside football 20min tolerance)
+    const r = matchSofaToCandidate(baseFx, [{ ...baseC, starts_at: "2026-05-07T19:25:00Z" }]);
+    expect(r.kind).toBe("no_time_window");
+  });
+
   it("returns no_match_name when names too different", () => {
     const r = matchSofaToCandidate(baseFx, [{ ...baseC, home: "Inter Milan", away: "AC Milan" }]);
     expect(r.kind).toBe("no_match_name");
