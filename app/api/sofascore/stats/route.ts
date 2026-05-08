@@ -15,8 +15,8 @@ export async function GET(_req: NextRequest) {
     .from("events_v2")
     .select("sport_slug")
     .not("sofascore_id", "is", null)
-    .in("sport_slug", ["calcio", "tennis", "basket"]);
-  const by_sport = { calcio: 0, tennis: 0, basket: 0 };
+    .in("sport_slug", ["football", "tennis", "basketball"]);
+  const by_sport = { football: 0, tennis: 0, basketball: 0 };
   for (const r of (matched ?? []) as Array<{ sport_slug: string }>) {
     const k = r.sport_slug as keyof typeof by_sport;
     if (k in by_sport) by_sport[k]++;

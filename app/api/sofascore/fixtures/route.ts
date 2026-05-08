@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { matchSofaToCandidate, type SofaFixture, type Candidate } from "./_lib";
+import { matchSofaToCandidate, buildPoolQuery, type SofaFixture, type Candidate } from "./_lib";
 
 interface MatchedRow {
   sofa_event_id: number;
@@ -28,12 +28,13 @@ export async function POST(req: NextRequest) {
   );
 
   const sixHoursAgoIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const { slugs, statuses } = buildPoolQuery();
   const { data: rows, error: poolErr } = await supabase
     .from("events_v2")
     .select("id, sport_slug, home, away, starts_at, status, sofascore_id")
-    .in("sport_slug", ["calcio", "tennis", "basket"])
+    .in("sport_slug", slugs)
     .or(
-      `status.in.(prematch,live),and(status.eq.settled,starts_at.gte.${sixHoursAgoIso})`,
+      `status.in.(${statuses.join(",")}),and(status.eq.settled,starts_at.gte.${sixHoursAgoIso})`,
     )
     .limit(5000);
   if (poolErr || !rows) {

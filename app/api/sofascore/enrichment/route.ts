@@ -10,7 +10,7 @@ import {
 
 interface Body {
   sofa_event_id: number;
-  sport_slug: "calcio" | "tennis" | "basket";
+  sport_slug: "football" | "tennis" | "basketball";
   payloads?: EnrichmentPayload;
   endpoint_status?: Record<string, EndpointStatus>;
 }
