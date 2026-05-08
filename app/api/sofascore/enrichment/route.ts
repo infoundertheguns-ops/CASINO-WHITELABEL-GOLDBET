@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   buildPartialUpsert,
-  mergeEndpointStatus,
   type EnrichmentPayload,
   type EndpointStatus,
 } from "./_lib";
@@ -48,10 +47,12 @@ export async function POST(req: NextRequest) {
     .eq("event_v2_id", ev2.id)
     .maybeSingle();
 
-  const merged = mergeEndpointStatus(
-    (prior?.last_endpoint_status as Record<string, EndpointStatus>) ?? {},
-    body.endpoint_status ?? {}
-  );
+  // REPLACE semantics: drop keys not in current payload (avoids stale orphan keys
+  // from previous map versions). When endpoint_status is omitted, keep prior unchanged.
+  const newEndpointStatus =
+    body.endpoint_status !== undefined
+      ? body.endpoint_status
+      : ((prior?.last_endpoint_status as Record<string, EndpointStatus>) ?? {});
   const partialCols = buildPartialUpsert(body.payloads ?? {});
   const now = new Date().toISOString();
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
         sport_slug: body.sport_slug,
         ...partialCols,
         last_synced_at: now,
-        last_endpoint_status: merged,
+        last_endpoint_status: newEndpointStatus,
       },
       { onConflict: "event_v2_id" }
     );

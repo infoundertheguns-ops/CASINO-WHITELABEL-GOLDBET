@@ -177,7 +177,7 @@ describe("POST /api/sofascore/enrichment", () => {
     });
   });
 
-  it("partial update preserves untouched columns + merges endpoint_status", async () => {
+  it("partial update preserves untouched columns + REPLACES endpoint_status (drops orphan keys)", async () => {
     _activeMock = makeSupabaseMock({
       ev2Result: { data: { id: "uuid-2" }, error: null },
       priorResult: {
@@ -206,9 +206,10 @@ describe("POST /api/sofascore/enrichment", () => {
     );
     expect(enrichmentUpsert).toBeDefined();
     const payload = enrichmentUpsert!.payload as Record<string, unknown>;
-    const merged = payload.last_endpoint_status as Record<string, EndpointStatus>;
-    expect(merged.stats.ts).toBe("T2");
-    expect(merged.lineups.ts).toBe("T1");
+    const status = payload.last_endpoint_status as Record<string, EndpointStatus>;
+    expect(status.stats.ts).toBe("T2");
+    // REPLACE semantics: orphan key from prior must be dropped
+    expect(status.lineups).toBeUndefined();
     expect(payload).toHaveProperty("stats", { y: 2 });
     expect(payload).not.toHaveProperty("lineups");
 
@@ -218,5 +219,33 @@ describe("POST /api/sofascore/enrichment", () => {
     expect(sysCfgUpsert).toBeDefined();
     const sysPayload = sysCfgUpsert!.payload as Record<string, unknown>;
     expect(sysPayload.key).toBe("last_run_sofascore_enrichment");
+  });
+
+  it("keeps prior endpoint_status when body omits it (defensive)", async () => {
+    _activeMock = makeSupabaseMock({
+      ev2Result: { data: { id: "uuid-3" }, error: null },
+      priorResult: {
+        data: {
+          last_endpoint_status: {
+            stats: { ok: true, http: 200, size: 100, ts: "T1" },
+          },
+        },
+        error: null,
+      },
+    });
+    const body = {
+      sofa_event_id: 3003,
+      sport_slug: "calcio" as const,
+      payloads: { stats: { y: 9 } },
+      // no endpoint_status
+    };
+    const res = await callRoute(body);
+    expect(res.status).toBe(200);
+    const enrichmentUpsert = _activeMock!._captured.upserts.find(
+      (u) => u.table === "event_enrichment"
+    );
+    const payload = enrichmentUpsert!.payload as Record<string, unknown>;
+    const status = payload.last_endpoint_status as Record<string, EndpointStatus>;
+    expect(status.stats.ts).toBe("T1");  // prior preserved
   });
 });
