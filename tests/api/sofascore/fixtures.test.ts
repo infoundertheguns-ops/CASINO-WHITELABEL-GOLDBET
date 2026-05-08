@@ -12,7 +12,7 @@ describe("SOFA_VALID_SPORTS", () => {
     expect(SOFA_VALID_SPORTS.has("football")).toBe(true);
     expect(SOFA_VALID_SPORTS.has("tennis")).toBe(true);
     expect(SOFA_VALID_SPORTS.has("basketball")).toBe(true);
-    expect(SOFA_VALID_SPORTS.size).toBe(3);
+    expect(SOFA_VALID_SPORTS.size).toBe(15);
   });
   it("does NOT contain Italian slugs (regression guard)", () => {
     expect(SOFA_VALID_SPORTS.has("calcio")).toBe(false);
@@ -23,7 +23,7 @@ describe("SOFA_VALID_SPORTS", () => {
 describe("buildPoolQuery", () => {
   it("returns EN slug array (regression guard for bug #1)", () => {
     const q = buildPoolQuery();
-    expect(q.slugs).toEqual(["football", "tennis", "basketball"]);
+    expect(q.slugs).toEqual(["football","tennis","basketball","baseball","esports","handball","rugby","darts","ice-hockey","cricket","volleyball","boxing","mma","american-football","snooker"]);
   });
   it("returns valid status values matching events_v2 constraint (regression guard for bug #2)", () => {
     const q = buildPoolQuery();
@@ -93,6 +93,34 @@ describe("matchSofaToCandidate", () => {
     expect(r.kind).toBe("no_time_window");
   });
 
+  it("uses 90min tolerance for baseball (sport-specific, long innings)", () => {
+    const fxBb: SofaFixture = { ...baseFx, sofa_sport: "baseball", sofa_event_id: 11, home: "Yankees", away: "Red Sox" };
+    const cBb: Candidate = { ...baseC, sport_slug: "baseball", id: "uuid-bb", home: "Yankees", away: "Red Sox", starts_at: "2026-05-07T20:00:00Z" };
+    const r = matchSofaToCandidate(fxBb, [cBb]);
+    expect(r.kind).toBe("matched_fuzzy");
+  });
+
+  it("uses 90min tolerance for mma (sport-specific, card structure)", () => {
+    const fxMma: SofaFixture = { ...baseFx, sofa_sport: "mma", sofa_event_id: 12, home: "Conor McGregor", away: "Khabib Nurmagomedov" };
+    const cMma: Candidate = { ...baseC, sport_slug: "mma", id: "uuid-mma", home: "Conor McGregor", away: "Khabib Nurmagomedov", starts_at: "2026-05-07T20:20:00Z" };
+    const r = matchSofaToCandidate(fxMma, [cMma]);
+    expect(r.kind).toBe("matched_fuzzy");
+  });
+
+  it("uses 60min tolerance for darts (sport-specific)", () => {
+    const fxDart: SofaFixture = { ...baseFx, sofa_sport: "darts", sofa_event_id: 13, home: "Michael van Gerwen", away: "Peter Wright" };
+    const cDart: Candidate = { ...baseC, sport_slug: "darts", id: "uuid-dart", home: "Michael van Gerwen", away: "Peter Wright", starts_at: "2026-05-07T19:50:00Z" };
+    const r = matchSofaToCandidate(fxDart, [cDart]);
+    expect(r.kind).toBe("matched_fuzzy");
+  });
+
+  it("uses 30min tolerance for ice-hockey (sport-specific)", () => {
+    const fxHk: SofaFixture = { ...baseFx, sofa_sport: "ice-hockey", sofa_event_id: 14, home: "Boston Bruins", away: "New York Rangers" };
+    const cHk: Candidate = { ...baseC, sport_slug: "ice-hockey", id: "uuid-hk", home: "Boston Bruins", away: "New York Rangers", starts_at: "2026-05-07T19:25:00Z" };
+    const r = matchSofaToCandidate(fxHk, [cHk]);
+    expect(r.kind).toBe("matched_fuzzy");
+  });
+
   it("returns no_match_name when names too different", () => {
     const r = matchSofaToCandidate(baseFx, [{ ...baseC, home: "Inter Milan", away: "AC Milan" }]);
     expect(r.kind).toBe("no_match_name");
@@ -109,7 +137,7 @@ describe("matchSofaToCandidate", () => {
   });
 
   it("returns skipped_unknown_sport for unsupported sofa_sport", () => {
-    const r = matchSofaToCandidate({ ...baseFx, sofa_sport: "rugby" }, [baseC]);
+    const r = matchSofaToCandidate({ ...baseFx, sofa_sport: "motorsport" }, [baseC]);
     expect(r.kind).toBe("skipped_unknown_sport");
   });
 
@@ -253,7 +281,7 @@ describe("POST /api/sofascore/fixtures", () => {
       },
       {
         sofa_event_id: 1003,
-        sofa_sport: "rugby",
+        sofa_sport: "motorsport",
         home: "All Blacks",
         away: "Springboks",
         kickoff_at: "2026-05-07T19:00:00Z",

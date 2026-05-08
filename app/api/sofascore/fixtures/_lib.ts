@@ -5,9 +5,26 @@ const TIME_TOLERANCE_BY_SPORT: Record<SofaSport, number> = {
   football: 20 * 60,
   tennis: 30 * 60,
   basketball: 60 * 60,
+  baseball: 90 * 60,
+  cricket: 90 * 60,
+  "ice-hockey": 30 * 60,
+  handball: 20 * 60,
+  volleyball: 20 * 60,
+  rugby: 30 * 60,
+  "american-football": 30 * 60,
+  darts: 60 * 60,
+  boxing: 60 * 60,
+  mma: 90 * 60,
+  snooker: 60 * 60,
+  esports: 30 * 60,
 };
 
-const SOFA_SPORTS = ["football", "tennis", "basketball"] as const;
+const SOFA_SPORTS = [
+  "football", "tennis", "basketball",
+  "baseball", "esports", "handball", "rugby", "darts",
+  "ice-hockey", "cricket", "volleyball", "boxing", "mma",
+  "american-football", "snooker",
+] as const;
 export type SofaSport = (typeof SOFA_SPORTS)[number];
 export const SOFA_VALID_SPORTS: ReadonlySet<SofaSport> = new Set(SOFA_SPORTS);
 

@@ -75,7 +75,12 @@ describe("GET /api/sofascore/stats", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.matched_total).toBe(0);
-    expect(json.by_sport).toEqual({ football: 0, tennis: 0, basketball: 0 });
+    expect(json.by_sport).toEqual({
+      football: 0, tennis: 0, basketball: 0,
+      baseball: 0, esports: 0, handball: 0, rugby: 0, darts: 0,
+      "ice-hockey": 0, cricket: 0, volleyball: 0, boxing: 0, mma: 0,
+      "american-football": 0, snooker: 0,
+    });
     expect(Object.keys(json.by_endpoint_freshness).length).toBe(ENRICHMENT_KEYS.length);
     for (const k of ENRICHMENT_KEYS) {
       expect(json.by_endpoint_freshness).toHaveProperty(k);
@@ -106,7 +111,7 @@ describe("GET /api/sofascore/stats", () => {
     const res = await callRoute();
     const json = await res.json();
     expect(json.matched_total).toBe(5);
-    expect(json.by_sport).toEqual({ football: 3, tennis: 2, basketball: 0 });
+    expect(json.by_sport).toEqual({ football: 3, tennis: 2, basketball: 0, baseball: 0, esports: 0, handball: 0, rugby: 0, darts: 0, "ice-hockey": 0, cricket: 0, volleyball: 0, boxing: 0, mma: 0, "american-football": 0, snooker: 0 });
   });
 
   it("computes endpoint freshness populated_pct and median_age_s", async () => {
