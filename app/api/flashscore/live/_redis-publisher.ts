@@ -34,7 +34,7 @@ export async function publishRefresh(msg: RefreshMessage): Promise<boolean> {
   try {
     const client = await getRedisClient()
     const n = await client.publish(CHANNEL, JSON.stringify(msg))
-    console.log(`[redis-publisher] published sid=${msg.sofa_event_id} reason=${msg.reason} subs=${n}`)
+    console.log(`[redis-publisher] published sid=${msg.sofa_event_id} reason=${msg.reason} subs=${n} t_ms=${Date.now()}`)
     return n > 0
   } catch (e) {
     console.error('[redis-publisher] publish failed:', (e as Error).message)
