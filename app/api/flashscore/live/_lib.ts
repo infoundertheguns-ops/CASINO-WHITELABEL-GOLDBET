@@ -124,6 +124,31 @@ export function computeEnrichmentUpdate(args: {
     }
   }
 
+  // Sport-aware fallback: derive aggregate from per-period array when fs.scoreHome
+  // is null but halfScoreHome is populated. Empirically df_du provides scoreHome only
+  // for football; for basketball/baseball/hockey/handball/am-football/rugby it's
+  // routinely null while the per-period array has all the data we need. Skipped for
+  // tennis/volleyball/badminton where total != sum of period games.
+  const SUM_AGGREGATE_SPORTS = new Set([
+    "basketball", "basket",
+    "baseball",
+    "ice-hockey", "hockey",
+    "handball", "pallamano",
+    "american-football", "football_americano",
+    "rugby", "rugby_league",
+  ]);
+  if (
+    update.score_home == null && update.score_away == null &&
+    ev.score_home == null &&
+    halfScoreHome.length > 0 && halfScoreAway.length > 0 &&
+    SUM_AGGREGATE_SPORTS.has(sport.toLowerCase())
+  ) {
+    const sumH = halfScoreHome.reduce((s, n) => s + (n || 0), 0);
+    const sumA = halfScoreAway.reduce((s, n) => s + (n || 0), 0);
+    if (ev.score_home !== sumH) update.score_home = sumH;
+    if (ev.score_away !== sumA) update.score_away = sumA;
+  }
+
   return { update: Object.keys(update).length === 0 ? null : update };
 }
 

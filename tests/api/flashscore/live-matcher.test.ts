@@ -90,7 +90,47 @@ describe("computeEnrichmentUpdate", () => {
     expect(update?.score_away).toBeUndefined();
   });
 
-  it("DOES overwrite tennis score when DB looks like game-points (>=15)", () => {
+  it("derives score sum for basketball when fs.scoreHome null but halfScoreHome populated", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: null, scoreAway: null, periods: [[16, 18], [22, 20], [18, 15], [10, 12]] },
+      sport: "basketball",
+    });
+    expect(update?.score_home).toBe(66);
+    expect(update?.score_away).toBe(65);
+  });
+
+  it("derives score sum for baseball when fs.scoreHome null", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: null, scoreAway: null, periods: [[0,1],[1,0],[0,0],[3,2],[0,0]] },
+      sport: "baseball",
+    });
+    expect(update?.score_home).toBe(4);
+    expect(update?.score_away).toBe(3);
+  });
+
+  it("does NOT derive score sum for football (HT score not equal full game)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: null, scoreAway: null, periods: [[2, 1]] },
+      sport: "calcio",
+    });
+    expect(update?.score_home).toBeUndefined();
+    expect(update?.score_away).toBeUndefined();
+  });
+
+  it("does NOT derive score sum for tennis (set semantics, not points)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: null, scoreAway: null, periods: [[6, 3], [4, 6], [6, 4]] },
+      sport: "tennis",
+    });
+    expect(update?.score_home).toBeUndefined();
+    expect(update?.score_away).toBeUndefined();
+  });
+
+    it("DOES overwrite tennis score when DB looks like game-points (>=15)", () => {
     const { update } = computeEnrichmentUpdate({
       ev: { ...baseEv, score_home: 30, score_away: 15 },
       fs: { ...baseFs, scoreHome: 1, scoreAway: 0 },
