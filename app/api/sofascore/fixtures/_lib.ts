@@ -37,6 +37,9 @@ export interface SofaFixture {
   sofa_status: string;
   tournament_name: string;
   category_name: string | null;
+  // displayInverseHomeAwayTeams from Sofa uniqueTournament. Optional: Sofa may not always
+  // expose it. Persisted to events_v2.sofa_inverse_orientation when present.
+  sofa_inverse_orientation?: boolean | null;
 }
 
 export interface Candidate {

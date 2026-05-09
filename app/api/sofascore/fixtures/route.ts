@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     skipped_unknown_sport: 0,
   };
   const matched: MatchedRow[] = [];
-  const persistUpdates: Array<{ id: string; sofascore_id: number }> = [];
+  const persistUpdates: Array<{ id: string; sofascore_id: number; sofa_inverse_orientation?: boolean | null }> = [];
 
   for (const fx of fixtures) {
     const r = matchSofaToCandidate(fx, pool);
@@ -70,10 +70,19 @@ export async function POST(req: NextRequest) {
           kickoff_at: r.candidate.starts_at,
           sofa_status: fx.sofa_status,
         });
+        // Persist sofa_inverse_orientation flag even for direct matches (sofascore_id
+        // already bound, but the tournament-meta flag may be newly available).
+        if (fx.sofa_inverse_orientation !== undefined) {
+          persistUpdates.push({
+            id: r.candidate.id,
+            sofascore_id: fx.sofa_event_id,
+            sofa_inverse_orientation: fx.sofa_inverse_orientation,
+          });
+        }
         break;
       case "matched_fuzzy":
         stats.matched_fuzzy++;
-        persistUpdates.push({ id: r.candidate.id, sofascore_id: fx.sofa_event_id });
+        persistUpdates.push({ id: r.candidate.id, sofascore_id: fx.sofa_event_id, sofa_inverse_orientation: fx.sofa_inverse_orientation });
         matched.push({
           sofa_event_id: fx.sofa_event_id,
           event_v2_id: r.candidate.id,
@@ -96,7 +105,11 @@ export async function POST(req: NextRequest) {
   }
 
   for (const u of persistUpdates) {
-    await supabase.from("events_v2").update({ sofascore_id: u.sofascore_id }).eq("id", u.id);
+    const upd: Record<string, unknown> = { sofascore_id: u.sofascore_id };
+    if (u.sofa_inverse_orientation !== undefined) {
+      upd.sofa_inverse_orientation = u.sofa_inverse_orientation;
+    }
+    await supabase.from("events_v2").update(upd).eq("id", u.id);
   }
   await supabase.from("system_config").upsert(
     { key: "last_run_sofascore_fixtures", value: JSON.stringify(new Date().toISOString()) },
