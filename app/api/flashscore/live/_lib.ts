@@ -21,6 +21,7 @@ export interface V2LiveEvent {
   minute: number | null;
   live_data: Record<string, unknown> | null;
   flashscore_id: string | null;
+  sofascore_id: number | null;
 }
 
 export function computeEnrichmentUpdate(args: {
@@ -298,4 +299,32 @@ function statsEqual(
       return false;
   }
   return true;
+}
+
+interface IncidentLike {
+  id?: unknown;
+}
+
+/**
+ * Diff helper: returns ids present in `next` but not in `prior`.
+ * Used by FS live route to detect newly arrived incidents (cards/goals/subs)
+ * and trigger a Sofa enrichment refresh via Redis pub/sub.
+ * Skips entries with falsy/non-string id.
+ */
+export function findNewIncidentIds(
+  prior: IncidentLike[] | null | undefined,
+  next: IncidentLike[] | null | undefined,
+): string[] {
+  if (!Array.isArray(next)) return [];
+  const priorSet = new Set<string>();
+  if (Array.isArray(prior)) {
+    for (const p of prior) {
+      if (typeof p?.id === 'string' && p.id) priorSet.add(p.id);
+    }
+  }
+  const out: string[] = [];
+  for (const n of next) {
+    if (typeof n?.id === 'string' && n.id && !priorSet.has(n.id)) out.push(n.id);
+  }
+  return out;
 }

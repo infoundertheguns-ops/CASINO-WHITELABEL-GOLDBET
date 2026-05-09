@@ -6,9 +6,11 @@ import type { FlashscoreLive } from "@/lib/flashscore";
 import {
   computeEnrichmentUpdate,
   findFuzzyMatch,
+  findNewIncidentIds,
   swapFsLiveOrientation,
   type V2LiveEvent,
 } from "./_lib";
+import { publishRefresh, shouldPublish } from "./_redis-publisher";
 
 // ═══════════════════════════════════════════════════
 // Flashscore Live Enrichment Endpoint (events_v2 path)
@@ -67,7 +69,7 @@ export async function POST(req: NextRequest) {
   const { data: eventsRaw, error: evErr } = await supabase
     .from("events_v2")
     .select(
-      "id, odds_api_id, home, away, score_home, score_away, starts_at, period, minute, live_data, flashscore_id, sport_slug"
+      "id, odds_api_id, home, away, score_home, score_away, starts_at, period, minute, live_data, flashscore_id, sport_slug, sofascore_id"
     )
     .eq("status", "live")
     .in("sport_slug", slugsEn)
@@ -144,7 +146,27 @@ async function applyAndPersist(
   const { update } = computeEnrichmentUpdate({ ev, fs, sport });
   if (!update) return false;
   update.updated_at = new Date().toISOString();
+
+  // Detect new incidents BEFORE persisting (compare prior live_data vs incoming update).
+  // If update.live_data is undefined this tick, fall back to prior so diff is empty.
+  const priorIncidents = (ev.live_data as { incidents?: Array<{ id?: unknown }> } | null)?.incidents ?? null;
+  const updateLive = update.live_data as { incidents?: Array<{ id?: unknown }> } | undefined;
+  const nextIncidents = updateLive?.incidents ?? priorIncidents;
+  const newIds = findNewIncidentIds(priorIncidents, nextIncidents);
+
   const { error } = await supabase.from("events_v2").update(update).eq("id", ev.id);
   if (error) throw new Error(error.message);
+
+  // After successful persist, fire-and-forget Sofa refresh trigger.
+  // Throttled 5s per sofa_event_id. Graceful no-op if REDIS_URL unset.
+  if (newIds.length > 0 && ev.sofascore_id != null && shouldPublish(ev.sofascore_id)) {
+    publishRefresh({
+      sofa_event_id: ev.sofascore_id,
+      reason: "fs_new_incident",
+      incident_id: newIds[0],
+      ts: new Date().toISOString(),
+    }).catch(() => {});
+  }
+
   return true;
 }
