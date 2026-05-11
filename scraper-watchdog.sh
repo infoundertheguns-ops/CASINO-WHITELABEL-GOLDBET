@@ -1,14 +1,14 @@
 #!/bin/bash
 # ═══ Scraper Watchdog — State-Based (no spam) ═══
-# Monitors all services on the VPS. Alerts ONLY on state transitions.
-# Deploy: copy to /root/scraper-watchdog.sh on both VPS
-# Crontab: */5 * * * * /root/scraper-watchdog.sh >> /var/log/scraper-watchdog.log 2>&1
+# Monitors flashscore-scraper. Alerts ONLY on state transitions.
+# Deploy: /root/scraper-watchdog.sh, invoked via /etc/cron.d/scraper-watchdog every 5min
 #
-# scraper-vps services: camoufox-scraper, vincitu
-# prematch-vps services: camoufox-scraper, kambi-scraper, flashscore-scraper
+# scraper-vps active services (2026-05-11): flashscore-scraper (sole enrichment source post-Sofa deprecation)
+
+# Source /etc/environment so TELEGRAM vars are loaded under cron (cron doesn't load /etc/environment by default)
+[ -f /etc/environment ] && set -a && . /etc/environment && set +a
 
 # ═══ CONFIG ═══
-# Token from environment (set in crontab or /etc/environment)
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 STATE_FILE="/tmp/watchdog-state.json"
@@ -68,7 +68,7 @@ get_system_info() {
 SERVICES=()
 
 # Check which services exist on this VPS
-for svc in camoufox-scraper vincitu kambi-scraper flashscore-scraper; do
+for svc in flashscore-scraper; do
     if systemctl list-unit-files "${svc}.service" &>/dev/null; then
         if systemctl list-unit-files "${svc}.service" | grep -q "${svc}"; then
             SERVICES+=("$svc")
@@ -113,9 +113,11 @@ for svc in "${SERVICES[@]}"; do
     fi
 done
 
-# ═══ HEARTBEAT CHECK (camoufox-scraper only) ═══
+# ═══ HEARTBEAT CHECK (flashscore-scraper) ═══
+# FS scraper writes Date.now() to $HEARTBEAT_FILE after every successful live cycle.
+# Stale heartbeat → live loop hung even though systemd reports active. Restart forces recovery.
 HEARTBEAT_ALERT=""
-if [[ " ${SERVICES[*]} " =~ " camoufox-scraper " ]] && [ "${CURRENT_STATE[camoufox-scraper]}" = "ok" ]; then
+if [[ " ${SERVICES[*]} " =~ " flashscore-scraper " ]] && [ "${CURRENT_STATE[flashscore-scraper]}" = "ok" ]; then
     if [ -f "$HEARTBEAT_FILE" ]; then
         LAST_BEAT=$(cat "$HEARTBEAT_FILE" 2>/dev/null)
         NOW_MS=$(($(date +%s) * 1000))
@@ -128,11 +130,11 @@ if [[ " ${SERVICES[*]} " =~ " camoufox-scraper " ]] && [ "${CURRENT_STATE[camouf
 
             if [ "$prev_hb" = "ok" ]; then
                 HEARTBEAT_ALERT="stale"
-                SERVICES_TO_RESTART+=("camoufox-scraper")
-                echo "$LOG_TAG heartbeat: STALE (${AGE_SEC}s) — restarting scraper"
+                SERVICES_TO_RESTART+=("flashscore-scraper")
+                echo "$LOG_TAG heartbeat: STALE (${AGE_SEC}s) — restarting flashscore-scraper"
             else
                 # Still stale — restart silently
-                SERVICES_TO_RESTART+=("camoufox-scraper")
+                SERVICES_TO_RESTART+=("flashscore-scraper")
                 echo "$LOG_TAG heartbeat: still stale (${AGE_SEC}s)"
             fi
         else
@@ -191,7 +193,7 @@ done
 
 # Heartbeat alerts
 if [ "$HEARTBEAT_ALERT" = "stale" ]; then
-    new_status=$(systemctl is-active "camoufox-scraper" 2>/dev/null)
+    new_status=$(systemctl is-active "flashscore-scraper" 2>/dev/null)
     send_telegram "$(cat <<EOF
 🟡 <b>HEARTBEAT STALE</b> — ${HOSTNAME_SHORT}
 
