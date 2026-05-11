@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   const { data: eventsRaw, error: evErr } = await supabase
     .from("events_v2")
     .select(
-      "id, odds_api_id, home, away, score_home, score_away, starts_at, period, minute, live_data, flashscore_id, sport_slug, sofascore_id"
+      "id, odds_api_id, home, away, score_home, score_away, starts_at, period, minute, live_data, flashscore_id, sport_slug, sofascore_id, country_fs, league_fs"
     )
     .eq("status", "live")
     .in("sport_slug", slugsEn)

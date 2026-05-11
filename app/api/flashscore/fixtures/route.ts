@@ -180,10 +180,25 @@ export async function POST(req: NextRequest) {
 
   const matched = matchFixtures(dbEvents, fixtures);
 
+  // payload-fs 2026-05-11: also persist FS-side country/league + pregame metadata
+  // when matching. Lookups by id avoid extra DB roundtrips.
+  const fxByMatchId = new Map(fixtures.map((f) => [f.matchId, f]));
+  const dbEventById = new Map(dbEvents.map((e) => [e.id, e]));
+
   for (const m of matched) {
+    const fx = fxByMatchId.get(m.flashscoreId);
+    const dbEv = dbEventById.get(m.eventId);
+    const updateRow: Record<string, unknown> = { flashscore_id: m.flashscoreId };
+    if (fx?.country) updateRow.country_fs = fx.country;
+    if (fx?.league) updateRow.league_fs = fx.league;
+    if (fx?.pregame && dbEv) {
+      const existingLd = (dbEv.live_data || {}) as Record<string, unknown>;
+      updateRow.live_data = { ...existingLd, fs_pregame: fx.pregame };
+    }
+
     const { error } = await supabase
       .from("events_v2")
-      .update({ flashscore_id: m.flashscoreId })
+      .update(updateRow)
       .eq("id", m.eventId);
 
     if (!error) {

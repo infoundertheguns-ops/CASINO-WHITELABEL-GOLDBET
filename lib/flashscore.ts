@@ -31,6 +31,14 @@ export interface FlashscoreResult {
   sport: string;
 }
 
+export interface FlashscorePregame {
+  // Pre-match static metadata from dc_1 feed (added 2026-05-11 payload-fs).
+  // image: generic event/league image URL (NOT team logo).
+  // availableFeeds: feed-code list FS publishes for this match (LI/HH/LT/TA/DTF...).
+  image?: string;
+  availableFeeds?: string[];
+}
+
 export interface FlashscoreFixture {
   matchId: string;
   homeTeam: string;
@@ -39,6 +47,7 @@ export interface FlashscoreFixture {
   country: string;
   league: string;
   sport: string;
+  pregame?: FlashscorePregame;
 }
 
 export interface FlashscoreLive {

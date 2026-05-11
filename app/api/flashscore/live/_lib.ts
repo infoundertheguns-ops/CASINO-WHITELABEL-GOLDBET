@@ -22,6 +22,8 @@ export interface V2LiveEvent {
   live_data: Record<string, unknown> | null;
   flashscore_id: string | null;
   sofascore_id: number | null;
+  country_fs: string | null;
+  league_fs: string | null;
 }
 
 export function computeEnrichmentUpdate(args: {
@@ -112,6 +114,12 @@ export function computeEnrichmentUpdate(args: {
   }
 
   if (ldChanged) update.live_data = mergedLd;
+
+  // FS-side country/league strings (payload-fs 2026-05-11). Persist when FS reports
+  // a non-empty value that differs from current row. Use case: cross-ref vs OddsAPI
+  // league_name to detect matcher drift (e.g., Argentine Primera bug).
+  if (fs.country && fs.country !== ev.country_fs) update.country_fs = fs.country;
+  if (fs.league && fs.league !== ev.league_fs) update.league_fs = fs.league;
 
   // score overwrite
   const isTennisLike = ["tennis", "tennis_tavolo", "tennis tavolo", "volley", "volleyball", "badminton"]
