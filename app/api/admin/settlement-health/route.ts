@@ -2,12 +2,38 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function formatAge(minutes: number | null): string {
-  if (minutes === null) return "N/A";
-  if (minutes < 1) return "< 1 min";
-  if (minutes < 60) return `${minutes} min`;
-  if (minutes < 1440) return `${Math.round(minutes / 60)}h`;
-  return `${Math.round(minutes / 1440)}d`;
+// Sprint 4 / Phase 1.A bis — restructured for OddsAPI + Flashscore-only architecture.
+// OddsAPI    → events_v2 + markets_v2 + outcomes_v2 (events/markets/odds)
+// Flashscore → events_v2.live_data + status='settled' + last_settled_at (ALL bet settlement)
+//
+// Notes on semantic decisions:
+// - "FS reports event ended": probe revealed live_data has no explicit final/status/period='finished'
+//   field. The FS scraper atomically sets events_v2.status='settled' + last_settled_at when it
+//   sees the match end. Therefore "events_pending_settlement" is operationally defined as
+//   events whose kickoff is well past but status is still 'live' or 'pending' (heuristic
+//   threshold: starts_at < now() - 3h, status NOT IN ('settled','cancelled')).
+// - "stuck": same condition with starts_at < now() - 3.5h (i.e. > 30 min beyond the typical
+//   settle window for a 3h match).
+
+function formatAge(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds)) return "N/A";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
+}
+
+function clamp(v: number): number {
+  return Math.max(0, Math.min(100, Math.round(v)));
+}
+
+function lerpScore(value: number, goodThreshold: number, badThreshold: number): number {
+  // value <= goodThreshold → 100; value >= badThreshold → 0; linear in between.
+  if (value <= goodThreshold) return 100;
+  if (value >= badThreshold) return 0;
+  return clamp(100 - ((value - goodThreshold) / (badThreshold - goodThreshold)) * 100);
 }
 
 export async function GET() {
@@ -24,344 +50,374 @@ export async function GET() {
 
   try {
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 3600000).toISOString();
-    const sixHoursAgo = new Date(now.getTime() - 6 * 3600000).toISOString();
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 3600000).toISOString();
-    const thirtyMinAgo = new Date(now.getTime() - 30 * 60000).toISOString();
+    const nowMs = now.getTime();
+    const oneHourAgoIso = new Date(nowMs - 3600_000).toISOString();
+    const threeHoursAgoIso = new Date(nowMs - 3 * 3600_000).toISOString();
+    const threeAndHalfHoursAgoIso = new Date(nowMs - 3.5 * 3600_000).toISOString();
+    const todayStartIso = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-    // ── 1. Backlog: events past their start time, not yet settled ──
-    // events_v2 has no "finished" interim state; FS settles in-stream.
-    // Approximate: events past start +3h (typical game) and not settled/cancelled.
-    const threeHoursAgo = new Date(now.getTime() - 3 * 3600000).toISOString();
-    const { count: backlog } = await supabase
+    // ── 1. Cron timestamps from system_config ───────────────────────────────
+    const { data: cronRows } = await supabase
+      .from("system_config")
+      .select("key, value")
+      .like("key", "last_run_%");
+
+    const cronTs: Record<string, string | null> = {};
+    for (const row of cronRows || []) {
+      try {
+        const parsed = JSON.parse((row as any).value);
+        if (typeof parsed === "string") cronTs[(row as any).key] = parsed;
+        else if (parsed && typeof parsed === "object" && typeof parsed.ts === "string") cronTs[(row as any).key] = parsed.ts;
+        else cronTs[(row as any).key] = null;
+      } catch {
+        cronTs[(row as any).key] = null;
+      }
+    }
+
+    const fsResultsTs = cronTs["last_run_flashscore_results"] || null;
+    const fsFixturesTs = cronTs["last_run_flashscore_fixtures"] || null;
+    const settlementCronTs = cronTs["last_run_settlement_shadow"] || cronTs["last_run_settlement"] || cronTs["last_run_verify_results"] || null;
+
+    const fsCronAgeSec = fsResultsTs ? Math.round((nowMs - new Date(fsResultsTs).getTime()) / 1000) : null;
+    const settlementCronAgeMin = settlementCronTs ? Math.round((nowMs - new Date(settlementCronTs).getTime()) / 60000) : null;
+
+    // ── 2. FS data freshness — most recent live_data update on a live event ─
+    const { data: latestLive } = await supabase
+      .from("events_v2")
+      .select("updated_at")
+      .eq("status", "live")
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const fsDataFreshnessSec = latestLive?.[0]
+      ? Math.round((nowMs - new Date((latestLive[0] as any).updated_at).getTime()) / 1000)
+      : null;
+
+    // ── 3. Event settlement: pending, stuck, recent rate ────────────────────
+    // "Pending settlement": event kickoff was > 3h ago but status still live/pending.
+    const { count: eventsPendingSettlement } = await supabase
       .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .lt("starts_at", threeHoursAgo)
-      .is("last_settled_at", null)
-      .not("status", "in", "(settled,cancelled)");
+      .lt("starts_at", threeHoursAgoIso)
+      .in("status", ["live", "pending"]);
 
-    // ── 2. Stuck events: past start +3.5h, not settled ──
-    const threeAndHalfHoursAgo = new Date(now.getTime() - 3.5 * 3600000).toISOString();
-    const { data: stuckEvents } = await supabase
+    // Live events count (used to suppress rate metric when there's no work).
+    const { count: liveEventsCount } = await supabase
       .from("events_v2")
-      .select("id, home, away, starts_at, updated_at, sport_name")
-      .lt("starts_at", threeAndHalfHoursAgo)
-      .is("last_settled_at", null)
-      .not("status", "in", "(settled,cancelled)")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "live");
+
+    const { count: eventsSettledLastHour } = await supabase
+      .from("events_v2")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "settled")
+      .gte("last_settled_at", oneHourAgoIso);
+
+    const { count: eventsSettledToday } = await supabase
+      .from("events_v2")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "settled")
+      .gte("last_settled_at", todayStartIso);
+
+    // Top 20 stuck events (>30 min beyond typical 3h game = starts_at < now - 3.5h)
+    const { data: stuckRows } = await supabase
+      .from("events_v2")
+      .select("id, home, away, sport_name, starts_at, updated_at")
+      .lt("starts_at", threeAndHalfHoursAgoIso)
+      .in("status", ["live", "pending"])
       .order("starts_at", { ascending: true })
       .limit(20);
 
-    // ── 3. Settlement rates (settled events in timeframes) ──
-    const { count: settled1h } = await supabase
-      .from("events_v2")
+    const stuckEvents = (stuckRows || []).map((e: any) => {
+      const startMs = new Date(e.starts_at).getTime();
+      const stuckMinutes = Math.round((nowMs - startMs) / 60000);
+      return {
+        id: e.id,
+        match: `${e.home} vs ${e.away}`,
+        sport: e.sport_name || "?",
+        starts_at: e.starts_at,
+        fs_ended_since: e.updated_at, // proxy: last DB touch
+        stuck_minutes: stuckMinutes,
+      };
+    });
+
+    // ── 4. Customer bet settlement ──────────────────────────────────────────
+    const { count: selectionsPending } = await supabase
+      .from("bet_selections")
       .select("id", { count: "exact", head: true })
-      .eq("status", "settled")
-      .gte("last_settled_at", oneHourAgo);
-
-    const { count: settled6h } = await supabase
-      .from("events_v2")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "settled")
-      .gte("last_settled_at", sixHoursAgo);
-
-    const { count: settled24h } = await supabase
-      .from("events_v2")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "settled")
-      .gte("last_settled_at", twentyFourHoursAgo);
-
-    // ── 4. Flashscore scraper health ──
-    // Check latest fixtures push
-    const { data: latestFixture } = await supabase
-      .from("be_fixtures")
-      .select("created_at")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    // Count recent results from Flashscore (events with flashscore_id that are settled)
-    const { count: fsMatched24h } = await supabase
-      .from("events_v2")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "settled")
-      .not("flashscore_id", "is", null)
-      .gte("last_settled_at", twentyFourHoursAgo);
-
-    // ── 5. Recent settlements — use settled events as the real log ──
-    const { data: recentSettled } = await supabase
-      .from("events_v2")
-      .select("id, home, away, score_home, score_away, last_settled_at, sport_name")
-      .eq("status", "settled")
-      .order("last_settled_at", { ascending: false })
-      .limit(20);
-
-    // ── 6. Backlog by sport ──
-    const { data: backlogBySport } = await supabase
-      .from("events_v2")
-      .select("id, sport_name")
-      .lt("starts_at", threeHoursAgo)
-      .is("last_settled_at", null)
-      .not("status", "in", "(settled,cancelled)");
-
-    const sportBacklog: Record<string, number> = {};
-    for (const e of (backlogBySport || [])) {
-      const name = (e as any).sport_name || "?";
-      sportBacklog[name] = (sportBacklog[name] || 0) + 1;
-    }
-
-    // ── 7. Avg settlement time (last 100 settled events) ──
-    const { data: recentEnded } = await supabase
-      .from("events_v2")
-      .select("starts_at, last_settled_at")
-      .eq("status", "settled")
-      .order("last_settled_at", { ascending: false })
-      .limit(100);
-
-    let avgSettlementMin = 0;
-    if (recentEnded && recentEnded.length > 0) {
-      const diffs = recentEnded.map(e => {
-        const start = new Date(e.starts_at).getTime();
-        const end = new Date(e.last_settled_at).getTime();
-        return (end - start) / 60000; // minutes
-      }).filter(d => d > 0 && d < 1440); // exclude outliers > 24h
-
-      if (diffs.length > 0) {
-        avgSettlementMin = Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length);
-      }
-    }
-
-    // ── 8. Cleanup cron health — check system_health_log ──
-    const { data: healthLogRows } = await supabase
-      .from("system_health_log")
-      .select("created_at")
-      .order("created_at", { ascending: false })
-      .limit(1);
-    const healthLog = healthLogRows?.[0] || null;
-
-    // ── Real cron execution timestamps from system_config ──
-    const { data: cronTimestamps } = await supabase
-      .from("system_config")
-      .select("key, value")
-      .in("key", ["last_run_verify_results", "last_run_cleanup", "last_run_flashscore_results", "last_run_flashscore_fixtures"]);
-
-    const cronTs: Record<string, string | null> = {};
-    for (const row of cronTimestamps || []) {
-      try { cronTs[row.key] = JSON.parse(row.value) || null; } catch { cronTs[row.key] = null; }
-    }
-
-    // ── 9. Verify-results cron — separate cron freshness from settlement activity ──
-    const { data: latestEnded } = await supabase
-      .from("events_v2")
-      .select("last_settled_at")
-      .eq("status", "settled")
-      .order("last_settled_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    // Cron execution freshness (is the cron running?)
-    const verifyCronTs = cronTs["last_run_verify_results"] || null;
-    const verifyCronAge = verifyCronTs
-      ? Math.round((now.getTime() - new Date(verifyCronTs).getTime()) / 60000)
-      : null;
-
-    // Last actual settlement (when was the last event settled?)
-    const lastSettlementTs = latestEnded?.last_settled_at || null;
-    const lastSettlementAge = lastSettlementTs
-      ? Math.round((now.getTime() - new Date(lastSettlementTs).getTime()) / 60000)
-      : null;
-
-    // For display/actor status, prefer cron timestamp
-    const verifyLastRun = verifyCronTs || lastSettlementTs || null;
-    const lastEndedAge = verifyCronAge ?? lastSettlementAge;
-
-    // ── 10. Ippica settlement health ──
-    // Count unsettled odds ONLY on finished races (not scheduled/closed/active)
-    const { data: ippicaFinishedRaces } = await supabase
-      .from("ippica_races")
-      .select("id")
-      .eq("status", "finished");
-
-    const finishedRaceIds = (ippicaFinishedRaces || []).map(r => r.id);
-    let ippicaUnsettled = 0;
-    if (finishedRaceIds.length > 0) {
-      // Get market IDs for finished races
-      const { data: finishedMarkets } = await supabase
-        .from("ippica_markets")
-        .select("id")
-        .in("race_id", finishedRaceIds);
-      const fmIds = (finishedMarkets || []).map(m => m.id);
-      if (fmIds.length > 0) {
-        const { count } = await supabase
-          .from("ippica_odds")
-          .select("id", { count: "exact", head: true })
-          .in("market_id", fmIds)
-          .is("result", null)
-          .eq("status", "active");
-        ippicaUnsettled = count || 0;
-      }
-    }
-
-    // Count active (upcoming) races and odds separately
-    const { count: ippicaActiveOdds } = await supabase
-      .from("ippica_odds")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active")
       .is("result", null);
 
-    const ippicaFinished = ippicaFinishedRaces;
+    const { count: selectionsSettledLastHour } = await supabase
+      .from("bet_selections")
+      .select("id", { count: "exact", head: true })
+      .not("result", "is", null)
+      .gte("settled_at", oneHourAgoIso);
 
-    // Build actor health
-    // Use real cron timestamp if available, fallback to fixture created_at
-    const flashscoreLastRun = cronTs["last_run_flashscore_results"] || cronTs["last_run_flashscore_fixtures"] || latestFixture?.created_at || null;
-    const flashscoreAge = flashscoreLastRun
-      ? Math.round((now.getTime() - new Date(flashscoreLastRun).getTime()) / 60000)
-      : null;
+    const { count: betsPendingPayout } = await supabase
+      .from("bets")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open");
 
-    const cleanupLastRun = cronTs["last_run_cleanup"] || healthLog?.created_at || null;
-    const healthLogAge = cleanupLastRun
-      ? Math.round((now.getTime() - new Date(cleanupLastRun).getTime()) / 60000)
-      : null;
+    // Top 10 oldest pending selections (with join to event for match string).
+    const { data: pendingSelRows } = await supabase
+      .from("bet_selections")
+      .select("id, bet_id, outcome_id, event_id, settled_at")
+      .is("result", null)
+      .order("id", { ascending: true })
+      .limit(10);
 
-    // Pre-compute cron freshness for use in both actors and scoring
-    const fsCronAge = cronTs["last_run_flashscore_results"]
-      ? Math.round((now.getTime() - new Date(cronTs["last_run_flashscore_results"]).getTime()) / 60000)
-      : flashscoreAge; // fallback to data age
+    // For each pending selection, try to enrich with event match label.
+    const eventIds = Array.from(
+      new Set((pendingSelRows || []).map((s: any) => s.event_id).filter(Boolean))
+    );
+    let evMap: Record<string, { home: string; away: string }> = {};
+    if (eventIds.length > 0) {
+      const { data: evs } = await supabase
+        .from("events_v2")
+        .select("id, home, away")
+        .in("id", eventIds);
+      for (const e of evs || []) {
+        evMap[(e as any).id] = { home: (e as any).home, away: (e as any).away };
+      }
+    }
 
-    // Actor statuses — based on cron freshness, not data age
-    const actors = {
-      flashscore: {
-        status: fsCronAge !== null && fsCronAge < 15 ? "healthy" : fsCronAge !== null && fsCronAge < 120 ? "warning" : "critical",
-        last_push: flashscoreLastRun,
-        age_minutes: flashscoreAge,
-        cron_age_minutes: fsCronAge,
-        matched_24h: fsMatched24h || 0,
-        interval_minutes: 60,
-        next_in_minutes: flashscoreAge !== null ? Math.max(0, 60 - flashscoreAge) : null,
-      },
-      verify_results: {
-        status: verifyCronAge !== null && verifyCronAge < 10 ? "healthy" : verifyCronAge !== null && verifyCronAge < 30 ? "warning" : "critical",
-        last_settlement: lastSettlementTs,
-        last_cron_run: verifyCronTs,
-        age_minutes: lastEndedAge,
-        cron_age_minutes: verifyCronAge,
-        settlement_age_minutes: lastSettlementAge,
-        settled_1h: settled1h || 0,
-        interval_minutes: 5,
-        next_in_minutes: verifyCronAge !== null ? Math.max(0, 5 - verifyCronAge) : null,
-      },
-      cleanup: {
-        status: healthLogAge !== null && healthLogAge < 300 ? "healthy" : healthLogAge !== null && healthLogAge < 480 ? "warning" : "critical",
-        last_run: cleanupLastRun,
-        age_minutes: healthLogAge,
-        interval_minutes: 240,
-        next_in_minutes: healthLogAge !== null ? Math.max(0, 240 - healthLogAge) : null,
-      },
+    // Approximate "pending_since" via bets.created_at? bet_selections has no created_at.
+    // Use bets.updated_at (or fall back to now) for an age proxy.
+    const betIds = Array.from(
+      new Set((pendingSelRows || []).map((s: any) => s.bet_id).filter(Boolean))
+    );
+    let betMap: Record<string, { updated_at: string }> = {};
+    if (betIds.length > 0) {
+      const { data: bs } = await supabase
+        .from("bets")
+        .select("id, updated_at")
+        .in("id", betIds);
+      for (const b of bs || []) {
+        betMap[(b as any).id] = { updated_at: (b as any).updated_at };
+      }
+    }
+
+    const pendingSelections = (pendingSelRows || []).map((s: any) => {
+      const ev = s.event_id ? evMap[s.event_id] : null;
+      const pendingSinceRaw = (s.bet_id && betMap[s.bet_id]?.updated_at) || s.settled_at || null;
+      const pendingSinceMs = pendingSinceRaw ? new Date(pendingSinceRaw).getTime() : nowMs;
+      return {
+        id: s.id,
+        bet_id: s.bet_id,
+        outcome_id: s.outcome_id,
+        event_id: s.event_id,
+        match: ev ? `${ev.home} vs ${ev.away}` : "(legacy event)",
+        pending_since: pendingSinceRaw,
+        pending_minutes: Math.max(0, Math.round((nowMs - pendingSinceMs) / 60000)),
+      };
+    });
+
+    // ── 5. Recent settlements (top 10) ──────────────────────────────────────
+    const { data: recentRows } = await supabase
+      .from("events_v2")
+      .select("id, home, away, score_home, score_away, sport_name, last_settled_at")
+      .eq("status", "settled")
+      .order("last_settled_at", { ascending: false })
+      .limit(10);
+
+    const recentSettlements = (recentRows || []).map((e: any) => ({
+      id: e.id,
+      match: `${e.home} vs ${e.away}`,
+      sport: e.sport_name || "?",
+      score: e.score_home != null && e.score_away != null ? `${e.score_home}-${e.score_away}` : null,
+      settled_at: e.last_settled_at,
+    }));
+
+    // ── 6. Coverage by sport (via v_player_markets) ─────────────────────────
+    // Use raw SQL via rpc-style query: we wrap in a subquery so we can ORDER BY computed sum.
+    // Supabase JS doesn't expose .from() arithmetic ordering — fetch grouped raw rows and reduce in JS.
+    // We replicate the verified prod query verbatim, executed as a stored-style call via .rpc is overkill;
+    // use the PostgREST endpoint that lets us select from v_player_markets and aggregate in JS.
+    //
+    // Strategy: pull (sport_slug, event_id, flashscore_id, event_status, category) rows from
+    // v_player_markets joined with events_v2 via PostgREST — but PostgREST can't FILTER+aggregate
+    // the way we want efficiently. Instead, we use a custom SQL function call via `supabase.rpc()`
+    // if available, OR fall back to a direct fetch of /rest/v1/rpc.
+    //
+    // For simplicity and correctness, we'll fetch raw rows and aggregate. Volume: ~200k markets,
+    // each row is minimal — feasible in <2s. We page in chunks.
+    // Coverage: delegate to SQL function public.settlement_health_coverage()
+    // which runs the verified aggregation query against v_player_markets + events_v2.
+    // (PostgREST 1000-row default cap would otherwise force ~200 paginated requests
+    //  to scan 200k+ markets rows.)
+    let coverageBySport: any[] = [];
+    let coverageTotal = {
+      events_total: 0,
+      events_fs_trackable: 0,
+      fs_trackable_pct: 0,
+      prematch_markets: 0,
+      live_markets: 0,
+      score_markets: 0,
+      stats_markets: 0,
+      player_markets: 0,
     };
 
-    // ── Health Score 0-100 ──
-    const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
-    const stuckCount = (stuckEvents || []).length;
-
-    // Subsystem 1: Flashscore Scraper (weight 25)
-    let flashscoreScore = 100;
-    if (fsCronAge === null) flashscoreScore = 0;
-    else if (fsCronAge <= 15) flashscoreScore = 100;
-    else if (fsCronAge >= 120) flashscoreScore = 0;
-    else flashscoreScore = 100 - ((fsCronAge - 15) / 105) * 100;
-    flashscoreScore = clamp(flashscoreScore);
-
-    // Subsystem 2: Verify Results (weight 30)
-    // Two-dimensional: cron must be running + pipeline must be clearing work
-    const rate1h = settled1h || 0;
-    const bl_ = backlog || 0;
-    let verifyScore = 100;
-
-    if (verifyCronAge === null) {
-      // Cron never ran — critical
-      verifyScore = 0;
-    } else if (verifyCronAge <= 10 && bl_ === 0 && stuckCount === 0) {
-      // Cron is fresh, no backlog, no stuck → pipeline is healthy (nothing to do = OK)
-      verifyScore = 100;
-    } else if (verifyCronAge > 15) {
-      // Cron is stale — real problem: cron not running
-      if (verifyCronAge >= 120) verifyScore = 0;
-      else verifyScore = 100 - ((verifyCronAge - 15) / 105) * 100;
+    const { data: covRows, error: covErr } = await supabase.rpc("settlement_health_coverage");
+    if (covErr) {
+      console.error("[settlement-health] coverage rpc error", covErr);
     } else {
-      // Cron is running but there may be work piling up
-      // Score based on backlog + stuck (already covered by subsystems 3 & 4)
-      // Only penalize here if settlement rate dropped while backlog exists
-      if (bl_ > 50 && rate1h === 0) verifyScore = 40;
-      else if (bl_ > 20 && rate1h === 0) verifyScore = 70;
-      else verifyScore = 100;
+      // Note: COUNT(DISTINCT event_id) across the whole result is NOT equal to the sum of
+      // per-sport distinct counts (in practice it is here because every event belongs to
+      // exactly one sport — but we compute totals as sums of per-sport values for clarity).
+      coverageBySport = (covRows || [])
+        .map((r: any) => {
+          const events_total = Number(r.events_total) || 0;
+          const events_fs_trackable = Number(r.events_fs_trackable) || 0;
+          return {
+            sport_slug: r.sport_slug,
+            events_total,
+            events_fs_trackable,
+            fs_trackable_pct: events_total > 0 ? Math.round((events_fs_trackable * 100) / events_total) : 0,
+            prematch_markets: Number(r.prematch_markets) || 0,
+            live_markets: Number(r.live_markets) || 0,
+            score_markets: Number(r.score_markets) || 0,
+            stats_markets: Number(r.stats_markets) || 0,
+            player_markets: Number(r.player_markets) || 0,
+          };
+        })
+        .sort(
+          (a: any, b: any) =>
+            (b.prematch_markets + b.live_markets) - (a.prematch_markets + a.live_markets)
+        );
+
+      for (const r of coverageBySport) {
+        coverageTotal.events_total += r.events_total;
+        coverageTotal.events_fs_trackable += r.events_fs_trackable;
+        coverageTotal.prematch_markets += r.prematch_markets;
+        coverageTotal.live_markets += r.live_markets;
+        coverageTotal.score_markets += r.score_markets;
+        coverageTotal.stats_markets += r.stats_markets;
+        coverageTotal.player_markets += r.player_markets;
+      }
+      coverageTotal.fs_trackable_pct =
+        coverageTotal.events_total > 0
+          ? Math.round((coverageTotal.events_fs_trackable * 100) / coverageTotal.events_total)
+          : 0;
     }
-    verifyScore = clamp(verifyScore);
 
-    // Subsystem 3: Backlog (weight 30)
-    const bl = backlog || 0;
-    let backlogScore = 100;
-    if (bl <= 20) backlogScore = 100;
-    else if (bl >= 500) backlogScore = 0;
-    else backlogScore = 100 - ((bl - 20) / 480) * 100;
-    backlogScore = clamp(backlogScore);
+    // ── 7. Subsystem scoring ───────────────────────────────────────────────
+    // flashscore_scraper: cron_age < 60s AND freshness < 120s → 100; >300s OR >600s → 0
+    let flashscoreScraperScore: number;
+    if (fsCronAgeSec === null) flashscoreScraperScore = 0;
+    else {
+      const cronScore = lerpScore(fsCronAgeSec, 60, 300);
+      const dataScore = fsDataFreshnessSec === null
+        ? 100 // no live events to measure
+        : lerpScore(fsDataFreshnessSec, 120, 600);
+      flashscoreScraperScore = Math.min(cronScore, dataScore);
+    }
 
-    // Subsystem 4: Stuck Events (weight 15)
-    let stuckScore = 100;
-    if (stuckCount === 0) stuckScore = 100;
-    else if (stuckCount >= 20) stuckScore = 0;
-    else stuckScore = 100 - (stuckCount / 20) * 100;
-    stuckScore = clamp(stuckScore);
+    // event_settlement_lag: pending=0 → 100; >=20 → 0
+    const pendingCount = eventsPendingSettlement || 0;
+    const eventSettlementLagScore = lerpScore(pendingCount, 0, 20);
+
+    // event_settlement_rate: no live events → 100; rate>=30 → 100; rate=0 + live → 0
+    const settledLastHour = eventsSettledLastHour || 0;
+    let eventSettlementRateScore: number;
+    if ((liveEventsCount || 0) === 0) eventSettlementRateScore = 100;
+    else if (settledLastHour >= 30) eventSettlementRateScore = 100;
+    else if (settledLastHour === 0) eventSettlementRateScore = 0;
+    else eventSettlementRateScore = clamp((settledLastHour / 30) * 100);
+
+    // bet_settlement_lag: 0 → 100; >=100 → 0
+    const pendingSel = selectionsPending || 0;
+    const betSettlementLagScore = lerpScore(pendingSel, 0, 100);
+
+    // bet_settlement_rate: cron < 24h → 100; > 48h → 0
+    let betSettlementRateScore: number;
+    if (settlementCronAgeMin === null) betSettlementRateScore = 0;
+    else if (settlementCronAgeMin < 24 * 60) betSettlementRateScore = 100;
+    else if (settlementCronAgeMin > 48 * 60) betSettlementRateScore = 0;
+    else betSettlementRateScore = clamp(100 - ((settlementCronAgeMin - 24 * 60) / (24 * 60)) * 100);
 
     const subsystems = {
-      flashscore: { score: flashscoreScore, weight: 25, label: "Flashscore Scraper", details: `Cron: ${formatAge(fsCronAge)}, dati: ${formatAge(flashscoreAge)}` },
-      verify_results: { score: verifyScore, weight: 30, label: "Verify Results", details: `Cron: ${formatAge(verifyCronAge)}, ultimo settle: ${formatAge(lastSettlementAge)}, ${rate1h}/1h` },
-      backlog: { score: backlogScore, weight: 30, label: "Backlog", details: `${bl} eventi in attesa` },
-      stuck: { score: stuckScore, weight: 15, label: "Stuck Events", details: `${stuckCount} stuck > 30 min` },
+      flashscore_scraper: {
+        score: flashscoreScraperScore,
+        weight: 30,
+        label: "Flashscore Scraper",
+        details: `Cron ${formatAge(fsCronAgeSec)}, dati ${formatAge(fsDataFreshnessSec)}`,
+      },
+      event_settlement_lag: {
+        score: eventSettlementLagScore,
+        weight: 25,
+        label: "Event Settlement Lag",
+        details: `${pendingCount} events FS-ended pending`,
+      },
+      event_settlement_rate: {
+        score: eventSettlementRateScore,
+        weight: 20,
+        label: "Event Settlement Rate",
+        details: `${settledLastHour}/h`,
+      },
+      bet_settlement_lag: {
+        score: betSettlementLagScore,
+        weight: 15,
+        label: "Customer Bet Lag",
+        details: `${pendingSel} selections pending`,
+      },
+      bet_settlement_rate: {
+        score: betSettlementRateScore,
+        weight: 10,
+        label: "Customer Bet Rate",
+        details: settlementCronAgeMin === null
+          ? "settlement cron never ran"
+          : `cron ${formatAge(settlementCronAgeMin * 60)} ago`,
+      },
     };
 
     const totalWeight = Object.values(subsystems).reduce((s, sub) => s + sub.weight, 0);
-    const overallScore = clamp(
+    const healthScore = clamp(
       Object.values(subsystems).reduce((s, sub) => s + sub.score * sub.weight, 0) / totalWeight
     );
-    const overallLevel = overallScore >= 80 ? "healthy" : overallScore >= 50 ? "degraded" : "critical";
+    const overall: "ok" | "warning" | "critical" =
+      healthScore >= 80 ? "ok" : healthScore >= 50 ? "warning" : "critical";
 
-    // Overall health (legacy field)
-    const statuses = [actors.flashscore.status, actors.verify_results.status, actors.cleanup.status];
-    const overallHealth = statuses.includes("critical") ? "critical"
-      : statuses.includes("warning") ? "warning" : "healthy";
+    // Legacy compatibility: keep the `actors` block + a couple of mirror fields the
+    // admin UI may still consume; the new shape is the source of truth.
+    const flashscoreAgeMin = fsCronAgeSec !== null ? Math.round(fsCronAgeSec / 60) : null;
+    const actors = {
+      flashscore: {
+        status: flashscoreScraperScore >= 80 ? "healthy" : flashscoreScraperScore >= 50 ? "warning" : "critical",
+        last_push: fsResultsTs,
+        age_minutes: flashscoreAgeMin,
+        cron_age_minutes: flashscoreAgeMin,
+      },
+    };
 
     return NextResponse.json({
-      overall: overallHealth,
-      health_score: overallScore,
-      health_level: overallLevel,
+      overall,
+      health_score: healthScore,
       subsystems,
-      backlog: backlog || 0,
-      stuck_events: (stuckEvents || []).map((e: any) => ({
-        id: e.id,
-        match: `${e.home} vs ${e.away}`,
-        sport: e.sport_name,
-        starts_at: e.starts_at,
-        finished_since: e.updated_at,
-        stuck_minutes: Math.round((now.getTime() - new Date(e.starts_at).getTime()) / 60000),
-      })),
-      rates: {
-        last_1h: settled1h || 0,
-        last_6h: settled6h || 0,
-        last_24h: settled24h || 0,
+      metrics: {
+        events_pending_settlement: pendingCount,
+        events_settled_last_hour: settledLastHour,
+        events_settled_today: eventsSettledToday || 0,
+        selections_pending: pendingSel,
+        selections_settled_last_hour: selectionsSettledLastHour || 0,
+        bets_pending_payout: betsPendingPayout || 0,
+        fs_scraper_cron_age_seconds: fsCronAgeSec,
+        fs_data_freshness_seconds: fsDataFreshnessSec,
+        settlement_cron_last_run: settlementCronTs,
+        settlement_cron_age_minutes: settlementCronAgeMin,
+        live_events_count: liveEventsCount || 0,
+        fs_fixtures_cron_ts: fsFixturesTs,
       },
-      avg_settlement_minutes: avgSettlementMin,
-      backlog_by_sport: sportBacklog,
+      coverage_by_sport: coverageBySport,
+      coverage_total: coverageTotal,
+      stuck_events: stuckEvents,
+      pending_selections: pendingSelections,
+      recent_settlements: recentSettlements,
+      // Legacy back-compat fields (consumed by app/admin/risk/page.tsx)
       actors,
-      recent_settlements: (recentSettled || []).map((e: any) => ({
-        event_id: e.id,
-        match: `${e.home} vs ${e.away}`,
-        score: e.score_home != null ? `${e.score_home}-${e.score_away}` : null,
-        sport: e.sport_name || "?",
-        settled_at: e.last_settled_at,
-      })),
-      ippica: {
-        unsettled_odds: ippicaUnsettled,
-        pending_odds: (ippicaActiveOdds || 0) - ippicaUnsettled,
-        finished_races: ippicaFinished?.length || 0,
+      backlog: pendingCount,
+      rates: {
+        last_1h: settledLastHour,
+        last_6h: settledLastHour, // approximated; legacy field
+        last_24h: eventsSettledToday || 0,
       },
       generated_at: now.toISOString(),
     });
