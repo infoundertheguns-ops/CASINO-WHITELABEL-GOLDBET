@@ -106,6 +106,43 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("status", "live");
 
+    // Live FS coverage: how many live events are tracked by Flashscore (flashscore_id IS NOT NULL).
+    // "Phantom live" = status='live' but no flashscore_id → matcher coverage gap.
+    const { count: liveTrackedCount } = await supabase
+      .from("events_v2")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "live")
+      .not("flashscore_id", "is", null);
+
+    const { count: phantomLiveCount } = await supabase
+      .from("events_v2")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "live")
+      .is("flashscore_id", null);
+
+    // Top 20 phantom live events (anomalies).
+    const { data: phantomRows } = await supabase
+      .from("events_v2")
+      .select("id, sport_slug, league_name, home, away, starts_at, updated_at")
+      .eq("status", "live")
+      .is("flashscore_id", null)
+      .order("starts_at", { ascending: false })
+      .limit(20);
+
+    const phantomLiveEvents = (phantomRows || []).map((e: any) => {
+      const startMs = new Date(e.starts_at).getTime();
+      const minutesSinceKickoff = Math.round((nowMs - startMs) / 60000);
+      return {
+        id: e.id,
+        sport_slug: e.sport_slug || null,
+        league_name: e.league_name || null,
+        match: `${e.home} vs ${e.away}`,
+        starts_at: e.starts_at,
+        minutes_since_kickoff: minutesSinceKickoff,
+        last_updated_at: e.updated_at,
+      };
+    });
+
     const { count: eventsSettledLastHour } = await supabase
       .from("events_v2")
       .select("id", { count: "exact", head: true })
@@ -334,10 +371,21 @@ export async function GET() {
     else if (settlementCronAgeMin > 48 * 60) betSettlementRateScore = 0;
     else betSettlementRateScore = clamp(100 - ((settlementCronAgeMin - 24 * 60) / (24 * 60)) * 100);
 
+    // live_fs_coverage: 100% → 100; <85% → 0 (matcher broken). Linear between.
+    // Default to 100 when there are no live events (no work to track).
+    const totalLive = liveEventsCount || 0;
+    const trackedLive = liveTrackedCount || 0;
+    const phantomLive = phantomLiveCount || 0;
+    const liveCoveragePct = totalLive > 0 ? Math.round((trackedLive * 100) / totalLive) : 100;
+    let liveFsCoverageScore: number;
+    if (totalLive === 0) liveFsCoverageScore = 100;
+    else if (liveCoveragePct < 85) liveFsCoverageScore = 0;
+    else liveFsCoverageScore = clamp(((liveCoveragePct - 85) / 15) * 100);
+
     const subsystems = {
       flashscore_scraper: {
         score: flashscoreScraperScore,
-        weight: 30,
+        weight: 25,
         label: "Flashscore Scraper",
         details: `Cron ${formatAge(fsCronAgeSec)}, dati ${formatAge(fsDataFreshnessSec)}`,
       },
@@ -349,13 +397,21 @@ export async function GET() {
       },
       event_settlement_rate: {
         score: eventSettlementRateScore,
-        weight: 20,
+        weight: 15,
         label: "Event Settlement Rate",
         details: `${settledLastHour}/h`,
       },
+      live_fs_coverage: {
+        score: liveFsCoverageScore,
+        weight: 15,
+        label: "Live FS Coverage",
+        details: totalLive === 0
+          ? "no live events"
+          : `${trackedLive}/${totalLive} live events FS-tracked (${liveCoveragePct}%)`,
+      },
       bet_settlement_lag: {
         score: betSettlementLagScore,
-        weight: 15,
+        weight: 10,
         label: "Customer Bet Lag",
         details: `${pendingSel} selections pending`,
       },
@@ -404,11 +460,15 @@ export async function GET() {
         settlement_cron_last_run: settlementCronTs,
         settlement_cron_age_minutes: settlementCronAgeMin,
         live_events_count: liveEventsCount || 0,
+        live_events_tracked: trackedLive,
+        live_events_phantom: phantomLive,
+        live_fs_coverage_pct: liveCoveragePct,
         fs_fixtures_cron_ts: fsFixturesTs,
       },
       coverage_by_sport: coverageBySport,
       coverage_total: coverageTotal,
       stuck_events: stuckEvents,
+      phantom_live_events: phantomLiveEvents,
       pending_selections: pendingSelections,
       recent_settlements: recentSettlements,
       // Legacy back-compat fields (consumed by app/admin/risk/page.tsx)
