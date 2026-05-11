@@ -29,44 +29,46 @@ export async function GET() {
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 3600000).toISOString();
     const thirtyMinAgo = new Date(now.getTime() - 30 * 60000).toISOString();
 
-    // ── 1. Backlog: finished events waiting for settlement ──
+    // ── 1. Backlog: events past their start time, not yet settled ──
+    // events_v2 has no "finished" interim state; FS settles in-stream.
+    // Approximate: events past start +3h (typical game) and not settled/cancelled.
+    const threeHoursAgo = new Date(now.getTime() - 3 * 3600000).toISOString();
     const { count: backlog } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .eq("source", "odds-api")
-      .eq("status", "finished");
+      .lt("starts_at", threeHoursAgo)
+      .is("last_settled_at", null)
+      .not("status", "in", "(settled,cancelled)");
 
-    // ── 2. Stuck events: finished > 30 min ago ──
+    // ── 2. Stuck events: past start +3.5h, not settled ──
+    const threeAndHalfHoursAgo = new Date(now.getTime() - 3.5 * 3600000).toISOString();
     const { data: stuckEvents } = await supabase
-      .from("events")
-      .select("id, home_team, away_team, starts_at, updated_at, sport_id, sports!inner(name)")
-      .eq("source", "odds-api")
-      .eq("status", "finished")
-      .lt("updated_at", thirtyMinAgo)
-      .order("updated_at", { ascending: true })
+      .from("events_v2")
+      .select("id, home, away, starts_at, updated_at, sport_name")
+      .lt("starts_at", threeAndHalfHoursAgo)
+      .is("last_settled_at", null)
+      .not("status", "in", "(settled,cancelled)")
+      .order("starts_at", { ascending: true })
       .limit(20);
 
-    // ── 3. Settlement rates (ended events in timeframes) ──
+    // ── 3. Settlement rates (settled events in timeframes) ──
     const { count: settled1h } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .eq("source", "odds-api")
-      .eq("status", "ended")
-      .gte("updated_at", oneHourAgo);
+      .eq("status", "settled")
+      .gte("last_settled_at", oneHourAgo);
 
     const { count: settled6h } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .eq("source", "odds-api")
-      .eq("status", "ended")
-      .gte("updated_at", sixHoursAgo);
+      .eq("status", "settled")
+      .gte("last_settled_at", sixHoursAgo);
 
     const { count: settled24h } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .eq("source", "odds-api")
-      .eq("status", "ended")
-      .gte("updated_at", twentyFourHoursAgo);
+      .eq("status", "settled")
+      .gte("last_settled_at", twentyFourHoursAgo);
 
     // ── 4. Flashscore scraper health ──
     // Check latest fixtures push
@@ -77,51 +79,49 @@ export async function GET() {
       .limit(1)
       .single();
 
-    // Count recent results from Flashscore (events with flashscore_id that are ended)
+    // Count recent results from Flashscore (events with flashscore_id that are settled)
     const { count: fsMatched24h } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .eq("source", "odds-api")
-      .eq("status", "ended")
+      .eq("status", "settled")
       .not("flashscore_id", "is", null)
-      .gte("updated_at", twentyFourHoursAgo);
+      .gte("last_settled_at", twentyFourHoursAgo);
 
-    // ── 5. Recent settlements — use ended events as the real log ──
+    // ── 5. Recent settlements — use settled events as the real log ──
     const { data: recentSettled } = await supabase
-      .from("events")
-      .select("id, home_team, away_team, score_home, score_away, updated_at, sports!inner(name)")
-      .eq("source", "odds-api")
-      .eq("status", "ended")
-      .order("updated_at", { ascending: false })
+      .from("events_v2")
+      .select("id, home, away, score_home, score_away, last_settled_at, sport_name")
+      .eq("status", "settled")
+      .order("last_settled_at", { ascending: false })
       .limit(20);
 
     // ── 6. Backlog by sport ──
     const { data: backlogBySport } = await supabase
-      .from("events")
-      .select("id, sports!inner(name)")
-      .eq("source", "odds-api")
-      .eq("status", "finished");
+      .from("events_v2")
+      .select("id, sport_name")
+      .lt("starts_at", threeHoursAgo)
+      .is("last_settled_at", null)
+      .not("status", "in", "(settled,cancelled)");
 
     const sportBacklog: Record<string, number> = {};
     for (const e of (backlogBySport || [])) {
-      const name = (e as any).sports?.name || "?";
+      const name = (e as any).sport_name || "?";
       sportBacklog[name] = (sportBacklog[name] || 0) + 1;
     }
 
-    // ── 7. Avg settlement time (last 100 ended events) ──
+    // ── 7. Avg settlement time (last 100 settled events) ──
     const { data: recentEnded } = await supabase
-      .from("events")
-      .select("starts_at, updated_at")
-      .eq("source", "odds-api")
-      .eq("status", "ended")
-      .order("updated_at", { ascending: false })
+      .from("events_v2")
+      .select("starts_at, last_settled_at")
+      .eq("status", "settled")
+      .order("last_settled_at", { ascending: false })
       .limit(100);
 
     let avgSettlementMin = 0;
     if (recentEnded && recentEnded.length > 0) {
       const diffs = recentEnded.map(e => {
         const start = new Date(e.starts_at).getTime();
-        const end = new Date(e.updated_at).getTime();
+        const end = new Date(e.last_settled_at).getTime();
         return (end - start) / 60000; // minutes
       }).filter(d => d > 0 && d < 1440); // exclude outliers > 24h
 
@@ -151,11 +151,10 @@ export async function GET() {
 
     // ── 9. Verify-results cron — separate cron freshness from settlement activity ──
     const { data: latestEnded } = await supabase
-      .from("events")
-      .select("updated_at")
-      .eq("source", "odds-api")
-      .eq("status", "ended")
-      .order("updated_at", { ascending: false })
+      .from("events_v2")
+      .select("last_settled_at")
+      .eq("status", "settled")
+      .order("last_settled_at", { ascending: false })
       .limit(1)
       .single();
 
@@ -166,7 +165,7 @@ export async function GET() {
       : null;
 
     // Last actual settlement (when was the last event settled?)
-    const lastSettlementTs = latestEnded?.updated_at || null;
+    const lastSettlementTs = latestEnded?.last_settled_at || null;
     const lastSettlementAge = lastSettlementTs
       ? Math.round((now.getTime() - new Date(lastSettlementTs).getTime()) / 60000)
       : null;
@@ -338,11 +337,11 @@ export async function GET() {
       backlog: backlog || 0,
       stuck_events: (stuckEvents || []).map((e: any) => ({
         id: e.id,
-        match: `${e.home_team} vs ${e.away_team}`,
-        sport: e.sports?.name,
+        match: `${e.home} vs ${e.away}`,
+        sport: e.sport_name,
         starts_at: e.starts_at,
         finished_since: e.updated_at,
-        stuck_minutes: Math.round((now.getTime() - new Date(e.updated_at).getTime()) / 60000),
+        stuck_minutes: Math.round((now.getTime() - new Date(e.starts_at).getTime()) / 60000),
       })),
       rates: {
         last_1h: settled1h || 0,
@@ -354,10 +353,10 @@ export async function GET() {
       actors,
       recent_settlements: (recentSettled || []).map((e: any) => ({
         event_id: e.id,
-        match: `${e.home_team} vs ${e.away_team}`,
+        match: `${e.home} vs ${e.away}`,
         score: e.score_home != null ? `${e.score_home}-${e.score_away}` : null,
-        sport: e.sports?.name || "?",
-        settled_at: e.updated_at,
+        sport: e.sport_name || "?",
+        settled_at: e.last_settled_at,
       })),
       ippica: {
         unsettled_odds: ippicaUnsettled,

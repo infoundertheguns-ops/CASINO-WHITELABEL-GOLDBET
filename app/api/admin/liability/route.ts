@@ -27,11 +27,19 @@ export async function GET(req: NextRequest) {
       // Per-event liability detail
       const liability = await getEventLiability(supabase, eventId);
 
-      const { data: event } = await supabase
-        .from("events")
-        .select("*, sport:sports(name), league:leagues(name)")
+      const { data: eventRow } = await supabase
+        .from("events_v2")
+        .select("*")
         .eq("id", eventId)
         .single();
+      const event = eventRow ? {
+        ...eventRow,
+        home_team: eventRow.home,
+        away_team: eventRow.away,
+        is_live: eventRow.status === "live" || (eventRow.minute != null && !["settled","cancelled"].includes(eventRow.status)),
+        sport: { name: eventRow.sport_name },
+        league: { name: eventRow.league_name },
+      } : null;
 
       // Recent odds adjustments for this event
       const { data: adjustments } = await supabase
@@ -69,9 +77,9 @@ export async function GET(req: NextRequest) {
 
     // Overview: top exposed events
     const { data: events } = await supabase
-      .from("events")
-      .select("id, home_team, away_team, starts_at, is_live, status, sport:sports(name), league:leagues(name)")
-      .in("status", ["prematch", "live"])
+      .from("events_v2")
+      .select("id, home, away, starts_at, status, minute, sport_name, league_name")
+      .in("status", ["pending", "live"])
       .order("starts_at", { ascending: true })
       .limit(50);
 
@@ -86,8 +94,14 @@ export async function GET(req: NextRequest) {
         : 0;
 
       if (maxLiab > 0) {
+        const ev: any = event;
         eventLiabilities.push({
-          ...event,
+          ...ev,
+          home_team: ev.home,
+          away_team: ev.away,
+          is_live: ev.status === "live" || (ev.minute != null && !["settled","cancelled"].includes(ev.status)),
+          sport: { name: ev.sport_name },
+          league: { name: ev.league_name },
           max_liability: maxLiab,
           max_pct: maxPct,
           outcomes_count: liability.length,
