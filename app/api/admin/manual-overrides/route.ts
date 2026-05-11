@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       const { data, error } = await sb
         .from("outcome_manual_actions")
         .select(`
-          id, outcome_id, action_type, old_value, new_value, reason, source, consensus_id, created_at, created_by,
+          id, outcome_id, action_type, old_value, new_value, reason, source, created_at, created_by,
           outcomes!inner(id, name,
             markets!inner(market_type, line, event_id,
               events!inner(home_team, away_team, starts_at, source,
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
       let q = sb
         .from("outcome_manual_actions")
         .select(`
-          id, outcome_id, action_type, old_value, new_value, reason, source, consensus_id, created_at, created_by,
+          id, outcome_id, action_type, old_value, new_value, reason, source, created_at, created_by,
           outcomes!inner(id, name,
             markets!inner(market_type, line, event_id,
               events!inner(home_team, away_team, starts_at, source,
@@ -160,7 +160,6 @@ function flattenAuditRows(rows: any[]) {
       new_value: r.new_value,
       reason: r.reason,
       source: r.source,
-      consensus_id: r.consensus_id,
       created_at: r.created_at,
       created_by: r.created_by,
       outcome_name: o?.name,

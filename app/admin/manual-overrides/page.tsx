@@ -41,7 +41,6 @@ interface AuditRow {
   new_value: any;
   reason: string | null;
   source: string;
-  consensus_id: number | null;
   created_at: string;
   created_by: string | null;
   outcome_name: string;
@@ -374,11 +373,6 @@ function AuditTable({ rows, loading }: { rows: AuditRow[]; loading: boolean }) {
             </td>
             <td style={{ ...tdStyle, maxWidth: 300 }}>
               {r.reason && <div>{r.reason}</div>}
-              {r.consensus_id && (
-                <div style={{ fontSize: 11, color: "var(--admin-text-muted)" }}>
-                  consensus #{r.consensus_id}
-                </div>
-              )}
             </td>
           </tr>
         ))}

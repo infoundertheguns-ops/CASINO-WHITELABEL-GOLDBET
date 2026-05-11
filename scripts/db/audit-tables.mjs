@@ -5,7 +5,7 @@ for (const line of env.split('\n')) { const m=line.match(/^([A-Z_]+)=(.*)$/); if
 const supa = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {auth:{persistSession:false}});
 
 const event_v2_id = '4c5889fc-cf27-4558-9238-3fd0cd87d6ef';  // basket Cividale-Rieti live
-const knownTables = ['markets','odds','event_markets','event_odds','market_lines','market_outcomes','market_quotes','outcomes','quotes','consensus_snapshots','v_consensus_latest'];
+const knownTables = ['markets','odds','event_markets','event_odds','market_lines','market_outcomes','market_quotes','outcomes','quotes'];
 
 console.log('=== Table existence + rows for our live event ===');
 for (const t of knownTables) {
