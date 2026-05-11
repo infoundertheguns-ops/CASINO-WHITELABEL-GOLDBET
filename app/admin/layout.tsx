@@ -88,7 +88,6 @@ export default function AdminLayout({
     const parts = pathname.split("/").filter(Boolean);
     if (parts[1] === "home-content") return "home-content";
     if (parts[1] === "market-coverage") return "market-coverage";
-    if (parts[1] === "shade-monitor") return "shade-monitor";
     if (parts[1] === "manual-overrides") return "manual-overrides";
     if (parts[1] === "market-catalog") return "market-catalog";
     if (parts[1] === "canonicalization") return "canonicalization";
@@ -186,7 +185,6 @@ export default function AdminLayout({
       "settlement-health": "/admin/settlement-health",
       "settlement-coverage": "/admin/settlement-coverage",
       "market-coverage": "/admin/market-coverage",
-      "shade-monitor": "/admin/shade-monitor",
       "manual-overrides": "/admin/manual-overrides",
       "market-catalog": "/admin/market-catalog",
       canonicalization: "/admin/canonicalization",
