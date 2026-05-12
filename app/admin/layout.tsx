@@ -95,7 +95,6 @@ export default function AdminLayout({
     if (parts[1] === "home-content") return "home-content";
     if (parts[1] === "market-coverage") return "market-coverage";
     if (parts[1] === "manual-overrides") return "manual-overrides";
-    if (parts[1] === "market-catalog") return "market-catalog";
     if (parts[1] === "market-normalization") return "market-normalization";
     if (parts[1] === "outcome-normalization") return "outcome-normalization";
     if (parts[1] === "event-normalization") return "event-normalization";
@@ -191,7 +190,6 @@ export default function AdminLayout({
       sportsbook: "/admin/sportsbook",
       "market-coverage": "/admin/market-coverage",
       "manual-overrides": "/admin/manual-overrides",
-      "market-catalog": "/admin/market-catalog",
       "market-normalization": "/admin/market-normalization",
       "outcome-normalization": "/admin/outcome-normalization",
       "event-normalization": "/admin/event-normalization",
