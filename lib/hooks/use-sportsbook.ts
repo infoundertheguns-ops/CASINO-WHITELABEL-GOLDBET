@@ -5,8 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "./use-auth";
 import { useSportFilter } from "@/lib/contexts/sport-filter-context";
 import { useLiveOdds, type LiveOddsMessage } from "./use-live-odds";
+import { getSportSlugIt } from "@/lib/sport-slug-en-to-it";
 
-// ═══ API-FOOTBALL STATS TYPES ═══
+// ═══ FLASHSCORE STATS + EVENTS TYPES ═══
+// (Originale API-FOOTBALL/Sofa: enrichment quelle fonti abbandonato 2026-05-11,
+// FS-only architecture. Le interfaces descrivono ancora la shape di
+// events_v2.live_data.{stats, matchEvents} che FS scraper popola via dx_1 + dc_1
+// feeds. Tipi consumati da SportEvent.stats + SportEvent.matchEvents.)
 
 export interface MatchStats {
   possession: [number, number];
@@ -267,24 +272,37 @@ function formatKickoffTime(startsAt: string): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+// Maps events_v2 row (with embedded markets_v2 + outcomes_v2) to SportEvent.
+// Preserves SportEvent interface shape so 10+ consumer pages don't need updates.
+// Internal mapping diff vs legacy:
+//   - row.home_team/away_team → row.home/away (v2 flat)
+//   - row.sport.name/slug → row.sport_name/sport_slug flat (en); translate to it for sportSlug
+//   - row.league.name/slug → row.league_name/league_slug flat
+//   - row.is_live → derived from row.status === 'live' (v2 has no is_live column)
+//   - row.markets[].name → row.markets[].market_name
+//   - row.markets[].outcomes[].name → row.markets[].outcomes[].outcome_key
+//   - markets_v2 has no is_active/is_suspended/sort_order/slug/market_type/line — drop filters
+//   - outcomes_v2 has no previous_odds — track client-side via realtime delta (initial value undefined)
+//   - sport_icon: dropped (sports table not joined); fallback to "⚽"
 export function mapDbToSportEvent(row: any, includeSuspended = false): SportEvent {
   const liveData = row.live_data || {};
+  const isLive = row.status === "live";
   return {
     id: row.id,
-    externalId: row.external_id || undefined,
-    league: row.league?.name || "",
-    leagueSlug: row.league?.slug || "",
-    leagueIcon: row.sport?.icon || "⚽",
-    sportName: row.sport?.name || "",
-    sportSlug: row.sport?.slug || "",
-    home: row.home_team,
-    away: row.away_team,
-    time: row.is_live
+    externalId: row.odds_api_id != null ? String(row.odds_api_id) : undefined,
+    league: row.league_name || "",
+    leagueSlug: row.league_slug || "",
+    leagueIcon: "⚽", // sports.icon JOIN dropped post big-bang; constant fallback
+    sportName: row.sport_name || "",
+    sportSlug: getSportSlugIt(row.sport_slug), // events_v2 stores English; UI uses Italian
+    home: row.home,
+    away: row.away,
+    time: isLive
       ? `LIVE ${row.minute || 0}'`
       : formatKickoffTime(row.starts_at),
-    live: (row.is_live || false) && row.status === "live",
+    live: isLive,
     minute: row.minute,
-    minuteReceivedAt: row.is_live ? Date.now() : undefined,
+    minuteReceivedAt: isLive ? Date.now() : undefined,
     scoreH: row.score_home,
     scoreA: row.score_away,
     period: row.period || undefined,
@@ -293,23 +311,21 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
     halfScoreAway: Array.isArray(liveData.halfScoreAway) ? liveData.halfScoreAway : undefined,
     stats: liveData.stats || undefined,
     matchEvents: Array.isArray(liveData.matchEvents) ? liveData.matchEvents : undefined,
-    markets: (row.markets || [])
-      .filter((m: any) => m.is_active && !m.is_suspended)
-      .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+    markets: (row.markets_v2 || row.markets || [])
       .map((m: any) => ({
         id: m.id,
-        name: m.name,
-        marketType: m.market_type,
-        line: m.line,
+        name: m.market_name,
+        marketType: m.market_name, // v2 collapses type/name; use market_name for both
+        line: undefined,
         selections: sortSelections(
-          m.name,
-          (m.outcomes || [])
+          m.market_name,
+          (m.outcomes_v2 || m.outcomes || [])
             .filter((o: any) => o.is_active && (includeSuspended || !o.is_suspended))
             .map((o: any) => ({
               id: o.id,
-              label: o.name,
+              label: o.outcome_key,
               odds: parseFloat(o.odds),
-              previousOdds: o.previous_odds ? parseFloat(o.previous_odds) : undefined,
+              previousOdds: undefined, // v2 has no previous_odds column; tracked via realtime delta
               suspended: o.is_suspended ? true : undefined,
             }))
         ),
@@ -436,20 +452,25 @@ export function useSportsbook() {
 
     try {
       const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      // events_v2 flat schema: sport/league are denormalized columns, no sports/leagues JOIN.
+      // markets_v2 has no is_active/is_suspended/sort_order/slug — drop filters.
+      // outcomes_v2 still has is_active/is_suspended ✓. No previous_odds column.
+      // Status enum: pending(prematch) / live / settled / cancelled / postponed.
+      // is_live derived from status === 'live' (no column).
+      // source filter dropped: events_v2 is implicitly odds-api only.
       let query = supabase
-        .from("events")
+        .from("events_v2")
         .select(`
-          *,
-          sport:sports(name, slug, icon),
-          league:leagues(name, slug, country, logo_url),
-          markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
-            outcomes(id, name, odds, previous_odds, is_active, is_suspended))
+          id, odds_api_id, home, away, starts_at, sport_slug, sport_name,
+          league_slug, league_name, status, score_home, score_away,
+          period, minute, live_data,
+          markets_v2(id, market_name,
+            outcomes_v2(id, outcome_key, odds, is_active, is_suspended))
         `)
-        .eq("source", "odds-api")
-        .in("status", ["prematch", "live"]);
+        .in("status", ["pending", "live"]);
 
       const { data, error: fetchErr } = await query
-        .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
+        .or(`status.eq.live,starts_at.gte.${cutoff}`)
         .order("starts_at", { ascending: true })
         .limit(2000);
 
@@ -484,11 +505,16 @@ export function useSportsbook() {
   useEffect(() => {
     fetchEvents();
 
+    // Realtime subscriptions: legacy tables (events/markets/outcomes) dropped
+    // in big-bang 2026-05-12. Subscribe to v2 tables (events_v2/markets_v2/outcomes_v2).
+    // Note: markets_v2 has no is_active/is_suspended columns — market-suspend
+    // signal now comes from manual_overrides scope=market or via FS event status.
+    // outcomes_v2 keeps is_active/is_suspended ✓.
     const channel = supabase
       .channel("sportsbook-realtime")
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "outcomes" },
+        { event: "UPDATE", schema: "public", table: "outcomes_v2" },
         (payload) => {
           const updated = payload.new as Record<string, any>;
 
@@ -509,7 +535,8 @@ export function useSportsbook() {
 
           const newOdds = parseFloat(updated.odds);
 
-          // Update odds inside events
+          // Update odds inside events. previousOdds tracked client-side from delta
+          // (v2 has no previous_odds column).
           setEvents((prev) =>
             prev.map((event) => ({
               ...event,
@@ -536,42 +563,20 @@ export function useSportsbook() {
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "markets" },
-        (payload) => {
-          const updated = payload.new as Record<string, any>;
-
-          // If market deactivated or suspended, remove it + its betslip items
-          if (!updated.is_active || updated.is_suspended) {
-            setEvents((prev) =>
-              prev.map((event) => ({
-                ...event,
-                markets: event.markets.filter((m) => m.id !== updated.id),
-              }))
-            );
-            setBetslip((prev) => prev.filter((item) => {
-              const event = events.find((e) => e.markets.some((m) => m.id === updated.id));
-              if (!event) return true;
-              const market = event.markets.find((m) => m.id === updated.id);
-              return !market || item.marketName !== market.name;
-            }));
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "events" },
+        { event: "UPDATE", schema: "public", table: "events_v2" },
         (payload) => {
           const updated = payload.new as Record<string, any>;
 
           const updatedLiveData = updated.live_data || {};
+          const isLive = updated.status === "live";
           setEvents((prev) =>
             prev.map((event) =>
               event.id === updated.id
                 ? {
                     ...event,
-                    live: (updated.is_live || false) && updated.status === "live",
+                    live: isLive,
                     minute: updated.minute,
-                    minuteReceivedAt: updated.is_live ? Date.now() : undefined,
+                    minuteReceivedAt: isLive ? Date.now() : undefined,
                     scoreH: updated.score_home,
                     scoreA: updated.score_away,
                     period: updated.period || undefined,
@@ -580,7 +585,7 @@ export function useSportsbook() {
                     halfScoreAway: Array.isArray(updatedLiveData.halfScoreAway) ? updatedLiveData.halfScoreAway : undefined,
                     stats: updatedLiveData.stats || undefined,
                     matchEvents: Array.isArray(updatedLiveData.matchEvents) ? updatedLiveData.matchEvents : undefined,
-                    time: updated.is_live
+                    time: isLive
                       ? `LIVE ${updated.minute || 0}'`
                       : formatKickoffTime(updated.starts_at),
                   }
