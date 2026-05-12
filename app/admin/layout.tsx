@@ -14,13 +14,18 @@ import type { AdminNavGroup } from "@/lib/types";
 const NAVIGATION: AdminNavGroup[] = [
   {
     group: "OVERVIEW",
-    items: [{ id: "dashboard", icon: "📊", label: "Dashboard" }],
+    items: [
+      { id: "dashboard", icon: "📊", label: "Dashboard" },
+      { id: "settlement-health", icon: "🩺", label: "Settlement Health" },
+    ],
   },
   {
     group: "SPORTSBOOK",
     items: [
       { id: "bets", icon: "🎯", label: "Scommesse", badge: 4 },
+      { id: "sportsbook", icon: "📚", label: "Sportsbook" },
       { id: "risk", icon: "🛡️", label: "Risk & Trading", badge: 5 },
+      { id: "manual-overrides", icon: "✋", label: "Manual Overrides" },
     ],
   },
   {
@@ -63,6 +68,9 @@ const TITLES: Record<string, string> = {
   users: "Gestione Utenti",
   config: "Configurazione",
   audit: "Audit Log",
+  "settlement-health": "Settlement Health",
+  sportsbook: "Sportsbook Overview",
+  "manual-overrides": "Manual Overrides",
 };
 
 export default function AdminLayout({
@@ -93,6 +101,7 @@ export default function AdminLayout({
     if (parts[1] === "event-normalization") return "event-normalization";
     if (parts[1] === "canonical-markets") return "canonical-markets";
     if (parts[1] === "settlement-health") return "settlement-health";
+    if (parts[1] === "sportsbook") return "sportsbook";
     if (parts[1] === "kiosks") return "kiosks";
     if (parts[1] === "agent-kiosks") return "agent-kiosks";
     if (parts[1] === "agents") return "agents";
@@ -179,6 +188,7 @@ export default function AdminLayout({
       "home-content": "/admin/home-content",
       financial: "/admin/financial",
       "settlement-health": "/admin/settlement-health",
+      sportsbook: "/admin/sportsbook",
       "market-coverage": "/admin/market-coverage",
       "manual-overrides": "/admin/manual-overrides",
       "market-catalog": "/admin/market-catalog",
