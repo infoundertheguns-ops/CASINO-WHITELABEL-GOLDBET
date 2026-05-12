@@ -3,11 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import {
   loadRiskConfig,
-  getOrComputeProfile,
   batchPatternDetection,
-  aiOptimizeOdds,
-  applyOddsAdjustments,
-  getEventLiability,
 } from "@/lib/risk/engine";
 
 // ═══════════════════════════════════════════════════
@@ -16,7 +12,9 @@ import {
 // - Recomputes player profiles
 // - Runs batch pattern detection (rules 13-16)
 // - Creates risk flags for anomalies
-// - Runs AI odds optimizer on high-liability events
+//
+// AI odds optimizer section removed 2026-05-12 (Sprint 4 Session 2):
+// 3-source feature obsolete post Plan D single-source. See engine.ts header.
 // ═══════════════════════════════════════════════════
 
 function getSupabase() {
@@ -36,7 +34,7 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const config = await loadRiskConfig(supabase);
   const since = new Date(Date.now() - 24 * 3600000).toISOString();
-  const results = { scanned_users: 0, flags_created: 0, profiles_updated: 0, odds_adjusted: 0, errors: [] as string[] };
+  const results = { scanned_users: 0, flags_created: 0, profiles_updated: 0, errors: [] as string[] };
 
   try {
     // ── 1. Find active bettors (>=10 bets in 24h) ──
@@ -136,53 +134,6 @@ export async function POST(req: NextRequest) {
       } catch (err: any) {
         results.errors.push(`User ${userId}: ${err.message}`);
       }
-    }
-
-    // ── 3. AI Odds Optimizer — check high-liability events ──
-    try {
-      const { data: liveEvents } = await supabase
-        .from("events")
-        .select("id")
-        .in("status", ["prematch", "live"])
-        .limit(50);
-
-      for (const event of liveEvents || []) {
-        const liability = await getEventLiability(supabase, event.id);
-        const highLiab = liability.filter(l => l.pct_used > (config.liability.rebalance_trigger_pct || 70));
-
-        if (highLiab.length > 0) {
-          const suggestions = await aiOptimizeOdds(supabase, event.id, config);
-
-          if (suggestions.length > 0) {
-            // Auto-apply if configured, otherwise just notify
-            const autoApply = config.liability.ai_optimizer_enabled;
-
-            if (autoApply) {
-              await applyOddsAdjustments(
-                supabase,
-                suggestions.map(s => ({
-                  outcome_id: s.outcome_id,
-                  new_odds: s.suggested_odds,
-                  reason: s.reason,
-                  auto_applied: true,
-                }))
-              );
-              results.odds_adjusted += suggestions.length;
-            }
-
-            // Always notify
-            await supabase.from("admin_notifications").insert({
-              type: "odds_suggestion",
-              severity: "info",
-              title: `AI Odds: ${suggestions.length} aggiustamenti`,
-              message: suggestions.map(s => `${s.outcome_name}: ${s.current_odds} → ${s.suggested_odds}`).join(", "),
-              link: `/admin/risk?tab=dashboard`,
-            });
-          }
-        }
-      }
-    } catch (err: any) {
-      results.errors.push(`Odds optimizer: ${err.message}`);
     }
 
     return NextResponse.json({ ...results, message: "Scan completed" });

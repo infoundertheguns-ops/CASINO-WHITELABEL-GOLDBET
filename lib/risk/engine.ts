@@ -1,7 +1,11 @@
 // @ts-nocheck
 // ═══════════════════════════════════════════════════
-// RISK ENGINE — Liability, Acceptance, Player Risk, AI Optimizer
+// RISK ENGINE — Liability, Acceptance, Player Risk
 // Shared library used by place-bet, risk-agent, cron jobs
+//
+// AI odds optimizer + applyOddsAdjustments removed 2026-05-12 (Sprint 4 Session 2)
+// — feature was tied to 3-source era (Kambi/22bet/Betfair), obsolete in
+// single-source OddsAPI post Plan D. odds_adjustments table dropped in big-bang.
 // ═══════════════════════════════════════════════════
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,16 +49,6 @@ export interface AcceptanceResult {
   max_acceptable_stake: number;
 }
 
-export interface OddsAdjustmentSuggestion {
-  outcome_id: string;
-  outcome_name: string;
-  current_odds: number;
-  suggested_odds: number;
-  reason: string;
-  liability_before: number;
-  expected_liability_after: number;
-}
-
 export interface RiskConfig {
   thresholds: Record<string, number>;
   auto_actions: Record<string, boolean>;
@@ -85,8 +79,7 @@ export async function loadRiskConfig(supabase: Supabase): Promise<RiskConfig> {
     },
     liability: {
       global_max_liability: 500000, alert_threshold_pct: 80, auto_suspend_threshold_pct: 95,
-      rebalance_trigger_pct: 70, ai_optimizer_enabled: true,
-      ai_optimizer_model: "claude-sonnet-4-20250514", min_margin_pct: 2.5,
+      rebalance_trigger_pct: 70, min_margin_pct: 2.5,
     },
   };
 
@@ -260,27 +253,30 @@ export async function getEventLiability(supabase: Supabase, eventId: string): Pr
   }));
 }
 
-/** Calculate how much liability a new bet would add to each outcome it touches */
+/** Calculate how much liability a new bet would add to each outcome it touches.
+ *
+ * max_liability is read from config.acceptance.max_liability_per_outcome (default 50000).
+ * Pre Sprint 4 / big-bang DROP it was a per-outcome column on `outcomes` legacy table —
+ * that column did not survive into outcomes_v2 (single-source OddsAPI doesn't need
+ * per-outcome custom caps). All outcomes share the same config-driven cap.
+ */
 export async function calculateBetLiabilityImpact(
   supabase: Supabase,
   selections: { outcome_id: string; odds: number }[],
-  stake: number
+  stake: number,
+  maxLiabilityPerOutcome: number = 50000
 ): Promise<{ outcome_id: string; added_liability: number; current_liability: number; max_liability: number; would_exceed: boolean }[]> {
   const results = [];
   for (const sel of selections) {
     const addedLiability = stake * (sel.odds - 1);
     const currentLiability = await getOutcomeLiability(supabase, sel.outcome_id);
 
-    const { data: outcome } = await supabase
-      .from("outcomes").select("max_liability").eq("id", sel.outcome_id).single();
-    const maxLiab = outcome?.max_liability || 50000;
-
     results.push({
       outcome_id: sel.outcome_id,
       added_liability: addedLiability,
       current_liability: currentLiability,
-      max_liability: maxLiab,
-      would_exceed: (currentLiability + addedLiability) > maxLiab,
+      max_liability: maxLiabilityPerOutcome,
+      would_exceed: (currentLiability + addedLiability) > maxLiabilityPerOutcome,
     });
   }
   return results;
@@ -336,7 +332,8 @@ export async function evaluateAcceptance(
   const liabilityImpacts = await calculateBetLiabilityImpact(
     supabase,
     bet.selections.map(s => ({ outcome_id: s.outcome_id, odds: s.odds })),
-    requestedStake
+    requestedStake,
+    acc.max_liability_per_outcome || 50000
   );
 
   const exceeding = liabilityImpacts.filter(l => l.would_exceed);
@@ -483,155 +480,6 @@ Respond ONLY with valid JSON:
   }
 }
 
-// ═══ AI ODDS OPTIMIZER ═══
-
-export async function aiOptimizeOdds(
-  supabase: Supabase,
-  eventId: string,
-  config: RiskConfig
-): Promise<OddsAdjustmentSuggestion[]> {
-  const liabConfig = config.liability;
-  if (!liabConfig.ai_optimizer_enabled) return [];
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return [];
-
-  // Get event info
-  const { data: event } = await supabase
-    .from("events").select("*, sport:sports(name), league:leagues(name)").eq("id", eventId).single();
-  if (!event) return [];
-
-  // Get all markets + outcomes + liability
-  const { data: markets } = await supabase
-    .from("markets").select("*, outcomes(*)").eq("event_id", eventId).eq("is_active", true);
-  if (!markets || markets.length === 0) return [];
-
-  // Compute liability for each outcome
-  const marketData = [];
-  for (const m of markets) {
-    const outcomes = [];
-    for (const o of (m.outcomes || [])) {
-      if (!o.is_active) continue;
-      const liability = await getOutcomeLiability(supabase, o.id);
-      outcomes.push({
-        id: o.id, name: o.name, odds: parseFloat(o.odds),
-        liability, max_liability: o.max_liability || 50000,
-        pct_used: o.max_liability > 0 ? (liability / o.max_liability * 100) : 0,
-      });
-    }
-
-    // Calculate total stake and margin for this market
-    const totalStake = outcomes.reduce((s, o) => s + o.liability + (o.odds > 1 ? o.liability / (o.odds - 1) : 0), 0);
-    const impliedProb = outcomes.reduce((s, o) => s + (o.odds > 0 ? 1 / o.odds : 0), 0);
-    const margin = ((impliedProb - 1) * 100);
-
-    marketData.push({
-      market_id: m.id, market_name: m.name, market_type: m.market_type,
-      outcomes, total_stake: totalStake, margin_pct: margin,
-    });
-  }
-
-  const prompt = `You are an odds optimization AI for an Italian sportsbook. Analyze this event's liability and suggest odds adjustments to balance the book.
-
-EVENT: ${event.home_team} vs ${event.away_team} | ${event.sport?.name} | ${event.league?.name}
-STATUS: ${event.status} | ${event.is_live ? `LIVE ${event.minute}'` : `Kickoff: ${event.starts_at}`}
-
-MARKETS AND LIABILITY:
-${JSON.stringify(marketData, null, 2)}
-
-RULES:
-- Minimum margin: ${liabConfig.min_margin_pct}%
-- Rebalance trigger: when one outcome has >${liabConfig.rebalance_trigger_pct}% of max liability
-- Odds must stay > 1.01
-- Small adjustments preferred (0.05-0.20 increments)
-- Lower odds on overexposed outcomes, raise on underexposed
-- Keep total margin reasonable (2-8%)
-
-Respond ONLY with valid JSON array:
-[{
-  "outcome_id": "uuid",
-  "outcome_name": "name",
-  "current_odds": 1.50,
-  "suggested_odds": 1.45,
-  "reason": "brief explanation"
-}]
-
-Return empty array [] if no adjustments needed.`;
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: liabConfig.ai_optimizer_model || "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }],
-        system: "You are a professional sportsbook trading AI. Your job is to suggest odds adjustments that balance the book's liability exposure while maintaining competitive margins. Be conservative — only suggest changes when there's clear imbalance.",
-      }),
-    });
-
-    const data = await res.json();
-    const text = data.content?.[0]?.text || "[]";
-    const suggestions: any[] = JSON.parse(text.replace(/```json|```/g, "").trim());
-
-    return suggestions.map(s => ({
-      outcome_id: s.outcome_id,
-      outcome_name: s.outcome_name || "",
-      current_odds: s.current_odds,
-      suggested_odds: s.suggested_odds,
-      reason: s.reason || "",
-      liability_before: marketData.flatMap(m => m.outcomes).find(o => o.id === s.outcome_id)?.liability || 0,
-      expected_liability_after: 0,
-    }));
-  } catch {
-    return [];
-  }
-}
-
-/** Apply approved odds adjustments */
-export async function applyOddsAdjustments(
-  supabase: Supabase,
-  adjustments: { outcome_id: string; new_odds: number; reason: string; auto_applied: boolean }[],
-  approvedBy?: string
-) {
-  for (const adj of adjustments) {
-    // Get current odds
-    const { data: outcome } = await supabase
-      .from("outcomes").select("odds, market_id").eq("id", adj.outcome_id).single();
-    if (!outcome) continue;
-
-    const oldOdds = parseFloat(outcome.odds);
-    if (Math.abs(oldOdds - adj.new_odds) < 0.01) continue; // no meaningful change
-
-    // Get event_id from market
-    const { data: market } = await supabase
-      .from("markets").select("event_id").eq("id", outcome.market_id).single();
-
-    // Update odds
-    await supabase.from("outcomes").update({
-      previous_odds: oldOdds,
-      odds: adj.new_odds,
-    }).eq("id", adj.outcome_id);
-
-    // Log adjustment
-    await supabase.from("odds_adjustments").insert({
-      outcome_id: adj.outcome_id,
-      market_id: outcome.market_id,
-      event_id: market?.event_id,
-      old_odds: oldOdds,
-      new_odds: adj.new_odds,
-      reason: adj.reason,
-      suggested_by: adj.auto_applied ? "ai" : "admin",
-      approved_by: approvedBy || null,
-      auto_applied: adj.auto_applied,
-    });
-  }
-}
-
 // ═══ AUTO-ACTIONS (player-level) ═══
 
 export async function executeAutoActions(
@@ -753,12 +601,12 @@ export async function batchPatternDetection(
 
   // Rule 15: League specialist (>80% bets on one non-top league)
   const { data: userBetsWithLeague } = await supabase
-    .from("bets").select("bet_selections(events(leagues(name, slug)))").eq("user_id", userId).limit(100);
+    .from("bets").select("bet_selections(event:events_v2(league_slug))").eq("user_id", userId).limit(100);
 
   if (userBetsWithLeague && userBetsWithLeague.length >= 20) {
     const leagueCounts: Record<string, number> = {};
     for (const b of userBetsWithLeague) {
-      const league = (b as any).bet_selections?.[0]?.events?.leagues?.slug || "unknown";
+      const league = (b as any).bet_selections?.[0]?.event?.league_slug || "unknown";
       leagueCounts[league] = (leagueCounts[league] || 0) + 1;
     }
     const total = Object.values(leagueCounts).reduce((a, b) => a + b, 0);

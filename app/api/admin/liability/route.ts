@@ -1,13 +1,16 @@
 export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { getEventLiability, aiOptimizeOdds, applyOddsAdjustments, loadRiskConfig } from "@/lib/risk/engine";
+import { getEventLiability } from "@/lib/risk/engine";
 
 // ═══════════════════════════════════════════════════
 // ADMIN API: Liability Dashboard
 // GET — event liability overview, per-event detail
-// POST — trigger AI odds optimizer for an event
-// PATCH — manually adjust odds
+//
+// POST + PATCH removed 2026-05-12 (Sprint 4 Session 2): AI odds optimizer
+// + manual odds adjustments were tied to 3-source era (Kambi/22bet/Betfair),
+// obsolete in single-source OddsAPI post Plan D. odds_adjustments table
+// dropped in big-bang. See lib/risk/engine.ts header.
 // ═══════════════════════════════════════════════════
 
 function getSupabase() {
@@ -41,14 +44,6 @@ export async function GET(req: NextRequest) {
         league: { name: eventRow.league_name },
       } : null;
 
-      // Recent odds adjustments for this event
-      const { data: adjustments } = await supabase
-        .from("odds_adjustments")
-        .select("*")
-        .eq("event_id", eventId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
       // Total stakes per outcome
       const { data: betsByOutcome } = await supabase
         .from("bet_selections")
@@ -71,7 +66,6 @@ export async function GET(req: NextRequest) {
           total_stake: stakesByOutcome[l.outcome_id]?.total_stake || 0,
           bet_count: stakesByOutcome[l.outcome_id]?.bet_count || 0,
         })),
-        adjustments: adjustments || [],
       });
     }
 
@@ -122,55 +116,6 @@ export async function GET(req: NextRequest) {
       global: { total_liability: totalLiability, critical_events: criticalEvents, total_events: eventLiabilities.length },
     });
 
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-// Trigger AI optimizer for an event
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = getSupabase();
-    const { event_id, auto_apply } = await req.json();
-    const config = await loadRiskConfig(supabase);
-
-    const suggestions = await aiOptimizeOdds(supabase, event_id, config);
-
-    if (auto_apply && suggestions.length > 0) {
-      await applyOddsAdjustments(
-        supabase,
-        suggestions.map(s => ({
-          outcome_id: s.outcome_id,
-          new_odds: s.suggested_odds,
-          reason: s.reason,
-          auto_applied: true,
-        }))
-      );
-    }
-
-    return NextResponse.json({ suggestions, applied: auto_apply });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-// Manual odds adjustment
-export async function PATCH(req: NextRequest) {
-  try {
-    const supabase = getSupabase();
-    const { adjustments } = await req.json();
-    // adjustments: [{ outcome_id, new_odds, reason }]
-
-    await applyOddsAdjustments(
-      supabase,
-      (adjustments || []).map((a: any) => ({
-        ...a,
-        auto_applied: false,
-        reason: a.reason || "Aggiustamento manuale admin",
-      }))
-    );
-
-    return NextResponse.json({ success: true, count: adjustments?.length || 0 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
