@@ -133,8 +133,8 @@ function SelectionRow({ sel }: { sel: any }) {
   return (
     <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
       <td style={{ padding: "6px 16px", color: "#e2e8f0", fontSize: 12 }}>
-        {sel.events?.home_team && sel.events?.away_team
-          ? `${sel.events.home_team} - ${sel.events.away_team}`
+        {sel.event?.home && sel.event?.away
+          ? `${sel.event.home} - ${sel.event.away}`
           : "—"}
       </td>
       <td
@@ -145,13 +145,13 @@ function SelectionRow({ sel }: { sel: any }) {
           textTransform: "capitalize",
         }}
       >
-        {sel.events?.sport?.name || "—"}
+        {sel.event?.sport_name || "—"}
       </td>
       <td style={{ padding: "6px 12px", color: "#94a3b8", fontSize: 11 }}>
-        {sel.markets?.market_type || "—"}
+        {sel.market?.market_name || "—"}
       </td>
       <td style={{ padding: "6px 12px", color: "#e2e8f0", fontSize: 12, fontWeight: 600 }}>
-        {sel.outcomes?.name || "—"}
+        {sel.outcome?.outcome_key || "—"}
       </td>
       <td
         style={{
@@ -180,7 +180,9 @@ export default function AgentBetsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [periodFilter, setPeriodFilter] = useState("today");
   const [sportFilter, setSportFilter] = useState("");
-  const [sports, setSports] = useState<string[]>([]);
+  // {slug, label} pairs: dropdown shows sport_name labels but filter sends sport_slug
+  // (API agent/bets route filters events_v2.sport_slug, which is the English slug)
+  const [sports, setSports] = useState<{ slug: string; label: string }[]>([]);
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -207,14 +209,23 @@ export default function AgentBetsPage() {
       const total = data.pagination?.total || 0;
       setTotalPages(Math.max(1, Math.ceil(total / LIMIT)));
 
-      // Derive sports list from current bets for filter dropdown
-      const sportSet = new Set<string>();
+      // Derive sports list from current bets for filter dropdown.
+      // events_v2 has flat sport_slug (English, filter key) + sport_name (display label).
+      const sportMap = new Map<string, string>(); // slug → label
       for (const bet of data.bets || []) {
         for (const sel of bet.selections || []) {
-          if (sel.events?.sport?.name) sportSet.add(sel.events.sport.name);
+          if (sel.event?.sport_slug) {
+            sportMap.set(sel.event.sport_slug, sel.event.sport_name || sel.event.sport_slug);
+          }
         }
       }
-      if (sportSet.size > 0) setSports((prev) => Array.from(new Set([...prev, ...sportSet])));
+      if (sportMap.size > 0) {
+        setSports((prev) => {
+          const merged = new Map(prev.map((p) => [p.slug, p.label]));
+          sportMap.forEach((label, slug) => merged.set(slug, label));
+          return Array.from(merged, ([slug, label]) => ({ slug, label }));
+        });
+      }
     } catch {
       setBets([]);
     } finally {
@@ -389,8 +400,8 @@ export default function AgentBetsPage() {
           >
             <option value="">Tutti i sport</option>
             {sports.map((sp) => (
-              <option key={sp} value={sp} style={{ textTransform: "capitalize" }}>
-                {sp.charAt(0).toUpperCase() + sp.slice(1).replace(/_/g, " ")}
+              <option key={sp.slug} value={sp.slug} style={{ textTransform: "capitalize" }}>
+                {sp.label}
               </option>
             ))}
           </select>

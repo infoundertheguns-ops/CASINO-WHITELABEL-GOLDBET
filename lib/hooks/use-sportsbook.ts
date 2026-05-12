@@ -311,7 +311,7 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
     halfScoreAway: Array.isArray(liveData.halfScoreAway) ? liveData.halfScoreAway : undefined,
     stats: liveData.stats || undefined,
     matchEvents: Array.isArray(liveData.matchEvents) ? liveData.matchEvents : undefined,
-    markets: (row.markets_v2 || row.markets || [])
+    markets: (row.markets_v2 || [])
       .map((m: any) => ({
         id: m.id,
         name: m.market_name,
@@ -319,7 +319,7 @@ export function mapDbToSportEvent(row: any, includeSuspended = false): SportEven
         line: undefined,
         selections: sortSelections(
           m.market_name,
-          (m.outcomes_v2 || m.outcomes || [])
+          (m.outcomes_v2 || [])
             .filter((o: any) => o.is_active && (includeSuspended || !o.is_suspended))
             .map((o: any) => ({
               id: o.id,
