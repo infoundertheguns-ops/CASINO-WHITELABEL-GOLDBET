@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
     );
 
     const { count: fsRecentCount } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
       .not("flashscore_id", "is", null)
       .gte("updated_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
