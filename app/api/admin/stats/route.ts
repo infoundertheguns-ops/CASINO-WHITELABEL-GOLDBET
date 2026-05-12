@@ -275,7 +275,7 @@ export async function POST(req: NextRequest) {
       { data: transactions },
       { data: flags },
     ] = await Promise.all([
-      supabase.from("bets").select("stake, status, potential_win, bet_selections(events(sports(name)))").gte("created_at", dayStart).lte("created_at", dayEnd),
+      supabase.from("bets").select("stake, status, potential_win, bet_selections(event:events_v2(sport_name))").gte("created_at", dayStart).lte("created_at", dayEnd),
       supabase.from("users").select("id").gte("created_at", dayStart).lte("created_at", dayEnd),
       supabase.from("transactions").select("type, amount").gte("created_at", dayStart).lte("created_at", dayEnd),
       supabase.from("risk_flags").select("id").gte("created_at", dayStart).lte("created_at", dayEnd),
@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
     // Sport breakdown
     const sportBreakdown: Record<string, { count: number; stake: number }> = {};
     for (const b of allBets) {
-      const sportName = (b as any).bet_selections?.[0]?.events?.sports?.name || "Altro";
+      const sportName = (b as any).bet_selections?.[0]?.event?.sport_name || "Altro";
       if (!sportBreakdown[sportName]) sportBreakdown[sportName] = { count: 0, stake: 0 };
       sportBreakdown[sportName].count++;
       sportBreakdown[sportName].stake += b.stake || 0;

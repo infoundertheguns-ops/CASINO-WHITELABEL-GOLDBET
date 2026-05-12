@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
     if (betIds.length > 0) {
       const { data: selections } = await supabase
         .from("bet_selections")
-        .select("bet_id, odds_at_placement, events!inner(sport_id, sports!inner(name))")
+        .select("bet_id, odds_at_placement, event:events_v2(sport_name)")
         .in("bet_id", betIds.slice(0, 500)) // limit for performance
         .eq("source", "sport");
 
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
       const betStakeMap = new Map(allBets.map(b => [b.id, b]));
 
       for (const sel of (selections || [])) {
-        const sport = (sel as any).events?.sports?.name || "Altro";
+        const sport = (sel as any).event?.sport_name || "Altro";
         if (!sportMap.has(sport)) sportMap.set(sport, { bets: new Set(), stake: 0, won: 0 });
         const entry = sportMap.get(sport)!;
         if (!entry.bets.has(sel.bet_id)) {
