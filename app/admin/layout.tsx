@@ -32,7 +32,6 @@ const NAVIGATION: AdminNavGroup[] = [
       { id: "kiosk-vouchers", icon: "💸", label: "Voucher Cashout" },
       { id: "financial", icon: "💹", label: "Financial" },
       { id: "home-content", icon: "🏠", label: "Home CMS" },
-      { id: "settlement-coverage", icon: "📊", label: "Settlement Coverage" },
     ],
   },
   {
@@ -64,7 +63,6 @@ const TITLES: Record<string, string> = {
   users: "Gestione Utenti",
   config: "Configurazione",
   audit: "Audit Log",
-  "settlement-coverage": "Settlement Coverage",
 };
 
 export default function AdminLayout({
@@ -90,13 +88,11 @@ export default function AdminLayout({
     if (parts[1] === "market-coverage") return "market-coverage";
     if (parts[1] === "manual-overrides") return "manual-overrides";
     if (parts[1] === "market-catalog") return "market-catalog";
-    if (parts[1] === "canonicalization") return "canonicalization";
     if (parts[1] === "market-normalization") return "market-normalization";
     if (parts[1] === "outcome-normalization") return "outcome-normalization";
     if (parts[1] === "event-normalization") return "event-normalization";
     if (parts[1] === "canonical-markets") return "canonical-markets";
     if (parts[1] === "settlement-health") return "settlement-health";
-    if (parts[1] === "settlement-coverage") return "settlement-coverage";
     if (parts[1] === "kiosks") return "kiosks";
     if (parts[1] === "agent-kiosks") return "agent-kiosks";
     if (parts[1] === "agents") return "agents";
@@ -183,11 +179,9 @@ export default function AdminLayout({
       "home-content": "/admin/home-content",
       financial: "/admin/financial",
       "settlement-health": "/admin/settlement-health",
-      "settlement-coverage": "/admin/settlement-coverage",
       "market-coverage": "/admin/market-coverage",
       "manual-overrides": "/admin/manual-overrides",
       "market-catalog": "/admin/market-catalog",
-      canonicalization: "/admin/canonicalization",
       "market-normalization": "/admin/market-normalization",
       "outcome-normalization": "/admin/outcome-normalization",
       "event-normalization": "/admin/event-normalization",
