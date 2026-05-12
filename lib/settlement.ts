@@ -600,7 +600,7 @@ async function voidAllLegs(
     if (payout !== null) betsSettled++;
   }
 
-  // Deactivate markets/outcomes
+  // Mark event as settled (markets_v2/outcomes_v2 cascade is unnecessary)
   await deactivateEvent(supabase, eventId);
 
   return {
@@ -611,7 +611,7 @@ async function voidAllLegs(
   };
 }
 
-// ═══ deactivateEvent — set ended + deactivate markets/outcomes ═══
+// ═══ deactivateEvent — set events_v2.status to settled ═══
 
 export async function deactivateEvent(
   supabase: SupabaseClient,
