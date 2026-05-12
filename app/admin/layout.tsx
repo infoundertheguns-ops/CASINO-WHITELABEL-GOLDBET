@@ -93,7 +93,6 @@ export default function AdminLayout({
   const activeId = useMemo(() => {
     const parts = pathname.split("/").filter(Boolean);
     if (parts[1] === "home-content") return "home-content";
-    if (parts[1] === "market-coverage") return "market-coverage";
     if (parts[1] === "manual-overrides") return "manual-overrides";
     if (parts[1] === "market-normalization") return "market-normalization";
     if (parts[1] === "outcome-normalization") return "outcome-normalization";
@@ -188,7 +187,6 @@ export default function AdminLayout({
       financial: "/admin/financial",
       "settlement-health": "/admin/settlement-health",
       sportsbook: "/admin/sportsbook",
-      "market-coverage": "/admin/market-coverage",
       "manual-overrides": "/admin/manual-overrides",
       "market-normalization": "/admin/market-normalization",
       "outcome-normalization": "/admin/outcome-normalization",
