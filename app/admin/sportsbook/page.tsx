@@ -278,8 +278,7 @@ export default function AdminSportsbook() {
 
       setEvents(
         (json.events || []).map((e: Record<string, unknown>) => {
-          const sport = e.sport as Record<string, string> | null;
-          const league = e.league as Record<string, string> | null;
+          // sport_name / league_name now top-level on events_v2
           return {
             id: e.id as string,
             home_team: e.home_team as string,
@@ -290,8 +289,8 @@ export default function AdminSportsbook() {
             score_away: e.score_away as number | null,
             is_live: e.is_live as boolean,
             minute: e.minute as number | null,
-            sport_name: sport?.name || "—",
-            league_name: league?.name || "—",
+            sport_name: (e.sport_name as string) || "—",
+            league_name: (e.league_name as string) || "—",
           };
         })
       );
@@ -454,12 +453,11 @@ export default function AdminSportsbook() {
 
       // 1. Update event with final scores and status = ended
       const { error: updateErr } = await supabase
-        .from("events")
+        .from("events_v2")
         .update({
           score_home: homeScore,
           score_away: awayScore,
-          status: "ended",
-          is_live: false,
+          status: "settled",
         })
         .eq("id", event.id);
 

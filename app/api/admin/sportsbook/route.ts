@@ -10,6 +10,32 @@ function getSupabase() {
   );
 }
 
+// --- v2 schema translation helpers -----------------------------------------
+// UI uses legacy vocabulary (prematch/ended); events_v2 uses pending/settled.
+function v2ToLegacyStatus(s: string | null | undefined): string {
+  if (s === "pending") return "prematch";
+  if (s === "settled") return "ended";
+  return s ?? "";
+}
+function shapeEvent(e: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...e,
+    home_team: e.home,
+    away_team: e.away,
+    is_live: e.status === "live",
+    status: v2ToLegacyStatus(e.status as string),
+  };
+}
+function shapeSelections(sels: Record<string, unknown>[] | null | undefined): Record<string, unknown>[] {
+  return (sels || []).map((sel) => {
+    const ev = sel.event as Record<string, unknown> | null;
+    return {
+      ...sel,
+      event: ev ? { home_team: ev.home, away_team: ev.away } : null,
+    };
+  });
+}
+
 export async function GET(req: NextRequest) {
   const tab = req.nextUrl.searchParams.get("tab") || "bets";
   const supabase = getSupabase();
@@ -22,7 +48,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("bets")
       .select(
-        `*, bet_selections(id, event_id, odds_at_placement, result, event:events(home_team, away_team))`
+        `*, bet_selections(id, event_id, odds_at_placement, result, event:events_v2(home, away))`
       )
       .is("parent_bet_id", null)
       .order("created_at", { ascending: false })
@@ -43,14 +69,15 @@ export async function GET(req: NextRequest) {
     if (sistemaBetIds.length > 0) {
       const { data: children } = await supabase
         .from("bets")
-        .select(`id, parent_bet_id, stake, total_odds, potential_win, status, bet_selections(id, event_id, odds_at_placement, result, event:events(home_team, away_team))`)
+        .select(`id, parent_bet_id, stake, total_odds, potential_win, status, bet_selections(id, event_id, odds_at_placement, result, event:events_v2(home, away))`)
         .in("parent_bet_id", sistemaBetIds)
         .order("created_at", { ascending: true });
 
       for (const child of (children || [])) {
         const pid = child.parent_bet_id as string;
+        const shaped = { ...child, bet_selections: shapeSelections(child.bet_selections as Record<string, unknown>[] | null) };
         if (!childrenMap.has(pid)) childrenMap.set(pid, []);
-        childrenMap.get(pid)!.push(child);
+        childrenMap.get(pid)!.push(shaped);
       }
     }
 
@@ -70,13 +97,14 @@ export async function GET(req: NextRequest) {
 
     // Open events count
     const { count } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .in("status", ["prematch", "live"]);
+      .in("status", ["pending", "live"]);
 
     return NextResponse.json({
       bets: (bets || []).map((b: Record<string, unknown>) => ({
         ...b,
+        bet_selections: shapeSelections(b.bet_selections as Record<string, unknown>[] | null),
         username: b.user_id ? (userMap.get(b.user_id as string) || "—") : (b.kiosk_id ? `Kiosk ${kioskMap.get(b.kiosk_id as string) || ""}` : "—"),
         children: childrenMap.get(b.id as string) || undefined,
       })),
@@ -86,13 +114,13 @@ export async function GET(req: NextRequest) {
 
   if (tab === "events") {
     const { data, error } = await supabase
-      .from("events")
-      .select(`*, sport:sports(name), league:leagues(name)`)
+      .from("events_v2")
+      .select(`*`)
       .order("starts_at", { ascending: false })
       .limit(300);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ events: data || [] });
+    return NextResponse.json({ events: (data || []).map((e: Record<string, unknown>) => shapeEvent(e)) });
   }
 
   if (tab === "settlement") {
@@ -120,7 +148,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("bets")
-      .select(`*, bet_selections(event:events(home_team, away_team))`, { count: "exact" })
+      .select(`*, bet_selections(event:events_v2(home, away))`, { count: "exact" })
       .in("status", statusList)
       .order("settled_at", { ascending: false, nullsFirst: false })
       .range(from, to);
@@ -158,6 +186,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       settledBets: (bets || []).map((b: Record<string, unknown>) => ({
         ...b,
+        bet_selections: shapeSelections(b.bet_selections as Record<string, unknown>[] | null),
         username: b.user_id ? (userMap.get(b.user_id as string) || "—") : (b.kiosk_id ? `Kiosk ${kioskMap2.get(b.kiosk_id as string) || ""}` : "—"),
       })),
       total: count || 0,
@@ -188,9 +217,9 @@ export async function GET(req: NextRequest) {
     const margin = staked > 0 ? ((staked - totalPayouts) / staked) * 100 : 0;
 
     const { count: openEventsCount } = await supabase
-      .from("events")
+      .from("events_v2")
       .select("id", { count: "exact", head: true })
-      .in("status", ["prematch", "live"]);
+      .in("status", ["pending", "live"]);
 
     return NextResponse.json({ staked, liability, openBets, margin, openEventsCount: openEventsCount || 0 });
   }

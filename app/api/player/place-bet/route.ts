@@ -229,28 +229,41 @@ export async function POST(req: NextRequest) {
 
     for (const sel of selections) {
       const { data: outcome } = await supabase
-        .from("outcomes")
-        .select("id, odds, is_active, is_suspended, market_id, name, markets(event_id, is_active, is_suspended, name, market_type)")
+        .from("outcomes_v2")
+        .select("id, odds, is_active, is_suspended, market_id, outcome_key, markets_v2(event_id, market_name)")
         .eq("id", sel.outcomeId)
         .single();
+      // Manual override check (outcome-level): suspend if active override with manual_suspended=true
+      const { data: ovr } = await supabase
+        .from("manual_overrides")
+        .select("manual_suspended, manual_odds, expires_at")
+        .eq("scope", "outcome")
+        .eq("outcome_id", sel.outcomeId)
+        .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!outcome) {
         return NextResponse.json({ error: `Esito non trovato: ${sel.outcomeId}`, code: "OUTCOME_NOT_FOUND" }, { status: 400 });
       }
 
-      const market = (outcome as any).markets;
-      if (!outcome.is_active || outcome.is_suspended) {
+      const market = (outcome as any).markets_v2;
+      const outcomeLabel = (outcome as any).outcome_key;
+      if (!outcome.is_active || outcome.is_suspended || ovr?.manual_suspended) {
         return NextResponse.json({
-          error: `Esito sospeso: ${outcome.name}`, code: "OUTCOME_SUSPENDED",
+          error: `Esito sospeso: ${outcomeLabel}`, code: "OUTCOME_SUSPENDED",
         }, { status: 400 });
       }
-      if (!market?.is_active || market?.is_suspended) {
+      if (!market) {
         return NextResponse.json({
-          error: `Mercato sospeso: ${market?.name}`, code: "MARKET_SUSPENDED",
+          error: `Mercato non trovato`, code: "MARKET_SUSPENDED",
         }, { status: 400 });
       }
 
-      const currentOdds = parseFloat(outcome.odds);
+      // Effective price: manual_odds override takes precedence over base odds
+      const baseOdds = parseFloat(outcome.odds);
+      const currentOdds = ovr?.manual_odds != null ? parseFloat(ovr.manual_odds) : baseOdds;
       const clientOdds = parseFloat(sel.odds);
 
       // Check if odds changed beyond tolerance
@@ -265,16 +278,17 @@ export async function POST(req: NextRequest) {
         }, { status: 409 });
       }
 
-      // Check if event is live
+      // Check event status (events_v2)
       const { data: event } = await supabase
-        .from("events").select("is_live, starts_at, status").eq("id", market.event_id).single();
+        .from("events_v2").select("status, starts_at").eq("id", market.event_id).single();
 
-      if (event?.status === "finished" || event?.status === "ended" || event?.status === "cancelled" || event?.status === "postponed") {
+      if (event?.status === "settled" || event?.status === "cancelled") {
         return NextResponse.json({
           error: "Evento terminato o annullato", code: "EVENT_ENDED",
         }, { status: 400 });
       }
-      if (event?.is_live) hasLive = true;
+      const isLiveEvent = event?.status === "live";
+      if (isLiveEvent) hasLive = true;
 
       // Calculate time to kickoff
       let timeToKickoff: number | null = null;
@@ -288,7 +302,7 @@ export async function POST(req: NextRequest) {
         market_id: outcome.market_id,
         event_id: market.event_id,
         odds: currentOdds,
-        outcome_name: outcome.name,
+        outcome_name: outcomeLabel,
         time_to_kickoff: timeToKickoff,
       });
     }
@@ -305,8 +319,8 @@ export async function POST(req: NextRequest) {
     let betSport: string | null = null;
     if (!isIppica && validatedSelections.length > 0) {
       const { data: evData } = await supabase
-        .from("events").select("sport").eq("id", validatedSelections[0].event_id).single();
-      betSport = evData?.sport || null;
+        .from("events_v2").select("sport_slug").eq("id", validatedSelections[0].event_id).single();
+      betSport = (evData as any)?.sport_slug || null;
     }
     const bettingLimit = await resolveLimit(supabase, authUser.id, playerProfile?.agent_id || null, betSport);
     if (bettingLimit) {

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { runShadowPass } from "@/lib/settlement/odds-api/settle-leg";
+import { runSettlementPass } from "@/lib/settlement/odds-api/settle-leg";
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-cron-key");
@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
   const hoursWindow = Number(req.nextUrl.searchParams.get("hours") || 24);
 
   try {
-    const result = await runShadowPass(supabase, hoursWindow);
+    const result = await runSettlementPass(supabase, hoursWindow);
     const elapsedMs = Date.now() - startedAt;
 
     // Stamp last run for monitoring
     await supabase.from("system_config").upsert(
-      { key: "last_run_settlement_shadow", value: JSON.stringify({ ts: new Date().toISOString(), ...result }) },
+      { key: "last_run_settlement", value: JSON.stringify({ ts: new Date().toISOString(), ...result }) },
       { onConflict: "key" }
     );
 
