@@ -102,13 +102,13 @@ export async function GET(req: NextRequest) {
       // Sport risk (moved here from overview for performance)
       const { data: sportBets } = await supabase
         .from("bets")
-        .select("risk_score, bet_selections(events(sports(name)))")
+        .select("risk_score, bet_selections(event:events_v2(sport_name))")
         .not("risk_score", "is", null).gt("risk_score", 0)
         .order("created_at", { ascending: false }).limit(100);
 
       const sportRisk: Record<string, { count: number; totalScore: number }> = {};
       for (const b of sportBets || []) {
-        const sportName = (b as any).bet_selections?.[0]?.events?.sports?.name || "Altro";
+        const sportName = (b as any).bet_selections?.[0]?.event?.sport_name || "Altro";
         if (!sportRisk[sportName]) sportRisk[sportName] = { count: 0, totalScore: 0 };
         sportRisk[sportName].count++;
         sportRisk[sportName].totalScore += b.risk_score || 0;
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
         supabase.from("player_profiles").select("*").eq("user_id", playerId).single(),
         supabase.from("users").select("*").eq("id", playerId).single(),
         supabase.from("risk_flags").select("*").eq("user_id", playerId).order("created_at", { ascending: false }).limit(50),
-        supabase.from("bets").select("*, bet_selections(events(home_team, away_team, sports(name)), outcomes(name), markets(name))").eq("user_id", playerId).order("created_at", { ascending: false }).limit(50),
+        supabase.from("bets").select("*, bet_selections(event:events_v2(home, away, sport_name), outcome:outcomes_v2(outcome_key), market:markets_v2(market_name))").eq("user_id", playerId).order("created_at", { ascending: false }).limit(50),
         supabase.from("user_limits").select("*").eq("user_id", playerId).eq("is_active", true),
         supabase.from("risk_actions").select("*").eq("entity_id", playerId).eq("entity_type", "user").order("created_at", { ascending: false }).limit(20),
       ]);
