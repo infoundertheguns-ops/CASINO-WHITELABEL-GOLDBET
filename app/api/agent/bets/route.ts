@@ -188,9 +188,9 @@ export async function GET(req: NextRequest) {
         const batch = allBetIds.slice(i, i + batchSize);
         const { data: selections } = await supabase
           .from("bet_selections")
-          .select("bet_id, events!inner(sport)")
+          .select("bet_id, events_v2!inner(sport_slug)")
           .in("bet_id", batch)
-          .eq("events.sport", sport);
+          .eq("events_v2.sport_slug", sport);
 
         for (const sel of selections || []) {
           matchingBetIds.add(sel.bet_id);
@@ -270,9 +270,9 @@ export async function GET(req: NextRequest) {
       .from("bet_selections")
       .select(
         `id, bet_id, event_id, market_id, outcome_id, odds_at_placement, result,
-         events(home_team, away_team, sport:sports(name)),
-         markets(market_type),
-         outcomes(name)`
+         event:events_v2(home, away, sport_name),
+         market:markets_v2(market_name),
+         outcome:outcomes_v2(outcome_key)`
       )
       .in("bet_id", betIds);
 

@@ -152,9 +152,9 @@ export default function MyBetsPage() {
         *,
         bet_selections(
           id, odds_at_placement, result,
-          event:events(home_team, away_team),
-          market:markets(name),
-          outcome:outcomes(name)
+          event:events_v2(home, away),
+          market:markets_v2(market_name),
+          outcome:outcomes_v2(outcome_key)
         )
       `,
         { count: "exact" }
@@ -189,10 +189,10 @@ export default function MyBetsPage() {
               odds_at_placement: (s.odds_at_placement as number) || 0,
               result: s.result as string | null,
               event_name: ev
-                ? `${ev.home_team} vs ${ev.away_team}`
+                ? `${ev.home} vs ${ev.away}`
                 : "—",
-              market_name: mkt?.name || "—",
-              outcome_name: out?.name || "—",
+              market_name: mkt?.market_name || "—",
+              outcome_name: out?.outcome_key || "—",
             };
           }),
         };

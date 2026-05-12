@@ -43,20 +43,25 @@ export function usePlayerProps(): UsePlayerPropsReturn {
       setError(null);
 
       try {
-        // Fetch events from Kambi with markets included
+        // Fetch events from events_v2 with markets_v2/outcomes_v2 embedded.
+        // events_v2 has flat sport_slug/sport_name + league_slug/league_name
+        // (no nested sport/league JOIN). Status enum is pending/live; is_live
+        // derived from status === 'live'. markets_v2 dropped is_active/
+        // is_suspended/slug/market_type/line/sort_order — only outcomes_v2
+        // still carry is_active/is_suspended. previous_odds dropped (tracked
+        // client-side via realtime delta in mapDbToSportEvent).
         const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
         const { data, error: err } = await supabase
-          .from("events")
+          .from("events_v2")
           .select(`
-            *,
-            sport:sports(name, slug, icon),
-            league:leagues(name, slug, country, logo_url),
-            markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended,
-              outcomes(id, name, odds, previous_odds, is_active, is_suspended))
+            id, odds_api_id, home, away, starts_at, sport_slug, sport_name,
+            league_slug, league_name, status, score_home, score_away,
+            period, minute, live_data,
+            markets_v2(id, market_name,
+              outcomes_v2(id, outcome_key, odds, is_active, is_suspended))
           `)
-          .eq("source", "odds-api")
-          .in("status", ["prematch", "live"])
-          .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
+          .in("status", ["pending", "live"])
+          .or(`status.eq.live,starts_at.gte.${cutoff}`)
           .order("starts_at", { ascending: true })
           .limit(2000);
 

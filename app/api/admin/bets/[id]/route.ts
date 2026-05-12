@@ -54,14 +54,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     // Selections (sport)
-    // NOTE: events table has home_team/away_team, not a name column.
+    // NOTE: events_v2 has home/away columns (flat sport_name/league_name).
     const { data: selRows, error: selErr } = await sb
       .from("bet_selections")
       .select(`
         id, source, odds_at_placement, result, settled_at,
-        event:events(home_team, away_team, league:leagues(name), sport:sports(name)),
-        market:markets(market_type, name, line),
-        outcome:outcomes(name, odds),
+        event:events_v2(home, away, league_name, sport_name),
+        market:markets_v2(market_name),
+        outcome:outcomes_v2(outcome_key, odds),
         race:ippica_races(title, scheduled_at, meeting:ippica_meetings(name)),
         race_market:ippica_markets(market_type),
         race_odds:ippica_odds(odds, runner_number)
@@ -71,17 +71,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const selections: BetSelectionDetail[] = (selRows ?? []).map((s: any) => {
       if (s.source === "sport") {
         const evName = s.event
-          ? `${s.event.home_team ?? "?"} vs ${s.event.away_team ?? "?"}`
+          ? `${s.event.home ?? "?"} vs ${s.event.away ?? "?"}`
           : "—";
         return {
           id: s.id, source: "sport",
           event: {
             name: evName,
-            league: s.event?.league?.name ?? null,
-            sport: s.event?.sport?.name ?? null,
+            league: s.event?.league_name ?? null,
+            sport: s.event?.sport_name ?? null,
           },
-          market: { type: s.market?.market_type ?? s.market?.name ?? "—", label: s.market?.line != null ? `${s.market.line}` : null },
-          outcome: { name: s.outcome?.name ?? "—" },
+          market: { type: s.market?.market_name ?? "—", label: null },
+          outcome: { name: s.outcome?.outcome_key ?? "—" },
           odds_at_placement: Number(s.odds_at_placement ?? 0),
           current_odds: s.outcome?.odds != null ? Number(s.outcome.odds) : null,
           result: s.result ?? null,

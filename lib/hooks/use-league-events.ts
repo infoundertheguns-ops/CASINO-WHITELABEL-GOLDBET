@@ -36,7 +36,9 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
     if (isInitial) { setLoading(true); setError(null); }
 
     try {
-      // 1. Find the league by slug
+      // 1. Find the league by slug. `leagues` table is still kept; we use it
+      //    to source country/logo_url + sport icon (events_v2 has flat
+      //    sport_slug/league_slug but no icon/country/logo_url).
       const { data: leagueRow, error: leagueErr } = await supabase
         .from("leagues")
         .select("id, name, slug, country, logo_url, sport:sports(name, icon)")
@@ -62,23 +64,25 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
         setSportIcon(sportData?.icon || "");
       }
 
-      // 2. Fetch ALL events for this league with ALL markets (exclude stale prematch)
+      // 2. Fetch ALL events for this league (events_v2, filter by league_slug —
+      //    events_v2 has no league_id FK, only flat league_slug TEXT column).
+      //    Status enum is v2: pending/live/settled/cancelled. is_live derived
+      //    from status === 'live'. `source` column dropped (events_v2 implicit
+      //    odds-api). markets_v2/outcomes_v2 dropped is_active/is_suspended
+      //    at market level — only outcomes still carry suspension state.
       const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: eventRows, error: eventsErr } = await supabase
-        .from("events")
+        .from("events_v2")
         .select(`
-          *,
-          sport:sports(name, slug, icon),
-          league:leagues(name, slug, country, logo_url),
-          markets(
-            id, name, slug, market_type, line, sort_order, is_active, is_suspended,
-            outcomes(id, name, odds, previous_odds, is_active, is_suspended)
-          )
+          id, odds_api_id, home, away, starts_at, sport_slug, sport_name,
+          league_slug, league_name, status, score_home, score_away,
+          period, minute, live_data,
+          markets_v2(id, market_name,
+            outcomes_v2(id, outcome_key, odds, is_active, is_suspended))
         `)
-        .eq("source", "odds-api")
-        .eq("league_id", leagueRow.id)
-        .in("status", ["prematch", "live"])
-        .or(`is_live.eq.true,starts_at.gte.${cutoff}`)
+        .eq("league_slug", slug)
+        .in("status", ["pending", "live"])
+        .or(`status.eq.live,starts_at.gte.${cutoff}`)
         .order("starts_at", { ascending: true });
 
       if (eventsErr) throw eventsErr;
@@ -146,7 +150,11 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
     fetchData(true);
   }, [fetchData]);
 
-  // Realtime subscription for outcome changes
+  // Realtime subscription for outcome + event changes.
+  // Migrated to v2 tables: outcomes_v2, events_v2. The legacy `markets` channel
+  // was removed because markets_v2 has no is_active/is_suspended columns —
+  // market-level suspension is no longer signaled at the row level (handled via
+  // manual_overrides or via outcomes_v2.is_suspended fanout from the scraper).
   useEffect(() => {
     if (!slug) return;
 
@@ -154,7 +162,7 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
       .channel(`league-${slug}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "outcomes" },
+        { event: "UPDATE", schema: "public", table: "outcomes_v2" },
         (payload) => {
           const updated = payload.new as Record<string, any>;
           if (!marketIdsRef.current.has(updated.market_id)) return;
@@ -187,19 +195,20 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "events" },
+        { event: "UPDATE", schema: "public", table: "events_v2" },
         (payload) => {
           const updated = payload.new as Record<string, any>;
           const liveData = updated.live_data || {};
+          const isLive = updated.status === "live";
 
           setEvents((prev) =>
             prev.map((ev) =>
               ev.id === updated.id
                 ? {
                     ...ev,
-                    live: updated.is_live || false,
+                    live: isLive,
                     minute: updated.minute,
-                    minuteReceivedAt: updated.is_live ? Date.now() : undefined,
+                    minuteReceivedAt: isLive ? Date.now() : undefined,
                     scoreH: updated.score_home,
                     scoreA: updated.score_away,
                     period: updated.period || undefined,
@@ -208,7 +217,7 @@ export function useLeagueEvents(slug: string): UseLeagueEventsReturn {
                     halfScoreAway: Array.isArray(liveData.halfScoreAway) ? liveData.halfScoreAway : undefined,
                     stats: liveData.stats || undefined,
                     matchEvents: Array.isArray(liveData.matchEvents) ? liveData.matchEvents : undefined,
-                    time: updated.is_live
+                    time: isLive
                       ? `LIVE ${updated.minute || 0}'`
                       : ev.time,
                   }

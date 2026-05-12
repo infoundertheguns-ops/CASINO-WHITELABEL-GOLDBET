@@ -441,8 +441,8 @@ export default function EventDetail() {
     if (isInitial) { setDirectLoading(true); setDirectError(null); }
     try {
       const { data, error } = await supabaseDetail
-        .from("events")
-        .select(`*, sport:sports(name, slug, icon), league:leagues(name, slug, country, logo_url), markets(id, name, slug, market_type, line, sort_order, is_active, is_suspended, outcomes(id, name, odds, previous_odds, is_active, is_suspended))`)
+        .from("events_v2")
+        .select(`*, markets_v2(id, market_name, outcomes_v2(id, outcome_key, odds, is_active, is_suspended))`)
         .eq("id", eventId)
         .single();
       if (error) throw error;
@@ -509,14 +509,15 @@ export default function EventDetail() {
     if (!eventId) return;
     const channel = supabaseDetail
       .channel(`detail-${eventId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "events", filter: `id=eq.${eventId}` }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "events_v2", filter: `id=eq.${eventId}` }, (payload) => {
         const updated = payload.new as Record<string, any>;
         const ld = updated.live_data || {};
+        const isLive = updated.status === "live";
         setDirectEvent((prev) => {
           if (!prev) return prev;
           return {
-            ...prev, live: updated.is_live || false, minute: updated.minute,
-            minuteReceivedAt: updated.is_live ? Date.now() : undefined,
+            ...prev, live: isLive, minute: updated.minute,
+            minuteReceivedAt: isLive ? Date.now() : undefined,
             scoreH: updated.score_home, scoreA: updated.score_away,
             period: updated.period || undefined, periodCode: ld.periodCode ?? undefined,
             halfScoreHome: Array.isArray(ld.halfScoreHome) ? ld.halfScoreHome : undefined,
@@ -526,7 +527,7 @@ export default function EventDetail() {
           };
         });
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "outcomes" }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "outcomes_v2" }, (payload) => {
         const updated = payload.new as Record<string, any>;
         if (!marketIdsRef.current.has(updated.market_id)) return;
 
@@ -564,21 +565,13 @@ export default function EventDetail() {
         });
         debouncedRefetch();
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "markets" }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "markets_v2" }, (payload) => {
         const updated = payload.new as Record<string, any>;
         if (!marketIdsRef.current.has(updated.id)) return;
-
-        // Remove deactivated/suspended markets
-        if (!updated.is_active || updated.is_suspended) {
-          setDirectEvent((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              markets: prev.markets.filter((m) => m.id !== updated.id),
-            };
-          });
-          marketIdsRef.current.delete(updated.id);
-        }
+        // markets_v2 has no is_active/is_suspended columns (dropped in v2 schema).
+        // Suspension/deactivation now happens at the outcome level only.
+        // Trigger a debounced refetch so any market-level change (e.g. metadata) is reflected.
+        debouncedRefetch();
       })
       .subscribe();
     return () => { supabaseDetail.removeChannel(channel); if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current); };
