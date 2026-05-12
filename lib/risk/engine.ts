@@ -333,7 +333,7 @@ export async function evaluateAcceptance(
     supabase,
     bet.selections.map(s => ({ outcome_id: s.outcome_id, odds: s.odds })),
     requestedStake,
-    acc.max_liability_per_outcome || 50000
+    acc.max_liability_per_outcome ?? 50000
   );
 
   const exceeding = liabilityImpacts.filter(l => l.would_exceed);

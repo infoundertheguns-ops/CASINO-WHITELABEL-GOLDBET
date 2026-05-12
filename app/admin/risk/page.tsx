@@ -516,7 +516,6 @@ export default function AdminRiskAgent() {
                       <th className="text-right px-4 py-2">% Usato</th>
                       <th className="text-right px-4 py-2">Stake Tot.</th>
                       <th className="text-right px-4 py-2">N. Bet</th>
-                      <th className="text-center px-4 py-2">AI Optimizer</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -540,46 +539,12 @@ export default function AdminRiskAgent() {
                         </td>
                         <td className="px-4 py-2 text-right font-mono" style={{ color: "var(--admin-text3)" }}>€{l.total_stake?.toFixed(2)}</td>
                         <td className="px-4 py-2 text-right" style={{ color: "var(--admin-text3)" }}>{l.bet_count || 0}</td>
-                        <td className="px-4 py-2 text-center">
-                          {l.pct_used > 50 && (
-                            <button
-                              onClick={async () => {
-                                const res = await fetch("/api/admin/liability", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ event_id: liabilityEvent.event?.id, auto_apply: false }),
-                                });
-                                const data = await res.json();
-                                alert(`AI suggerisce ${data.suggestions?.length || 0} aggiustamenti`);
-                              }}
-                              className="px-2 py-0.5 rounded text-[8px] font-bold bg-purple-500/20 text-purple-400"
-                            >
-                              Ottimizza
-                            </button>
-                          )}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Recent adjustments */}
-              {liabilityEvent.adjustments?.length > 0 && (
-                <div className="mt-4 rounded-xl p-4" style={{ background: "var(--admin-card)", border: "1px solid var(--admin-border)" }}>
-                  <h4 className="text-xs font-bold mb-2" style={{ color: "var(--admin-text)" }}>Aggiustamenti recenti</h4>
-                  {liabilityEvent.adjustments.map((adj: any) => (
-                    <div key={adj.id} className="flex items-center gap-3 py-1 text-[10px]" style={{ color: "var(--admin-text3)" }}>
-                      <span className="font-mono">{adj.old_odds} &rarr; {adj.new_odds}</span>
-                      <span className={cn("px-1 py-0.5 rounded text-[8px]",
-                        adj.suggested_by === "ai" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"
-                      )}>{adj.suggested_by}</span>
-                      <span className="truncate max-w-[200px]">{adj.reason}</span>
-                      <span className="ml-auto text-gray-500">{new Date(adj.created_at).toLocaleTimeString("it-IT")}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           ) : (
             // Overview
