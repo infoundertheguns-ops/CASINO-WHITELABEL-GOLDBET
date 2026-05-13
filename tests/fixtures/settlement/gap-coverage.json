@@ -173,5 +173,33 @@
     "leg": { "market_type": "Totals (Games)", "outcome_name": "over", "line": 21.5 },
     "result": { "home": 2, "away": 0 },
     "expected_verdict": null
+  },
+  {
+    "id": "set-betting-001",
+    "description": "Set Betting — tennis 2-0 outcome=2-0 → won",
+    "leg": { "market_type": "Set Betting", "outcome_name": "2-0", "line": null },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "set-betting-002",
+    "description": "Set Betting — tennis 2-1 outcome=2-0 → lost",
+    "leg": { "market_type": "Set Betting", "outcome_name": "2-0", "line": null },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "3way-ht-001",
+    "description": "3-Way Result HT — basket Q1 21-14 home wins",
+    "leg": { "market_type": "3-Way Result HT", "outcome_name": "home", "line": null },
+    "result": { "home": 92, "away": 88, "period_scores_home": [21, 25, 22, 24], "period_scores_away": [14, 26, 25, 23] },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "totals-1q-001",
+    "description": "Totals 1Q — basket Q1 home 21 away 14 = 35 under 40.5 → won",
+    "leg": { "market_type": "Totals 1Q", "outcome_name": "under", "line": 40.5 },
+    "result": { "home": 92, "away": 88, "period_scores_home": [21, 25, 22, 24], "period_scores_away": [14, 26, 25, 23] },
+    "expected_verdict": "won"
   }
 ]

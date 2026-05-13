@@ -465,6 +465,27 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     return { verdict: settleHandicap2Way(h, a, leg.line, leg.outcome_name) };
   }
 
+  // ─── Set Betting (tennis correct-score on sets won).
+  // Tennis-specific: result.home/away are sets won (per spec §2 data model),
+  // so settleCorrectScore treats outcome "2-0" as "home 2 sets, away 0 sets".
+  if (mt === "set betting") {
+    return { verdict: settleCorrectScore(result.home, result.away, leg.outcome_name) };
+  }
+
+  // ─── Basket Totals 1Q ───
+  if (mt === "totals 1q" || mt === "totale 1q") {
+    const [h, a] = getPeriodScores(result, 0);
+    if (h == null || a == null) return { verdict: null, reason: "q1_missing" };
+    return { verdict: settleOU(h + a, leg.line, leg.outcome_name) };
+  }
+
+  // ─── 3-Way Result HT (basket/handball 1X2 on first period) ───
+  if (mt === "3-way result ht" || mt === "3 way result ht") {
+    const [h, a] = getPeriodScores(result, 0);
+    if (h == null || a == null) return { verdict: null, reason: "ht_scores_missing" };
+    return { verdict: settle1X2(h, a, leg.outcome_name) };
+  }
+
   // ─── Goal Line (Asian total) ───
   if (mt === "goal line" || mt === "goalline" || mt === "asian total" || mt === "asian totals") {
     // Try quarter-line split first (.25/.75); fall through to standard OU for integer/half lines.
