@@ -72,4 +72,32 @@ describe("buildScores — period-source priority", () => {
     expect(result?.ht_home).toBeNull();
     expect(result?.ht_away).toBeNull();
   });
+
+  test("football cumulative-corruption guard rejects halfScoreHome > score_home", () => {
+    const result = buildScores({
+      score_home: 1,
+      score_away: 0,
+      period_scores: null,
+      live_data: { halfScoreHome: [2, 2], halfScoreAway: [0, 0] },
+      sport_slug: "football",
+      period: null,
+    });
+    expect(result?.ht_home).toBeNull();
+    expect(result?.ht_away).toBeNull();
+  });
+
+  test("tennis halfScoreHome[0] > score_home is valid (sets vs games)", () => {
+    // Tennis: score_home/away = sets won (2:0), halfScoreHome[0] = games in set 1 (6)
+    // Legitimately 6 > 2; guard must not fire for non-football.
+    const result = buildScores({
+      score_home: 2,
+      score_away: 0,
+      period_scores: null,
+      live_data: { halfScoreHome: [6, 6], halfScoreAway: [4, 3] },
+      sport_slug: "tennis",
+      period: null,
+    });
+    expect(result?.ht_home).toBe(6);
+    expect(result?.ht_away).toBe(4);
+  });
 });

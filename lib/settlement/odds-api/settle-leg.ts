@@ -80,6 +80,10 @@ export function buildScores(row: RawScoreRow): ScoreResult | null {
       }
     }
     // 2b — generic halfScoreHome/Away[0] for any sport.
+    // Football-specific cumulative-corruption guard: HT must not exceed FT
+    // (mirrors legacy lib/settlement.ts safety check). Other sports (tennis sets,
+    // basket quarters) legitimately have per-period > sport-final semantics, so
+    // the guard is football-only.
     if (
       ht_home == null &&
       Array.isArray(ld.halfScoreHome) &&
@@ -87,8 +91,16 @@ export function buildScores(row: RawScoreRow): ScoreResult | null {
       ld.halfScoreHome.length > 0 &&
       ld.halfScoreAway.length > 0
     ) {
-      ht_home = ld.halfScoreHome[0];
-      ht_away = ld.halfScoreAway[0];
+      const h0 = ld.halfScoreHome[0];
+      const a0 = ld.halfScoreAway[0];
+      const isCorrupt =
+        row.sport_slug === "football" &&
+        h0 != null && a0 != null &&
+        (h0 > row.score_home || a0 > row.score_away);
+      if (h0 != null && a0 != null && !isCorrupt) {
+        ht_home = h0;
+        ht_away = a0;
+      }
     }
   }
 
