@@ -201,5 +201,19 @@
     "leg": { "market_type": "Totals 1Q", "outcome_name": "under", "line": 40.5 },
     "result": { "home": 92, "away": 88, "period_scores_home": [21, 25, 22, 24], "period_scores_away": [14, 26, 25, 23] },
     "expected_verdict": "won"
+  },
+  {
+    "id": "btts-ht-001",
+    "description": "BTTS HT — HT 1-1, outcome=yes → won",
+    "leg": { "market_type": "Both Teams To Score HT", "outcome_name": "yes", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "btts-ht-002",
+    "description": "BTTS HT — HT 1-0 → away didn't score, outcome=yes lost",
+    "leg": { "market_type": "Both Teams To Score HT", "outcome_name": "yes", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 0 },
+    "expected_verdict": "lost"
   }
 ]

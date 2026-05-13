@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildScores } from "@/lib/settlement/odds-api/settle-leg";
+import { classifyLeg } from "@/lib/settlement/odds-api/classify";
 
 describe("buildScores — period-source priority", () => {
   test("legacy period_scores column wins when populated", () => {
@@ -99,5 +100,84 @@ describe("buildScores — period-source priority", () => {
     });
     expect(result?.ht_home).toBe(6);
     expect(result?.ht_away).toBe(4);
+  });
+});
+
+describe("buildScores → classifyLeg integration (HT markets via live_data)", () => {
+  test("Half Time Result from football live_data.periods", () => {
+    const scores = buildScores({
+      score_home: 2,
+      score_away: 1,
+      period_scores: null,
+      live_data: {
+        periods: [
+          { name: "1 Tempo", homeScore: 1, awayScore: 0 },
+          { name: "2 Tempo", homeScore: 1, awayScore: 1 },
+        ],
+      },
+      sport_slug: "football",
+      period: null,
+    })!;
+    const v = classifyLeg(
+      { market_type: "Half Time Result", outcome_name: "home", line: null },
+      scores,
+    );
+    expect(v.verdict).toBe("won");
+  });
+
+  test("Totals HT from football live_data.periods", () => {
+    const scores = buildScores({
+      score_home: 3,
+      score_away: 1,
+      period_scores: null,
+      live_data: {
+        periods: [
+          { name: "1 Tempo", homeScore: 1, awayScore: 1 },
+          { name: "2 Tempo", homeScore: 2, awayScore: 0 },
+        ],
+      },
+      sport_slug: "football",
+      period: null,
+    })!;
+    const v = classifyLeg(
+      { market_type: "Totals HT", outcome_name: "over", line: 1.5 },
+      scores,
+    );
+    expect(v.verdict).toBe("won"); // HT total 1+1=2 > 1.5
+  });
+
+  test("BTTS HT from football live_data.periods", () => {
+    const scores = buildScores({
+      score_home: 1,
+      score_away: 0,
+      period_scores: null,
+      live_data: {
+        periods: [{ name: "1 Tempo", homeScore: 1, awayScore: 0 }],
+      },
+      sport_slug: "football",
+      period: null,
+    })!;
+    const v = classifyLeg(
+      { market_type: "Both Teams To Score HT", outcome_name: "no", line: null },
+      scores,
+    );
+    expect(v.verdict).toBe("won"); // HT 1-0, no BTTS
+  });
+
+  test("Half Time Result returns null when live_data missing periods + halfScore", () => {
+    const scores = buildScores({
+      score_home: 1,
+      score_away: 1,
+      period_scores: null,
+      live_data: null,
+      sport_slug: "football",
+      period: null,
+    })!;
+    const v = classifyLeg(
+      { market_type: "Half Time Result", outcome_name: "home", line: null },
+      scores,
+    );
+    expect(v.verdict).toBeNull();
+    expect(v.reason).toBe("ht_scores_missing");
   });
 });

@@ -523,6 +523,10 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     return { verdict: settleBTTS(result.home - ht_home, result.away - ht_away, leg.outcome_name) };
   }
+  if (mt === "gg/ng - 1t" || mt === "both teams to score 1h" || mt === "both teams to score ht" || mt === "btts ht") {
+    if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
+    return { verdict: settleBTTS(ht_home, ht_away, leg.outcome_name) };
+  }
 
   // ─── Double Chance / DNB ───
   if (mt === "dc" || mt === "double chance") {
