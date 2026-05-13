@@ -75,5 +75,33 @@
     "leg": { "market_type": "Second Half Result", "outcome_name": "draw", "line": null },
     "result": { "home": 0, "away": 2, "ht_home": 0, "ht_away": 0 },
     "expected_verdict": "lost"
+  },
+  {
+    "id": "first-score-001",
+    "description": "First Team To Score — home scored first",
+    "leg": { "market_type": "First Team To Score", "outcome_name": "home", "line": null },
+    "result": { "home": 2, "away": 1, "scorers": [{ "name": "Bob", "team": "home" }, { "name": "Sue", "team": "away" }, { "name": "Bob", "team": "home" }] },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "first-score-002",
+    "description": "First Team To Score — away scored first, bet on home → lost",
+    "leg": { "market_type": "First Team To Score", "outcome_name": "home", "line": null },
+    "result": { "home": 1, "away": 2, "scorers": [{ "name": "Sue", "team": "away" }, { "name": "Bob", "team": "home" }] },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "first-score-003",
+    "description": "First Team To Score — 0-0 outcome=home → void (refund)",
+    "leg": { "market_type": "First Team To Score", "outcome_name": "home", "line": null },
+    "result": { "home": 0, "away": 0, "scorers": [] },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "first-score-004",
+    "description": "First Team To Score — 0-0 outcome=none → won",
+    "leg": { "market_type": "First Team To Score", "outcome_name": "none", "line": null },
+    "result": { "home": 0, "away": 0, "scorers": [] },
+    "expected_verdict": "won"
   }
 ]

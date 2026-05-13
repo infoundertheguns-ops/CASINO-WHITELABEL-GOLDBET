@@ -363,6 +363,32 @@ function settlePlayerShots(
   return found.shots < line ? "won" : "lost";
 }
 
+function settleFirstTeamToScore(
+  scorers: Scorer[] | null | undefined,
+  totalGoals: number,
+  outcome: string,
+): { verdict: Verdict | null; reason?: string } {
+  if (scorers == null) return { verdict: null, reason: "scorers_missing" };
+  const o = norm(outcome);
+  // 0-0 game: no team scored.
+  if (scorers.length === 0 || totalGoals === 0) {
+    if (o === "none" || o === "nessuna" || o === "no goal") return { verdict: "won" };
+    if (
+      o === "home" || o === "casa" || o === "1" ||
+      o === "away" || o === "trasferta" || o === "2"
+    ) {
+      return { verdict: "void" }; // refund
+    }
+    return { verdict: null, reason: "unknown_outcome" };
+  }
+  const firstTeam = scorers[0].team;
+  if (firstTeam == null) return { verdict: null, reason: "first_scorer_team_missing" };
+  if (o === "home" || o === "casa" || o === "1") return { verdict: firstTeam === "home" ? "won" : "lost" };
+  if (o === "away" || o === "trasferta" || o === "2") return { verdict: firstTeam === "away" ? "won" : "lost" };
+  if (o === "none" || o === "nessuna" || o === "no goal") return { verdict: "lost" };
+  return { verdict: null, reason: "unknown_outcome" };
+}
+
 // ═══════════════════════════════════════════════════
 // Market-type dispatcher
 // ═══════════════════════════════════════════════════
@@ -542,6 +568,11 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   if (mt === "tiri giocatore under" || mt === "player shots under" || mt === "tiri giocatore - under") {
     const v = settlePlayerShots(result.player_shots, leg.outcome_name, leg.line, "under");
     return { verdict: v, reason: v == null ? "player_shots_missing" : undefined };
+  }
+
+  // ─── First Team To Score ───
+  if (mt === "first team to score" || mt === "prima squadra a segnare") {
+    return settleFirstTeamToScore(result.scorers, result.home + result.away, leg.outcome_name);
   }
 
   // Unsupported
