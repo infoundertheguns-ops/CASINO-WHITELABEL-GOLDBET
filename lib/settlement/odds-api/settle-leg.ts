@@ -17,13 +17,18 @@ interface CandidateLeg {
   period_scores: Record<string, { home?: number; away?: number }> | null;
   sport_slug: string | null;
   period: string | null;
+  live_data: {
+    halfScoreHome?: number[] | null;
+    halfScoreAway?: number[] | null;
+    periods?: Array<{ name?: string; homeScore?: number; awayScore?: number }> | null;
+  } | null;
 }
 
 const SELECT_LEG_FIELDS = [
   "id", "bet_id", "event_id", "market_id", "outcome_id", "odds_at_placement",
   "markets_v2!bet_selections_market_id_fkey(market_name)",
   "outcomes_v2!bet_selections_outcome_id_fkey(outcome_key, line)",
-  "events_v2!bet_selections_event_id_fkey(score_home, score_away, period_scores, sport_slug, period)",
+  "events_v2!bet_selections_event_id_fkey(score_home, score_away, period_scores, sport_slug, period, live_data)",
 ].join(", ");
 
 interface RawScoreRow {
@@ -32,13 +37,24 @@ interface RawScoreRow {
   period_scores: Record<string, { home?: number; away?: number }> | null;
   sport_slug: string | null;
   period: string | null;
+  // FS-scraped JSONB blob, contains halfScoreHome[]/halfScoreAway[] and periods[].
+  // Shape varies by sport — see spec §2 for the two-bucket data model.
+  live_data: {
+    halfScoreHome?: number[] | null;
+    halfScoreAway?: number[] | null;
+    periods?: Array<{ name?: string; homeScore?: number; awayScore?: number }> | null;
+  } | null;
 }
 
-function buildScores(row: RawScoreRow): ScoreResult | null {
+export function buildScores(row: RawScoreRow): ScoreResult | null {
   if (row.score_home == null) return null;
   if (row.score_away == null) return null;
+
   let ht_home: number | null = null;
   let ht_away: number | null = null;
+
+  // Priority 1 — legacy period_scores column (currently always NULL in prod,
+  // kept as future-proof fallback if OddsAPI starts emitting periods).
   const ps = row.period_scores;
   if (ps && typeof ps === "object") {
     const first = ps["1H"] || ps["1Q"] || ps["P1"] || ps["S1"];
@@ -47,11 +63,62 @@ function buildScores(row: RawScoreRow): ScoreResult | null {
       ht_away = first.away;
     }
   }
-  const scores: ScoreResult = { home: row.score_home, away: row.score_away, ht_home, ht_away };
-  const extra = scores as unknown as Record<string, unknown>;
-  if (ps) extra.halfScores = ps;
-  if (row.sport_slug) extra.sport = row.sport_slug;
-  if (row.period) extra.period = row.period;
+
+  // Priority 2 — live_data (FS source, primary today).
+  const ld = row.live_data;
+  if (ht_home == null && ld != null) {
+    // 2a — football prefers named periods.
+    if (row.sport_slug === "football" && Array.isArray(ld.periods)) {
+      const p1 = ld.periods.find(
+        (p) =>
+          typeof p?.name === "string" &&
+          /(^|\s)1[°\s]*tempo|1st\s*half|1H\b/i.test(p.name),
+      );
+      if (p1 && p1.homeScore != null && p1.awayScore != null) {
+        ht_home = p1.homeScore;
+        ht_away = p1.awayScore;
+      }
+    }
+    // 2b — generic halfScoreHome/Away[0] for any sport.
+    if (
+      ht_home == null &&
+      Array.isArray(ld.halfScoreHome) &&
+      Array.isArray(ld.halfScoreAway) &&
+      ld.halfScoreHome.length > 0 &&
+      ld.halfScoreAway.length > 0
+    ) {
+      ht_home = ld.halfScoreHome[0];
+      ht_away = ld.halfScoreAway[0];
+    }
+  }
+
+  // Populate per-period arrays — prefer halfScoreHome/Away (explicit per-period),
+  // fall back to periods[].homeScore/awayScore extraction.
+  let period_scores_home: number[] | null = null;
+  let period_scores_away: number[] | null = null;
+  if (ld != null) {
+    if (Array.isArray(ld.halfScoreHome) && Array.isArray(ld.halfScoreAway)) {
+      period_scores_home = ld.halfScoreHome.slice();
+      period_scores_away = ld.halfScoreAway.slice();
+    } else if (Array.isArray(ld.periods) && ld.periods.length > 0) {
+      const h = ld.periods.map((p) => (p?.homeScore ?? null)).filter((x): x is number => x != null);
+      const a = ld.periods.map((p) => (p?.awayScore ?? null)).filter((x): x is number => x != null);
+      if (h.length === ld.periods.length && a.length === ld.periods.length) {
+        period_scores_home = h;
+        period_scores_away = a;
+      }
+    }
+  }
+
+  const scores: ScoreResult = {
+    home: row.score_home,
+    away: row.score_away,
+    ht_home,
+    ht_away,
+    period_scores_home,
+    period_scores_away,
+    sport_slug: row.sport_slug,
+  };
   return scores;
 }
 
@@ -130,6 +197,7 @@ export async function runSettlementPass(sb: SupabaseClient, hoursWindow: number 
         period_scores: e?.period_scores ?? null,
         sport_slug: e?.sport_slug ?? null,
         period: e?.period ?? null,
+        live_data: e?.live_data ?? null,
       });
     });
   };
@@ -148,6 +216,7 @@ export async function runSettlementPass(sb: SupabaseClient, hoursWindow: number 
       period_scores: leg.period_scores,
       sport_slug: leg.sport_slug,
       period: leg.period,
+      live_data: leg.live_data,
     });
     if (!scores) { skipped++; return; }
     const betLeg: BetLeg = { market_type: leg.market_name, outcome_name: leg.outcome_key, line: leg.line };
