@@ -1,0 +1,44 @@
+[
+  {
+    "id": "team-total-home-001",
+    "description": "Team Total Home over 1.5 — home scored 2, won",
+    "leg": { "market_type": "Team Total Home", "outcome_name": "over", "line": 1.5 },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "team-total-home-002",
+    "description": "Team Total Home over 1.5 — home scored 1, lost",
+    "leg": { "market_type": "Team Total Home", "outcome_name": "over", "line": 1.5 },
+    "result": { "home": 1, "away": 3 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "team-total-home-003",
+    "description": "Team Total Home over 2 — home scored 2 exact, void (push)",
+    "leg": { "market_type": "Team Total Home", "outcome_name": "over", "line": 2 },
+    "result": { "home": 2, "away": 1 },
+    "expected_verdict": "void"
+  },
+  {
+    "id": "team-total-away-001",
+    "description": "Team Total Away under 2.5 — away scored 1, won",
+    "leg": { "market_type": "Team Total Away", "outcome_name": "under", "line": 2.5 },
+    "result": { "home": 3, "away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "team-total-away-002",
+    "description": "Team Total Away over 0.5 — away scored 0, lost",
+    "leg": { "market_type": "Team Total Away", "outcome_name": "over", "line": 0.5 },
+    "result": { "home": 1, "away": 0 },
+    "expected_verdict": "lost"
+  },
+  {
+    "id": "team-total-goals-home-001",
+    "description": "Team Total Goals Home alias — over 1.5, home 2, won",
+    "leg": { "market_type": "Team Total Goals Home", "outcome_name": "over", "line": 1.5 },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": "won"
+  }
+]

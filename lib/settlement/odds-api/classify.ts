@@ -408,6 +408,14 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     return { verdict: settleOU(total - (ht_home + ht_away), leg.line, leg.outcome_name) };
   }
 
+  // ─── Team Total (single-team over/under) ───
+  if (mt === "team total home" || mt === "team total goals home") {
+    return { verdict: settleOU(result.home, leg.line, leg.outcome_name) };
+  }
+  if (mt === "team total away" || mt === "team total goals away") {
+    return { verdict: settleOU(result.away, leg.line, leg.outcome_name) };
+  }
+
   // ─── BTTS ───
   if (mt === "gg/ng" || mt === "both teams to score") {
     return { verdict: settleBTTS(result.home, result.away, leg.outcome_name) };

@@ -10,6 +10,7 @@
 import { describe, expect, test } from "vitest";
 import { classifyLeg, type BetLeg, type ScoreResult, type Verdict } from "@/lib/settlement/odds-api/classify";
 import fixtures from "@/tests/fixtures/settlement/score-only-60.json";
+import gapFixtures from "@/tests/fixtures/settlement/gap-coverage.json";
 
 interface Fixture {
   id: string;
@@ -19,7 +20,7 @@ interface Fixture {
   expected_verdict: Verdict | null;
 }
 
-const typedFixtures = fixtures as Fixture[];
+const typedFixtures = [...fixtures, ...gapFixtures] as Fixture[];
 
 describe("Shadow classifier — score-only fixture gate", () => {
   test("fixture file has at least 60 entries (hard gate floor)", () => {
