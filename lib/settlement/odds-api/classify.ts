@@ -41,6 +41,14 @@ export interface ScoreResult {
   assists?: Scorer[];
   // Player shots — per-player shot counts (optional; null/empty when source feed doesn't include)
   player_shots?: Array<{ name: string; shots: number }>;
+  // Per-period scores (array indexed by period: 0 = 1st half / 1st set / Q1).
+  // Populated by settle-leg.ts buildScores() from events_v2.live_data when present.
+  // null/undefined when source data is missing — branches must guard with explicit check.
+  period_scores_home?: number[] | null;
+  period_scores_away?: number[] | null;
+  // Sport hint to drive sport-aware extraction logic in buildScores.
+  // Not consumed by classify branches today but reserved for future sport-specific aliases.
+  sport_slug?: string | null;
 }
 
 export interface BetLeg {
