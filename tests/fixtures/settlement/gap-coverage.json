@@ -103,5 +103,26 @@
     "leg": { "market_type": "First Team To Score", "outcome_name": "none", "line": null },
     "result": { "home": 0, "away": 0, "scorers": [] },
     "expected_verdict": "won"
+  },
+  {
+    "id": "corners-home-001",
+    "description": "Corners Totals Home over 4.5 — home got 6, won",
+    "leg": { "market_type": "Corners Totals Home", "outcome_name": "over", "line": 4.5 },
+    "result": { "home": 2, "away": 1, "corners_home": 6, "corners_away": 3 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "corners-home-002",
+    "description": "Corners Totals Home under 5.5 — corners_home null → null verdict",
+    "leg": { "market_type": "Corners Totals Home", "outcome_name": "under", "line": 5.5 },
+    "result": { "home": 1, "away": 1 },
+    "expected_verdict": null
+  },
+  {
+    "id": "corners-away-001",
+    "description": "Corners Totals Away over 3.5 — away got 4, won",
+    "leg": { "market_type": "Corners Totals Away", "outcome_name": "over", "line": 3.5 },
+    "result": { "home": 0, "away": 1, "corners_home": 5, "corners_away": 4 },
+    "expected_verdict": "won"
   }
 ]

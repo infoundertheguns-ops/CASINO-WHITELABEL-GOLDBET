@@ -521,6 +521,16 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     return { verdict: v, reason: v == null ? "stats_missing_or_quarter_line" : undefined };
   }
 
+  // ─── Corners Totals per-team ───
+  if (mt === "corners totals home" || mt === "totale angoli casa") {
+    if (result.corners_home == null) return { verdict: null, reason: "corners_home_missing" };
+    return { verdict: settleOU(result.corners_home, leg.line, leg.outcome_name) };
+  }
+  if (mt === "corners totals away" || mt === "totale angoli trasferta") {
+    if (result.corners_away == null) return { verdict: null, reason: "corners_away_missing" };
+    return { verdict: settleOU(result.corners_away, leg.line, leg.outcome_name) };
+  }
+
   // ─── Cards (cartellini) — only over/under supported (most common market) ───
   if (mt === "totale cartellini" || mt === "cards totals" || mt === "total cards") {
     const v = settleStatOU(result.cards_home, result.cards_away, leg.line, leg.outcome_name);
