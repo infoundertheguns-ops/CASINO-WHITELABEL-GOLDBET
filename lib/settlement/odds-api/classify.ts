@@ -436,6 +436,23 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     return { verdict: settle1X2(result.home - ht_home, result.away - ht_away, leg.outcome_name) };
   }
 
+  // ─── Per-set / per-period 1X2 ───
+  if (mt === "ml 1st set") {
+    const [h, a] = getPeriodScores(result, 0);
+    if (h == null || a == null) return { verdict: null, reason: "set1_missing" };
+    return { verdict: settle1X2(h, a, leg.outcome_name) };
+  }
+  if (mt === "ml 2nd set") {
+    const [h, a] = getPeriodScores(result, 1);
+    if (h == null || a == null) return { verdict: null, reason: "set2_missing" };
+    return { verdict: settle1X2(h, a, leg.outcome_name) };
+  }
+  if (mt === "totals 1st set") {
+    const [h, a] = getPeriodScores(result, 0);
+    if (h == null || a == null) return { verdict: null, reason: "set1_missing" };
+    return { verdict: settleOU(h + a, leg.line, leg.outcome_name) };
+  }
+
   // ─── Goal Line (Asian total) ───
   if (mt === "goal line" || mt === "goalline" || mt === "asian total" || mt === "asian totals") {
     // Try quarter-line split first (.25/.75); fall through to standard OU for integer/half lines.
