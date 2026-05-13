@@ -168,6 +168,7 @@ export function computeEnrichmentUpdate(args: {
   const SUMMARY_PERIODS_SPORTS = new Set([
     "calcio", "football",
     "rugby", "rugby_league",
+    "cricket",
   ]);
   if (
     update.score_home == null && update.score_away == null &&

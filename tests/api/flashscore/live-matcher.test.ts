@@ -196,7 +196,29 @@ describe("computeEnrichmentUpdate", () => {
     expect(update?.score_away).toBe(13);
   });
 
-  it("D2: does NOT derive football score when fs.summary.periods absent (no source)", () => {
+  it("D2: derives cricket score from fs.summary.periods (single innings)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: {
+        ...baseFs,
+        scoreHome: null,
+        scoreAway: null,
+        periods: [],
+        summary: {
+          matchId: "fs-1",
+          periods: [{ name: "Innings", homeScore: 34, awayScore: 0 }],
+          incidents: [],
+          meta: {},
+        },
+      },
+      sport: "cricket",
+    });
+    expect(update?.score_home).toBe(34);
+    // fs.scoreAway === ev.score_away === null, but ev.score_away is null so diff is null vs 0 → emit 0
+    expect(update?.score_away).toBe(0);
+  });
+
+    it("D2: does NOT derive football score when fs.summary.periods absent (no source)", () => {
     const { update } = computeEnrichmentUpdate({
       ev: baseEv,
       fs: { ...baseFs, scoreHome: null, scoreAway: null, periods: [] },
