@@ -10,6 +10,8 @@ import type {
 } from "@/lib/flashscore";
 import { derivePeriodLabel, teamMatchScore } from "@/lib/flashscore";
 
+// FS authoritative for score_home/score_away during live: see app/api/flashscore/live/_lib.ts
+// computeEnrichmentUpdate (Opzione B 2026-05-13). OddsAPI provides initial pre-FS state.
 export interface V2LiveEvent {
   id: string;
   home: string;
@@ -121,16 +123,14 @@ export function computeEnrichmentUpdate(args: {
   if (fs.country && fs.country !== ev.country_fs) update.country_fs = fs.country;
   if (fs.league && fs.league !== ev.league_fs) update.league_fs = fs.league;
 
-  // score overwrite
-  const isTennisLike = ["tennis", "tennis_tavolo", "tennis tavolo", "volley", "volleyball", "badminton"]
-    .includes(sport.toLowerCase());
-  const upstreamLikelyWrong =
-    isTennisLike && ev.score_home != null && (ev.score_home >= 15 || (ev.score_away ?? 0) >= 15);
+  // FS is authoritative for live score: it polls every 5s with the canonical
+  // scoreboard while OddsAPI lags ~140s and writes NULL transiently. Always
+  // overwrite ev.score_* when FS reports a value. (Previous gate
+  // `ev.score_home == null || upstreamLikelyWrong` left stale OddsAPI scores
+  // visible in player kiosk — see player-v1-score-coherence pending.)
   if (fs.scoreHome != null && fs.scoreAway != null) {
-    if (ev.score_home == null || ev.score_away == null || upstreamLikelyWrong) {
-      if (fs.scoreHome !== ev.score_home) update.score_home = fs.scoreHome;
-      if (fs.scoreAway !== ev.score_away) update.score_away = fs.scoreAway;
-    }
+    if (fs.scoreHome !== ev.score_home) update.score_home = fs.scoreHome;
+    if (fs.scoreAway !== ev.score_away) update.score_away = fs.scoreAway;
   }
 
   // Sport-aware fallback: derive aggregate from per-period array when fs.scoreHome

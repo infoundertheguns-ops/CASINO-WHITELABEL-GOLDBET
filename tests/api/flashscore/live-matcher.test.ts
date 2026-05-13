@@ -80,15 +80,43 @@ describe("computeEnrichmentUpdate", () => {
     expect(update?.score_away).toBe(1);
   });
 
-  it("does NOT overwrite score when DB already has values (non-tennis)", () => {
+  it("FS authoritative: overwrites score even when DB already has values (football)", () => {
+    // Prior code gated overwrite on ev.score_home == null. With Opzione B, FS is
+    // authoritative for live score (polls every 5s while OddsAPI lags ~141s and
+    // writes NULL transient). See docs/superpowers/plans/2026-05-13-score-coherence.md
+    // and pending-player-v1-score-coherence (FC Zlin 2-3 vs OddsAPI 2-2 stale).
     const { update } = computeEnrichmentUpdate({
-      ev: { ...baseEv, score_home: 3, score_away: 2 },
-      fs: { ...baseFs, scoreHome: 9, scoreAway: 9 },
+      ev: { ...baseEv, score_home: 2, score_away: 2 },         // OddsAPI stale
+      fs: { ...baseFs, scoreHome: 2, scoreAway: 3 },           // FS fresh, real score
       sport: "calcio",
     });
+    // score_home not set in update because fs == ev (2 == 2), no diff to write
     expect(update?.score_home).toBeUndefined();
+    // score_away overwritten 2 → 3 (FS authoritative, gate dropped)
+    expect(update?.score_away).toBe(3);
+  });
+
+  it("FS authoritative: overwrites both sides when FS reports newer values (basketball)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: { ...baseEv, score_home: 50, score_away: 48 },
+      fs: { ...baseFs, scoreHome: 66, scoreAway: 65, periods: [[16, 18], [22, 20], [18, 15], [10, 12]] },
+      sport: "basketball",
+    });
+    expect(update?.score_home).toBe(66);
+    expect(update?.score_away).toBe(65);
+  });
+
+  it("tennis: FS sets overwrite stale OddsAPI sets (defensive — FS reports sets at top level)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: { ...baseEv, score_home: 1, score_away: 0 },
+      fs: { ...baseFs, scoreHome: 2, scoreAway: 0, periods: [[6,3],[6,4]] },
+      sport: "tennis",
+    });
+    expect(update?.score_home).toBe(2);
+    // fs.scoreAway === ev.score_away (both 0) → diff-only contract emits nothing
     expect(update?.score_away).toBeUndefined();
   });
+
 
   it("derives score sum for basketball when fs.scoreHome null but halfScoreHome populated", () => {
     const { update } = computeEnrichmentUpdate({
