@@ -308,7 +308,8 @@ function settleFirstTeamToScore(
   if (o === "home" || o === "casa" || o === "1") return { verdict: firstTeam === "home" ? "won" : "lost" };
   if (o === "away" || o === "trasferta" || o === "2") return { verdict: firstTeam === "away" ? "won" : "lost" };
   if (o === "none" || o === "nessuna" || o === "no goal") return { verdict: "lost" };
-  return { verdict: "void" };
+  // Unknown outcome string — leave bet pending rather than silently voiding
+  return { verdict: null, reason: "unknown_outcome" };
 }
 ```
 
@@ -361,7 +362,9 @@ if (mt === "spread (games)" || mt === "spread giochi") {
   return { verdict: settleHandicap2Way(h, a, leg.line, leg.outcome_name) };
 }
 
-// Set Betting (tennis correct-score on sets won)
+// Set Betting (tennis correct-score on sets won).
+// Tennis-only: result.home/away here are sets won (per the two-bucket data model
+// in §2), so settleCorrectScore treats outcome_name "2-0" as "home won 2 sets, away 0".
 if (mt === "set betting") {
   return { verdict: settleCorrectScore(result.home, result.away, leg.outcome_name) };
 }
@@ -497,7 +500,7 @@ Original pending memo estimated 3-6h; revised estimate aligns with upper bound. 
 1. `classifyLeg()` returns non-null verdict for: Team Total Home/Away, First Team To Score, 3-Way Result, Corners Totals Home/Away on any event with `status='settled'` and applicable data present.
 2. `classifyLeg()` returns non-null verdict for Half Time Result, Totals HT, BTTS HT, Spread HT, ML HT, ML 2H, HT/FT on football events with `live_data.periods` containing "1 Tempo".
 3. `classifyLeg()` returns non-null verdict for ML 1st Set, Totals 1st Set, Set Betting, Totals (Games), Spread (Games) on tennis events with `live_data.halfScoreHome` array populated.
-4. Staging probe: ≥ 80% reduction in `bet_selections` stuck `result IS NULL` for in-scope market names after a backfill `runSettlementPass(720h)`.
+4. Staging probe: ≥ 80% reduction in `bet_selections` stuck `result IS NULL` **restricted to the in-scope market_names** (Team Total H/A, First Team To Score, 3-Way Result, Corners H/A, Half Time Result, Totals HT, ML HT, Spread HT, BTTS HT, HT/FT, ML 2H, Totals 2H, BTTS 2H, ML 1st/2nd Set, Totals 1st Set, Set Betting, Totals/Spread Games, Totals 1Q, 3-Way Result HT) after a backfill `runSettlementPass(720h)`. Out-of-scope market_names (esports maps, darts) are excluded from the denominator.
 5. All existing fixtures still pass (no regression).
 6. New `gap-coverage.json` fixtures all pass (hard gate).
 7. `tsc --noEmit` clean.
