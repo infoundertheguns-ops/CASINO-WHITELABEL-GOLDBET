@@ -390,6 +390,26 @@ function settleFirstTeamToScore(
 }
 
 // ═══════════════════════════════════════════════════
+// Per-period extraction helpers (tennis sets, basket quarters, etc.)
+// ═══════════════════════════════════════════════════
+
+function getPeriodScores(
+  result: ScoreResult,
+  periodIdx: number,
+): [number | null, number | null] {
+  const h = result.period_scores_home?.[periodIdx];
+  const a = result.period_scores_away?.[periodIdx];
+  return [h ?? null, a ?? null];
+}
+
+function getTotalGames(result: ScoreResult): [number | null, number | null] {
+  const h = result.period_scores_home;
+  const a = result.period_scores_away;
+  if (!h || !a || h.length === 0 || a.length === 0) return [null, null];
+  return [h.reduce((s, x) => s + x, 0), a.reduce((s, x) => s + x, 0)];
+}
+
+// ═══════════════════════════════════════════════════
 // Market-type dispatcher
 // ═══════════════════════════════════════════════════
 
