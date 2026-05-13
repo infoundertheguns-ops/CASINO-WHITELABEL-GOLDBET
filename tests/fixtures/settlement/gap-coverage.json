@@ -40,5 +40,26 @@
     "leg": { "market_type": "Team Total Goals Home", "outcome_name": "over", "line": 1.5 },
     "result": { "home": 2, "away": 0 },
     "expected_verdict": "won"
+  },
+  {
+    "id": "3way-result-001",
+    "description": "3-Way Result hockey home win 3-2",
+    "leg": { "market_type": "3-Way Result", "outcome_name": "home", "line": null },
+    "result": { "home": 3, "away": 2 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "3way-result-002",
+    "description": "3-Way Result handball draw 26-26 outcome=draw",
+    "leg": { "market_type": "3-Way Result", "outcome_name": "draw", "line": null },
+    "result": { "home": 26, "away": 26 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "3way-result-003",
+    "description": "3 Way Result (no hyphen) basket away win 88-95",
+    "leg": { "market_type": "3 Way Result", "outcome_name": "2", "line": null },
+    "result": { "home": 88, "away": 95 },
+    "expected_verdict": "won"
   }
 ]

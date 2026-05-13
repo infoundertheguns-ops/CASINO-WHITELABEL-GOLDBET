@@ -375,7 +375,10 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
   const ht_total = ht_home != null && ht_away != null ? ht_home + ht_away : null;
 
   // ─── 1X2 family ───
-  if (mt === "1x2" || mt === "vincente incontro" || mt === "ml" || mt === "tempo regolamentare") {
+  if (
+    mt === "1x2" || mt === "vincente incontro" || mt === "ml" || mt === "tempo regolamentare" ||
+    mt === "3-way result" || mt === "3 way result"
+  ) {
     return { verdict: settle1X2(result.home, result.away, leg.outcome_name) };
   }
   if (mt === "1x2 - 1t" || mt === "1x2 1° tempo" || mt === "half time result") {
