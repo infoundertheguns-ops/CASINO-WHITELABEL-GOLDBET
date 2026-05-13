@@ -385,7 +385,7 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     return { verdict: settle1X2(ht_home, ht_away, leg.outcome_name) };
   }
-  if (mt === "1x2 - 2t" || mt === "1x2 2° tempo") {
+  if (mt === "1x2 - 2t" || mt === "1x2 2° tempo" || mt === "ml 2h" || mt === "second half result") {
     if (ht_home == null || ht_away == null) return { verdict: null, reason: "ht_scores_missing" };
     return { verdict: settle1X2(result.home - ht_home, result.away - ht_away, leg.outcome_name) };
   }

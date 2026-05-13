@@ -61,5 +61,19 @@
     "leg": { "market_type": "3 Way Result", "outcome_name": "2", "line": null },
     "result": { "home": 88, "away": 95 },
     "expected_verdict": "won"
+  },
+  {
+    "id": "ml-2h-001",
+    "description": "ML 2H — HT 1-1 FT 2-1 → 2H 1-0 home wins",
+    "leg": { "market_type": "ML 2H", "outcome_name": "home", "line": null },
+    "result": { "home": 2, "away": 1, "ht_home": 1, "ht_away": 1 },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "ml-2h-002",
+    "description": "Second Half Result — HT 0-0 FT 0-2 → 2H 0-2 away wins, outcome=draw lost",
+    "leg": { "market_type": "Second Half Result", "outcome_name": "draw", "line": null },
+    "result": { "home": 0, "away": 2, "ht_home": 0, "ht_away": 0 },
+    "expected_verdict": "lost"
   }
 ]
