@@ -45,7 +45,15 @@ export class Upserter {
     }
 
     // 1) events_v2 -> chunked, accumulate id by odds_api_id.
-    const eventInputs = results.map(r => r.event);
+    // Exclude score_home/score_away from upsert: FS scraper is the authoritative
+    // source for live score (Opzione B 2026-05-13). OddsAPI api.scores frequently
+    // returns null transient, which would race-overwrite FS values via the
+    // ON CONFLICT DO UPDATE clause. Omitting the keys keeps existing DB values
+    // intact on UPDATE; on INSERT (new row) the column default is NULL anyway.
+    const eventInputs = results.map(r => {
+      const { score_home: _sh, score_away: _sa, ...rest } = r.event;
+      return rest as typeof r.event;
+    });
     const eventRowsOut: EventRow[] = [];
     const idByOddsApiId = new Map<number, string>();
     for (let i = 0; i < eventInputs.length; i += CHUNK_EVENTS) {
