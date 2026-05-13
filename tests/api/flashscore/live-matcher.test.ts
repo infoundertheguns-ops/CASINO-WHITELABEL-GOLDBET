@@ -148,6 +148,64 @@ describe("computeEnrichmentUpdate", () => {
     expect(update?.score_away).toBeUndefined();
   });
 
+  it("D2: derives football score from fs.summary.periods when fs.scoreHome null (per-period deltas)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: {
+        ...baseFs,
+        scoreHome: null,
+        scoreAway: null,
+        periods: [],
+        summary: {
+          matchId: "fs-1",
+          periods: [
+            { name: "1 Tempo", homeScore: 1, awayScore: 1 },
+            { name: "2 Tempo", homeScore: 0, awayScore: 2 },
+          ],
+          incidents: [],
+          meta: {},
+        },
+      },
+      sport: "calcio",
+    });
+    expect(update?.score_home).toBe(1);
+    expect(update?.score_away).toBe(3);
+  });
+
+  it("D2: derives rugby score from fs.summary.periods when fs.scoreHome null", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: {
+        ...baseFs,
+        scoreHome: null,
+        scoreAway: null,
+        periods: [],
+        summary: {
+          matchId: "fs-1",
+          periods: [
+            { name: "1st Half", homeScore: 7, awayScore: 3 },
+            { name: "2nd Half", homeScore: 14, awayScore: 10 },
+          ],
+          incidents: [],
+          meta: {},
+        },
+      },
+      sport: "rugby",
+    });
+    expect(update?.score_home).toBe(21);
+    expect(update?.score_away).toBe(13);
+  });
+
+  it("D2: does NOT derive football score when fs.summary.periods absent (no source)", () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: null, scoreAway: null, periods: [] },
+      sport: "calcio",
+    });
+    expect(update?.score_home).toBeUndefined();
+    expect(update?.score_away).toBeUndefined();
+  });
+
   it("does NOT derive score sum for tennis (set semantics, not points)", () => {
     const { update } = computeEnrichmentUpdate({
       ev: baseEv,

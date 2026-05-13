@@ -158,6 +158,30 @@ export function computeEnrichmentUpdate(args: {
     if (ev.score_away !== sumA) update.score_away = sumA;
   }
 
+  // D2 (2026-05-13 follow-up): for football/rugby FS scraper publishes per-period
+  // scores only via fs.summary.periods (df_su_1, structured with {name,homeScore,
+  // awayScore}). fs.scoreHome/scoreAway are null at top-level for these sports
+  // because df_du_1 omits FT score. Sum the structured periods so events_v2
+  // .score_home/away gets populated for admin dashboards + bet settlement.
+  // Empirically validated FC Zlin: periods=[{1T:2-1},{2T:0-2}] sum=2-3 matches
+  // last incident scoreAfter. See pending-football-fs-scoreHome-null.md.
+  const SUMMARY_PERIODS_SPORTS = new Set([
+    "calcio", "football",
+    "rugby", "rugby_league",
+  ]);
+  if (
+    update.score_home == null && update.score_away == null &&
+    ev.score_home == null &&
+    SUMMARY_PERIODS_SPORTS.has(sport.toLowerCase()) &&
+    fs.summary && fs.summary.periods.length > 0 &&
+    fs.summary.periods.some((p) => typeof p.homeScore === "number")
+  ) {
+    const sumH = fs.summary.periods.reduce((s, p) => s + (typeof p.homeScore === "number" ? p.homeScore : 0), 0);
+    const sumA = fs.summary.periods.reduce((s, p) => s + (typeof p.awayScore === "number" ? p.awayScore : 0), 0);
+    if (ev.score_home !== sumH) update.score_home = sumH;
+    if (ev.score_away !== sumA) update.score_away = sumA;
+  }
+
   return { update: Object.keys(update).length === 0 ? null : update };
 }
 
