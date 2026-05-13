@@ -453,6 +453,18 @@ export function classifyLeg(leg: BetLeg, result: ScoreResult): { verdict: Verdic
     return { verdict: settleOU(h + a, leg.line, leg.outcome_name) };
   }
 
+  // ─── Tennis Totals (Games) / Spread (Games) — sum across all sets ───
+  if (mt === "totals (games)" || mt === "totale giochi") {
+    const [h, a] = getTotalGames(result);
+    if (h == null || a == null) return { verdict: null, reason: "period_scores_missing" };
+    return { verdict: settleOU(h + a, leg.line, leg.outcome_name) };
+  }
+  if (mt === "spread (games)" || mt === "spread giochi") {
+    const [h, a] = getTotalGames(result);
+    if (h == null || a == null) return { verdict: null, reason: "period_scores_missing" };
+    return { verdict: settleHandicap2Way(h, a, leg.line, leg.outcome_name) };
+  }
+
   // ─── Goal Line (Asian total) ───
   if (mt === "goal line" || mt === "goalline" || mt === "asian total" || mt === "asian totals") {
     // Try quarter-line split first (.25/.75); fall through to standard OU for integer/half lines.

@@ -152,5 +152,26 @@
     "leg": { "market_type": "ML 1st Set", "outcome_name": "home", "line": null },
     "result": { "home": 2, "away": 0 },
     "expected_verdict": null
+  },
+  {
+    "id": "totals-games-001",
+    "description": "Totals (Games) — sets 6-4 7-5 = 13+9 = 22 games over 21.5 → won",
+    "leg": { "market_type": "Totals (Games)", "outcome_name": "over", "line": 21.5 },
+    "result": { "home": 2, "away": 0, "period_scores_home": [6, 7], "period_scores_away": [4, 5] },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "spread-games-001",
+    "description": "Spread (Games) — home +1.5, total home 13 away 9, home 13-9+1.5=14.5 vs 9 → home wins",
+    "leg": { "market_type": "Spread (Games)", "outcome_name": "home", "line": 1.5 },
+    "result": { "home": 2, "away": 0, "period_scores_home": [6, 7], "period_scores_away": [4, 5] },
+    "expected_verdict": "won"
+  },
+  {
+    "id": "totals-games-002",
+    "description": "Totals (Games) — period data missing → null",
+    "leg": { "market_type": "Totals (Games)", "outcome_name": "over", "line": 21.5 },
+    "result": { "home": 2, "away": 0 },
+    "expected_verdict": null
   }
 ]
