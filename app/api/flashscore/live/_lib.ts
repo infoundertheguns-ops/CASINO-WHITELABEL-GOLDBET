@@ -177,10 +177,18 @@ export function computeEnrichmentUpdate(args: {
     fs.summary && fs.summary.periods.length > 0 &&
     fs.summary.periods.some((p) => typeof p.homeScore === "number")
   ) {
-    const sumH = fs.summary.periods.reduce((s, p) => s + (typeof p.homeScore === "number" ? p.homeScore : 0), 0);
-    const sumA = fs.summary.periods.reduce((s, p) => s + (typeof p.awayScore === "number" ? p.awayScore : 0), 0);
-    if (ev.score_home !== sumH) update.score_home = sumH;
-    if (ev.score_away !== sumA) update.score_away = sumA;
+    // Exclude penalty-shootout periods from the sum — they are a separate
+    // tie-breaker track. A 0-0 regulation that goes 4-2 on penalties should
+    // not show up as 4-2 in the regulation score column.
+    const regulationPeriods = fs.summary.periods.filter(
+      (p) => !/rigori|penalty\s*shootout|shootout/i.test(p.name),
+    );
+    if (regulationPeriods.length > 0 && regulationPeriods.some((p) => typeof p.homeScore === "number")) {
+      const sumH = regulationPeriods.reduce((s, p) => s + (typeof p.homeScore === "number" ? p.homeScore : 0), 0);
+      const sumA = regulationPeriods.reduce((s, p) => s + (typeof p.awayScore === "number" ? p.awayScore : 0), 0);
+      if (ev.score_home !== sumH) update.score_home = sumH;
+      if (ev.score_away !== sumA) update.score_away = sumA;
+    }
   }
 
   return { update: Object.keys(update).length === 0 ? null : update };
