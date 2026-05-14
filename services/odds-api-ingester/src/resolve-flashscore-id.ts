@@ -19,33 +19,19 @@ export async function resolveFlashscoreId(
   deps: ResolveDeps
 ): Promise<string | null> {
   const fetchFn = deps.fetch ?? fetch;
-  const externalId = `odds-api:${event.odds_api_id}`;
 
-  // Step 1 — legacy direct
+  // Step 1 — events_v2 cache (same odds_api_id already resolved in a previous tick)
   const direct = await deps.db.queryOne<{ flashscore_id: string }>(
-    `SELECT flashscore_id FROM events
-     WHERE external_id = $1 AND flashscore_id IS NOT NULL LIMIT 1`,
-    [externalId]
+    `SELECT flashscore_id FROM events_v2
+     WHERE odds_api_id = $1 AND flashscore_id IS NOT NULL LIMIT 1`,
+    [event.odds_api_id]
   );
   if (direct?.flashscore_id) {
-    deps.log.info({ odds_api_id: event.odds_api_id, via: "legacy_direct" }, "[fs-id] resolved");
+    deps.log.info({ odds_api_id: event.odds_api_id, via: "v2_direct" }, "[fs-id] resolved");
     return direct.flashscore_id;
   }
 
-  // Step 2 — canonical chain
-  const chain = await deps.db.queryOne<{ flashscore_id: string }>(
-    `SELECT e_fs.flashscore_id FROM events e_oa
-     JOIN events e_fs ON e_fs.canonical_id = e_oa.canonical_id
-        AND e_fs.flashscore_id IS NOT NULL
-     WHERE e_oa.external_id = $1 LIMIT 1`,
-    [externalId]
-  );
-  if (chain?.flashscore_id) {
-    deps.log.info({ odds_api_id: event.odds_api_id, via: "canonical_chain" }, "[fs-id] resolved");
-    return chain.flashscore_id;
-  }
-
-  // Step 3 — search endpoint
+  // Step 2 — search endpoint
   try {
     const url = new URL(`${deps.searchUrl}/search`);
     url.searchParams.set("sport_slug", event.sport_slug);
