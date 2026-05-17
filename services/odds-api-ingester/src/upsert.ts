@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Pool } from 'pg';
 import { resolveFlashscoreId } from './resolve-flashscore-id.js';
 import type { TransformResult } from './types.js';
+import { planDedup, type ExistingEventRow } from './dedup-plan.js';
 
 export type UpsertConfig = {
   supabaseUrl: string;
@@ -54,10 +55,41 @@ export class Upserter {
       const { score_home: _sh, score_away: _sa, ...rest } = r.event;
       return rest as typeof r.event;
     });
+
+    // Tennis dedup (2026-05-17): OddsAPI emits the same real-world match
+    // under 2 different odds_api_id values (legacy 6-digit + v3 8-digit).
+    // Without dedup the listing UI shows duplicates. We pre-query existing
+    // tennis pending events in the time window and let planDedup map the
+    // second emission's odds_api_id to the existing event_id, so its
+    // markets/outcomes merge under the existing row instead of creating a
+    // second one. Gated to tennis only (other sports <2% dupe rate).
+    const tennisInputs = eventInputs.filter(e => e.sport_slug === 'tennis');
+    let existingTennis: ExistingEventRow[] = [];
+    if (tennisInputs.length > 0) {
+      const times = tennisInputs.map(e => new Date(e.starts_at).getTime());
+      const minTime = Math.min(...times);
+      const maxTime = Math.max(...times);
+      const HOUR = 60 * 60 * 1000;
+      const lo = new Date(minTime - 36 * HOUR).toISOString();
+      const hi = new Date(maxTime + 36 * HOUR).toISOString();
+      const { data, error } = await this.sb
+        .from('events_v2')
+        .select('id, odds_api_id, sport_slug, home, away, starts_at')
+        .eq('sport_slug', 'tennis')
+        .eq('status', 'pending')
+        .gte('starts_at', lo)
+        .lte('starts_at', hi);
+      if (error) throw new Error(`tennis dedup lookup failed: ${error.message}`);
+      existingTennis = (data ?? []) as ExistingEventRow[];
+    }
+
+    const plan = planDedup(eventInputs, existingTennis);
+    const inputsToUpsert = plan.toUpsert;
+
     const eventRowsOut: EventRow[] = [];
     const idByOddsApiId = new Map<number, string>();
-    for (let i = 0; i < eventInputs.length; i += CHUNK_EVENTS) {
-      const chunk = eventInputs.slice(i, i + CHUNK_EVENTS);
+    for (let i = 0; i < inputsToUpsert.length; i += CHUNK_EVENTS) {
+      const chunk = inputsToUpsert.slice(i, i + CHUNK_EVENTS);
       const { data, error } = await this.sb
         .from('events_v2')
         .upsert(chunk, { onConflict: 'odds_api_id' })
@@ -67,6 +99,16 @@ export class Upserter {
         idByOddsApiId.set(row.odds_api_id as number, row.id as string);
         eventRowsOut.push({ id: row.id as string, flashscore_id: (row.flashscore_id as string | null) ?? null, odds_api_id: row.odds_api_id as number, sport_slug: row.sport_slug as string, starts_at: row.starts_at as string, home: row.home as string, away: row.away as string });
       }
+    }
+
+    // Fold dedup-mapped odds_api_id into idByOddsApiId so the markets/outcomes
+    // steps below route them to the correct existing event_id.
+    for (const [oai, eid] of plan.knownReuseMap) {
+      idByOddsApiId.set(oai, eid);
+    }
+    for (const [oai, canonicalOai] of plan.pendingReuseMap) {
+      const eid = idByOddsApiId.get(canonicalOai);
+      if (eid) idByOddsApiId.set(oai, eid);
     }
 
     // 2) markets_v2 -> chunked, accumulate id by composite key.
@@ -139,7 +181,7 @@ export class Upserter {
     }
 
     return {
-      events_upserted: eventInputs.length,
+      events_upserted: inputsToUpsert.length,
       markets_upserted: marketRows.length,
       outcomes_upserted: outcomeRows.length,
       eventRows: eventRowsOut,
