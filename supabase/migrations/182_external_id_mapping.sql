@@ -1,4 +1,9 @@
-CREATE TABLE external_id_mapping (
+-- 182: external_id_mapping table for cross-provider event ID resolution
+-- Stores fuzzy-matched mappings between events_v2.id and external provider IDs
+-- (api-football, flashscore, odds-api). Confidence-scored, with verified flag
+-- gate for writes to events_v2 timer/score fields.
+
+CREATE TABLE IF NOT EXISTS external_id_mapping (
   event_id UUID NOT NULL REFERENCES events_v2(id) ON DELETE CASCADE,
   provider TEXT NOT NULL CHECK (provider IN ('api-football', 'flashscore', 'odds-api')),
   external_id TEXT NOT NULL,
@@ -9,8 +14,4 @@ CREATE TABLE external_id_mapping (
   UNIQUE (provider, external_id)
 );
 
-CREATE INDEX idx_external_id_mapping_provider_external
-  ON external_id_mapping(provider, external_id);
-
-CREATE INDEX idx_external_id_mapping_event_id
-  ON external_id_mapping(event_id);
+-- Rollback: DROP TABLE IF EXISTS external_id_mapping;
