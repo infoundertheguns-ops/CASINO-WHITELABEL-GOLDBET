@@ -214,6 +214,8 @@ confidence = 0.5 × name_similarity(home, away)
            + 0.2 × kickoff_proximity_score   (window ±60min)
 ```
 
+**Implementation note**: riusa l'helper `findFuzzyMatch` esistente in `app/api/flashscore/live/_lib.ts` (already in production per FS-id resolution). Estrarre come shared utility in `lib/matching/fuzzy-match.ts` se necessario per cross-service reuse. NON reinventare la logica di team-name normalization + similarity scoring.
+
 **Thresholds**:
 - `confidence >= 0.85` → mapping persisted, ingester scrive su events_v2
 - `0.50 <= confidence < 0.85` → mapping persisted ma `verified=false`, ingester NON scrive (audit admin route richiesta per promote)
@@ -242,7 +244,9 @@ export function pickCanonicalSource(
 
 ### 4.2 FOOTBALL_AF_CANONICAL (api-football canonical)
 
-**Score-derived (Bucket A — 12 markets, ~50k emit)**:
+> **Note on counts**: i numeri "12 / 22 / 10" in §5 si riferiscono ai distinct OddsAPI **market_name** che andiamo a coprire. Le canonical key elencate qui sotto sono spesso più granulari (es. un singolo OddsAPI `Spread` market diventa canonical key `spread` + variant `1x2_h_ft` per dispatcher routing; un `Corners Totals` separato per home/away genera 2 canonical key). Il rapporto OddsAPI name → canonical key è ~1:1.3. Per il test matrix planning vale il count canonical key (più granulare).
+
+**Score-derived (Bucket A — 12 OddsAPI markets / ~28 canonical keys, ~50k emit)**:
 - 1x2, ml, totals, btts, double_chance, draw_no_bet, correct_score, ht_ft, odd_even
 - 1x2_ht, totals_ht, btts_ht, odd_even_ht, 1x2_sh, totals_sh, btts_sh
 - spread, european_handicap, asian_handicap, goal_line
@@ -250,7 +254,7 @@ export function pickCanonicalSource(
 - team_total_goals_home, team_total_goals_away, 1st_half_goal_line
 - first_team_to_score, method_of_victory
 
-**Statistics-derived (Bucket B — 22 markets, ~28k emit)**:
+**Statistics-derived (Bucket B — 22 OddsAPI markets / ~28 canonical keys, ~28k emit)**:
 - corners_totals_home, corners_totals_away, corners_spread, corner_handicap
 - bookings_totals, bookings_totals_home, bookings_totals_away, bookings_spread
 - total_shots_home, total_shots_away, team_shots_home, team_shots_away
@@ -312,6 +316,8 @@ VALUES
 ON CONFLICT (source, source_market_type) DO UPDATE
   SET canonical_key = EXCLUDED.canonical_key;
 ```
+
+**Full seed list generation**: at plan time, run `node scripts/db/probe-football-markets.mjs > tmp-football-markets.json` and materialize the full 108-row INSERT statement programmatically (mapping table in plan deliverable). The probe script output is the source of truth for `source_market_type` values.
 
 ### 4.6 Cross-source disagreement detection
 
@@ -379,8 +385,9 @@ api-sports Pro = **7500 req/day**, scadenza 2026-06-07.
 | /fixtures/lineups (initial + on-sub) | ~3 per match | 450 |
 | /fixtures/headtohead (250 prematch top-tier) | one-shot | 250 |
 | /predictions (250 prematch top-tier) | one-shot | 250 |
-| Buffer/retries | safety | 500 |
-| **TOTALE** | | **~7400/day (~99% Pro)** |
+| Buffer/retries (transient 5xx retry) | exponential backoff | 400 |
+| Headroom Pro budget (margin per spike traffic / new league) | reserve | 100 |
+| **TOTALE** | sum cells = 7390 | **~7400/day (~99% Pro 7500)** |
 
 ### 6.3 Strategy: Strada A
 
@@ -449,10 +456,17 @@ api-sports Pro = **7500 req/day**, scadenza 2026-06-07.
 
 **M3 — Settlement switch + lineups + Tier C expansion (Week 3-6, ~16-21 gg)**:
 1. classify-af.ts deploy + dispatcher routing logic
-2. Tier C progressivo: Bucket A (12 markets) → 1 sett monitoring → Bucket B (22) → Bucket C (10)
+2. Tier C progressivo: Bucket A (12 markets) → **gate** → Bucket B (22 markets) → **gate** → Bucket C (10 markets)
 3. Lineups UI player side (sub-PR betssolution-player)
 4. dual_source_log monitoring durante intero M3
 5. Cleanup post-2 sett <1% disagreement: DROP dual_source_log, rimuovi shadow path, hardcode field ownership
+
+**Gate criteria tra Bucket A→B e B→C (metric-based, NOT calendar wait)**:
+- **dual_source_disagreement rate < 2%** sul Bucket appena shipped (rolling 7d window post-deploy)
+- **endpoint_health.consecutive_failures = 0** per endpoint che alimenta Bucket successivo (es. /fixtures/statistics health green prima di shipping Bucket B; /fixtures/players green prima di Bucket C)
+- **rate-limit budget actuale < 90% Pro** (margine per nuovo poller endpoint)
+
+Se gate non passa entro 7 giorni → audit + hotfix prima di proseguire. Floor minimo 3 giorni osservazione anche se metric green Day 1.
 
 ### 7.4 Monitoring & observability
 
