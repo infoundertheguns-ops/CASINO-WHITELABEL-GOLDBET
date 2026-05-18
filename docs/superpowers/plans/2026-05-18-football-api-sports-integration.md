@@ -153,7 +153,7 @@ Mirror `services/odds-api-ingester/tsconfig.json` (ES modules, strict).
 
 - [ ] **Step 4: Create README.md**
 
-Describe service purpose, env vars (`API_SPORTS_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `API_FOOTBALL_WRITE_ENABLED`), run command, deploy unit.
+Describe service purpose, env vars (`API_SPORTS_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `API_FOOTBALL_WRITE_ENABLED`, `SCRAPER_AUTH_KEY` — used by stats-publisher to POST /api/admin/api-football/stats), run command, deploy unit.
 
 - [ ] **Step 5: Verify scaffold**
 
@@ -310,6 +310,10 @@ VALUES
 ```
 
 (Full list from probe output. ~108 row.)
+
+**Rule for "non-fixable" markets** (spec §5 lists ~7 markets that no provider can fully settle: Corners Race, Player Shots on Target Outside Box, Player Headed Shots on Target, Team Tackles, Player of the Match, Specials, Player Props):
+
+Insert with `canonical_key=NULL, verified=false` to preserve audit trail. Settlement worker falls through to `unsupported_market_type` reason. Display layer hides these markets via filter `canonical_key IS NOT NULL` on `market_normalization`.
 
 - [ ] **Step 3: Apply + verify count**
 
@@ -1151,9 +1155,29 @@ Enumerate markets:
 
 ### Task M3.5: classify-af.ts Bucket C player props
 
-- [ ] **Step 1: Write Bucket C branches (10 markets)**
+**Bucket C scope (10 NEW player markets — distinct from 5 pre-existing FS-canonical player markets `anytime_goalscorer / first_goalscorer / last_goalscorer / multi_scorers / anytime_goalscorer_or_assist` already in `lib/settlement/odds-api/classify.ts`)**:
 
-Bucket C reads from `live_data.players_af_ft` (api-football /players endpoint snapshot at FT).
+| Canonical key | OddsAPI name | Settle source |
+|---|---|---|
+| to_score_2plus_goals | To Score 2+ Goals | `live_data.players_af_ft[].goals.total >= 2` |
+| to_score_3plus_goals | To Score 3+ Goals | same with 3 |
+| player_shots | Player Shots | `players_af_ft[].shots.total {over\|under} line` |
+| player_shots_on_target | Player Shots on Target | `players_af_ft[].shots.on {over\|under} line` |
+| player_to_be_booked | Player to be Booked | `players_af_ft[].cards.yellow + cards.red >= 1` |
+| player_cards | Player Cards (alias of above) | same |
+| player_fouls | Player Fouls | `players_af_ft[].fouls.committed {over\|under} line` |
+| player_fouls_committed | Player Fouls Committed (alias) | same |
+| player_to_be_fouled | Player To Be Fouled | `players_af_ft[].fouls.drawn {over\|under} line` |
+| player_tackles | Player Tackles | `players_af_ft[].tackles.total {over\|under} line` |
+| player_to_assist | Player To Assist | `players_af_ft[].goals.assists >= 1` |
+| team_goalscorer | Team Goalscorer | `live_data.events_af[].team` (first Goal event) |
+| goal_method | Goal Method | `live_data.events_af[].detail` (Normal / Penalty / Own / Header) |
+
+Note: table has 13 rows but represents 10 distinct settle paths (player_cards = player_to_be_booked, player_fouls_committed = player_fouls — both aliases). Verify alias mapping consistent with `market_normalization` seed (M1.5).
+
+- [ ] **Step 1: Write Bucket C branches**
+
+Bucket C reads from `live_data.players_af_ft` (api-football /players endpoint snapshot at FT) and `live_data.events_af` (for team_goalscorer + goal_method).
 
 ```typescript
 function settlePlayerToScoreNGoals(players, outcome, n: number): Verdict | null {
@@ -1212,6 +1236,8 @@ async function settleLeg(leg: BetLeg, event: Event, lookups: CanonicalLookups) {
 ### Task M3.7: Dual-source disagreement logger
 
 - [ ] **Step 1: Implement logDualSource helper**
+
+**Invocation timing**: called INLINE (sync `await`) within `settleLeg` after canonical verdict is computed. Reasons: (a) settle path runs in batch worker not user-facing, latency budget is generous; (b) disagreement events must be persisted before settle commits to bet ledger so we have a transactional record. Use fire-and-forget only if specific perf issues emerge in observability (then refactor to background queue).
 
 ```typescript
 async function logDualSource(leg, event, canonical, shadowSource) {
