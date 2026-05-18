@@ -39,6 +39,23 @@ export function computeDiff(
   return out;
 }
 
+/**
+ * Consolidate multi-bookmaker entries into 1 per (market_type, outcome_name).
+ * OddsAPI feeds multiple bookmaker quotes for the same outcome; downstream
+ * consumers (player kiosk trend arrows) key on (market_type, outcome_name)
+ * only and would see flickering arrows + stuck display when each bookmaker
+ * emits its own DiffEntry. Picks MAX odds as the canonical "best for bettor".
+ */
+export function consolidateByOutcome(entries: NewOddsEntry[]): NewOddsEntry[] {
+  const map = new Map<string, NewOddsEntry>();
+  for (const e of entries) {
+    const k = stateKey(e);
+    const existing = map.get(k);
+    if (!existing || e.odds > existing.odds) map.set(k, e);
+  }
+  return [...map.values()];
+}
+
 export type StatusRoute = 'live' | 'settled' | 'skip';
 
 export function statusRoute(status: ApiEvent['status']): StatusRoute {
@@ -177,7 +194,12 @@ export function createRealtimePublisher(redis: RedisClient): RealtimePublisher {
       await redis.hSet(CACHE_HASH, eventIdStr, JSON.stringify(cached));
 
       const prior = stateByEvent.get(eventId)?.outcomes ?? new Map<string, number>();
-      const diff = computeDiff(prior, ctx.newOdds);
+      // Consolidate per-bookmaker entries: 1 NewOddsEntry per (market, outcome)
+      // with MAX odds. Without this, computeDiff emits one DiffEntry per
+      // bookmaker for the same outcome — causes flickering trend arrows in
+      // the player kiosk because trendKey is (event, market, outcome) only.
+      const consolidated = consolidateByOutcome(ctx.newOdds);
+      const diff = computeDiff(prior, consolidated);
 
       if (diff.length === 0) {
         // refresh lastTouched only
@@ -186,9 +208,9 @@ export function createRealtimePublisher(redis: RedisClient): RealtimePublisher {
         return { published: false, reason: 'no_changes', changesCount: 0 };
       }
 
-      // update state with new odds
+      // update state with new odds (use consolidated to mirror what was emitted)
       const nextOutcomes = new Map<string, number>(prior);
-      for (const o of ctx.newOdds) {
+      for (const o of consolidated) {
         nextOutcomes.set(`${o.market_type}|${o.outcome_name}`, o.odds);
       }
       stateByEvent.set(eventId, { outcomes: nextOutcomes, lastTouched: Date.now() });
