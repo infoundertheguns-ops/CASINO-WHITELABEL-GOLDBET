@@ -1,0 +1,11 @@
+import pg from 'pg';
+const p = { projectRef: 'xgnyqkmugnfzhdveeqom', password: '2MQhskawT3I6XVKW' };
+const c = new pg.Client({ host: 'aws-1-eu-central-1.pooler.supabase.com', port: 5432, user: 'postgres.' + p.projectRef, password: p.password, database: 'postgres', ssl: { rejectUnauthorized: false }, statement_timeout: 0 });
+await c.connect();
+const r = await c.query('SELECT canonical_key FROM canonical_markets ORDER BY canonical_key');
+console.log('TOTAL=' + r.rows.length);
+for (const row of r.rows) console.log(row.canonical_key);
+const r2 = await c.query("SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conrelid='market_normalization'::regclass");
+console.log('---CONSTRAINTS---');
+for (const row of r2.rows) console.log(row.conname + ': ' + row.def);
+await c.end();
