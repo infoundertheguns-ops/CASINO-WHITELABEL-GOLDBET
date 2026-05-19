@@ -49,12 +49,12 @@ export interface BetLeg {
   line: number | null;
 }
 
-function norm(s: string): string {
+export function norm(s: string): string {
   return s.trim().toLowerCase();
 }
 
 // Strip Italian title-case + diacritics for player-name matching
-function normName(s: string): string {
+export function normName(s: string): string {
   return s
     .trim()
     .toLowerCase()
@@ -66,7 +66,7 @@ function normName(s: string): string {
 // Score-based settlers (1X2 family)
 // ═══════════════════════════════════════════════════
 
-function settle1X2(home: number, away: number, outcome: string): Verdict {
+export function settle1X2(home: number, away: number, outcome: string): Verdict {
   const o = norm(outcome);
   if (o === "1" || o === "home" || o === "casa") return home > away ? "won" : "lost";
   if (o === "x" || o === "draw" || o === "pareggio") return home === away ? "won" : "lost";
@@ -74,7 +74,7 @@ function settle1X2(home: number, away: number, outcome: string): Verdict {
   return "void";
 }
 
-function settleOU(total: number, line: number | null, outcome: string): Verdict | null {
+export function settleOU(total: number, line: number | null, outcome: string): Verdict | null {
   if (line == null) return null;
   const o = norm(outcome);
   if (o === "over" || o === "o" || o === "più di") {
@@ -90,7 +90,7 @@ function settleOU(total: number, line: number | null, outcome: string): Verdict 
   return null;
 }
 
-function settleBTTS(home: number, away: number, outcome: string): Verdict {
+export function settleBTTS(home: number, away: number, outcome: string): Verdict {
   const o = norm(outcome);
   const both = home > 0 && away > 0;
   if (o === "yes" || o === "si" || o === "gg" || o === "goal") return both ? "won" : "lost";
@@ -98,7 +98,7 @@ function settleBTTS(home: number, away: number, outcome: string): Verdict {
   return "void";
 }
 
-function settleDC(home: number, away: number, outcome: string): Verdict {
+export function settleDC(home: number, away: number, outcome: string): Verdict {
   const o = norm(outcome);
   const draw = home === away;
   const homeWin = home > away;
@@ -109,7 +109,7 @@ function settleDC(home: number, away: number, outcome: string): Verdict {
   return "void";
 }
 
-function settleDNB(home: number, away: number, outcome: string): Verdict {
+export function settleDNB(home: number, away: number, outcome: string): Verdict {
   const o = norm(outcome);
   if (home === away) return "void";
   if (o === "1" || o === "home") return home > away ? "won" : "lost";
@@ -117,7 +117,7 @@ function settleDNB(home: number, away: number, outcome: string): Verdict {
   return "void";
 }
 
-function settleHTFT(
+export function settleHTFT(
   ht_home: number, ht_away: number,
   ft_home: number, ft_away: number,
   outcome: string
@@ -139,7 +139,7 @@ function mapHTFTPart(p: string): "1" | "x" | "2" | null {
   return null;
 }
 
-function settleCorrectScore(home: number, away: number, outcome: string): Verdict {
+export function settleCorrectScore(home: number, away: number, outcome: string): Verdict {
   const m = norm(outcome).match(/^(\d+)\s*[-:x]\s*(\d+)$/);
   if (!m) return "void";
   const expHome = parseInt(m[1], 10);
@@ -148,7 +148,7 @@ function settleCorrectScore(home: number, away: number, outcome: string): Verdic
   return (home === expHome && away === expAway) ? "won" : "lost";
 }
 
-function settleOddEven(total: number, outcome: string): Verdict {
+export function settleOddEven(total: number, outcome: string): Verdict {
   const o = norm(outcome);
   const isOdd = total % 2 === 1;
   if (o === "odd" || o === "dispari" || o === "d") return isOdd ? "won" : "lost";
@@ -156,7 +156,7 @@ function settleOddEven(total: number, outcome: string): Verdict {
   return "void";
 }
 
-function settleHandicap2Way(
+export function settleHandicap2Way(
   home: number, away: number, line: number | null, outcome: string
 ): Verdict | null {
   if (line == null) return null;
@@ -178,7 +178,7 @@ function settleHandicap2Way(
   return null;
 }
 
-function settleEuropeanHandicap(
+export function settleEuropeanHandicap(
   home: number, away: number, line: number | null, outcome: string
 ): Verdict | null {
   if (line == null) return null;
@@ -186,7 +186,7 @@ function settleEuropeanHandicap(
   return settle1X2(adj_home, away, outcome);
 }
 
-function settleAsianHandicapQuarter(
+export function settleAsianHandicapQuarter(
   home: number,
   away: number,
   line: number | null,
@@ -219,7 +219,7 @@ function combineSplitVerdicts(a: Verdict, b: Verdict): Verdict {
   return "void";
 }
 
-function settleGoalLine(
+export function settleGoalLine(
   total: number,
   line: number | null,
   outcome: string,
@@ -244,7 +244,7 @@ function settleGoalLine(
 // Stat-based generic settlers (corners/cards/shots/etc.)
 // ═══════════════════════════════════════════════════
 
-function settleStatOU(
+export function settleStatOU(
   stat_home: number | null | undefined,
   stat_away: number | null | undefined,
   line: number | null,
@@ -254,7 +254,7 @@ function settleStatOU(
   return settleOU(stat_home + stat_away, line, outcome);
 }
 
-function settleStat1X2(
+export function settleStat1X2(
   stat_home: number | null | undefined,
   stat_away: number | null | undefined,
   outcome: string
@@ -263,7 +263,7 @@ function settleStat1X2(
   return settle1X2(stat_home, stat_away, outcome);
 }
 
-function settleStatHandicap(
+export function settleStatHandicap(
   stat_home: number | null | undefined,
   stat_away: number | null | undefined,
   line: number | null,
