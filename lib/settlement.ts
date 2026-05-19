@@ -17,6 +17,10 @@ import {
   type Verdict as PlanDVerdict,
 } from "@/lib/settlement/odds-api/classify";
 import { aggregatePayout, type LegResult } from "@/lib/settlement/half-stake-payout";
+import { pickCanonicalSource } from "@/lib/settlement/source-router";
+import { buildResultFromAF } from "@/lib/settlement/api-football/build-result-af";
+import { classifyLegAF } from "@/lib/settlement/api-football/classify-af";
+import { logDualSource } from "@/lib/settlement/dual-source-log";
 
 // ═══ TYPES ═══
 
@@ -1781,7 +1785,7 @@ export async function settleEvent(
   // English ("football") and Italian ("calcio") forms — see buildResult.
   const { data: event, error: evErr } = await supabase
     .from("events_v2")
-    .select("id, score_home, score_away, status, live_data, last_settled_at, period, sport_slug")
+    .select("id, home, away, score_home, score_away, status, live_data, last_settled_at, period, sport_slug, period_scores")
     .eq("id", eventId)
     .single();
 
@@ -1877,9 +1881,63 @@ export async function settleEvent(
     };
     const outcome = leg.outcomes as unknown as { name: string };
 
-    let verdict: Verdict | null;
+    let verdict: Verdict | null = null;
+    let settledViaAF = false;
 
-    if (useOddsApiEngine) {
+    // ─── M3.6: api-football canonical path (football only) ──────────────
+    // For market_types in the API_FOOTBALL_CANONICAL allowlist on football
+    // events, classify via api-football data (events_v2 score columns +
+    // live_data.statistics_af / events_af / players_af_ft).
+    //
+    // When the api-football classifier returns a non-null verdict we ALSO
+    // record a row in settlement_dual_source_log (M3.7) so we can monitor
+    // disagreement rate vs the FS shadow path during Phase 1B.
+    //
+    // When the api-football classifier returns `null` (data missing,
+    // market unsupported in the AF dispatcher, or outcome string we don't
+    // recognise yet) we DEFER to the existing FS path below — we never
+    // wrong-call on missing AF data. The shadow log only fires when we
+    // have a real canonical verdict to compare against.
+    const afSource = pickCanonicalSource(market.market_type, sport);
+    if (afSource === "api-football") {
+      const afResult = buildResultFromAF(event as unknown as {
+        home?: string | null;
+        away?: string | null;
+        score_home?: number | null;
+        score_away?: number | null;
+        period_scores?: Record<string, unknown> | null;
+        live_data?: Record<string, unknown> | null;
+      });
+      const afLeg = {
+        market_type: market.market_type,
+        outcome_name: outcome.name,
+        line: market.line,
+      };
+      const afOutcome = classifyLegAF(afLeg, afResult);
+      if (afOutcome.verdict !== null) {
+        verdict = afOutcome.verdict;
+        settledViaAF = true;
+        // Inline await — transactional shadow log per spec §M3.7. The
+        // helper swallows its own errors and never throws; the try/catch
+        // here is defensive belt-and-suspenders so a regression in the
+        // logger can never break settlement.
+        try {
+          await logDualSource({
+            betId: leg.id,
+            marketType: market.market_type,
+            canonicalVerdict: afOutcome.verdict,
+            event: event as unknown as Record<string, unknown>,
+            leg: afLeg,
+            sport,
+          });
+        } catch {
+          // already swallowed inside logDualSource — no-op here.
+        }
+      }
+      // verdict null → fall through to FS path (no wrong-call on missing data)
+    }
+
+    if (!settledViaAF && useOddsApiEngine) {
       // Plan D path — classifier-based verdict (S6 cutover).
       // Side effects (wallet credits, agent commissions, Telegram alerts,
       // settlement_log writes, event deactivation) remain untouched below.
@@ -1891,7 +1949,7 @@ export async function settleEvent(
       };
       const { verdict: planDVerdict } = planDClassifyLeg(planDLeg, planDResult);
       verdict = planDVerdictToLegacy(planDVerdict);
-    } else {
+    } else if (!settledViaAF) {
       // Legacy path — canonical-dispatcher SETTLERS table
       const resolved = resolveSettlerKey(
         market.market_type,
