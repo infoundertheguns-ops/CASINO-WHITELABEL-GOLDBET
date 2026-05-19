@@ -1,5 +1,5 @@
 /**
- * Entry point + orchestrator for the api-football live ingester (M1.14).
+ * Entry point + orchestrator for the api-football live ingester (M1.14 + M2.3).
  *
  * One-tick algorithm (see spec §3.4 + plan amendments):
  *
@@ -11,8 +11,18 @@
  *          When false the API still fires (dry-run mode); pollers + writers
  *          return `{written:false}` and the scheduler reflects that in
  *          TickResult.writeEnabled. This is the M1 rollout default.
- *      Cascade: callEnabled=false short-circuits before reading writeEnabled
- *      so a fully-off ingester makes ZERO database calls per tick.
+ *        - API_FOOTBALL_TIMER_OWNER (M2.3) gates the timer/period/score
+ *          column writes specifically. Both WRITE_ENABLED and TIMER_OWNER
+ *          must be true for persistTimerAndScore to write. This second
+ *          gate prevents an FS-scraper vs api-football race on the same
+ *          columns: the flag MUST be flipped ON only AFTER the FS scraper
+ *          has been cross-repo gated OFF for those fields. Pollers that
+ *          write to `_af`-suffixed `live_data` keys (events_af,
+ *          statistics_af, lineups_af, ...) are NOT affected by this gate
+ *          because those sub-keys are always api-football-owned.
+ *      Cascade: callEnabled=false short-circuits before reading the
+ *      other flags so a fully-off ingester makes ZERO database calls
+ *      per tick.
  *
  *   2. Begin a stats cycle (StatsBuffer.startCycle).
  *
@@ -83,6 +93,10 @@ const EVENTS_PATH = '/fixtures/events';
 export interface TickResult {
   callEnabled: boolean;
   writeEnabled: boolean;
+  /** Value of API_FOOTBALL_TIMER_OWNER for this tick (M2.3). Exposed for
+   *  observability so /api/admin/* dashboards and tests can assert the
+   *  gate state without re-reading system_config. */
+  timerOwnerEnabled: boolean;
   discoveredCount: number;
   eventsPolledCount: number;
   prunedCount: number;
@@ -148,12 +162,23 @@ export class Scheduler {
   async tick(nowMs: number = Date.now()): Promise<TickResult> {
     const { client, db, flagCache, statsBuffer, eventIdResolver, publishStats } = this.deps;
 
-    // 1. Flag gate — read BOTH flags up front. callEnabled short-circuits.
+    // 1. Flag gate — read all three flags up front. callEnabled short-circuits.
     const callEnabled = await flagCache.getFlag('API_FOOTBALL_CALL_ENABLED', nowMs);
     if (!callEnabled) {
-      return { callEnabled: false, writeEnabled: false, discoveredCount: 0, eventsPolledCount: 0, prunedCount: 0 };
+      return {
+        callEnabled: false,
+        writeEnabled: false,
+        timerOwnerEnabled: false,
+        discoveredCount: 0,
+        eventsPolledCount: 0,
+        prunedCount: 0,
+      };
     }
     const writeEnabled = await flagCache.getFlag('API_FOOTBALL_WRITE_ENABLED', nowMs);
+    // M2.3: TIMER_OWNER flag — second gate on timer/period/score column
+    // writes. Read here so it lands in TickResult for observability; the
+    // actual gating happens inside persistTimerAndScore.
+    const timerOwnerEnabled = await flagCache.getFlag('API_FOOTBALL_TIMER_OWNER', nowMs);
 
     // 2. Begin stats cycle.
     statsBuffer.startCycle(nowMs);
@@ -172,6 +197,7 @@ export class Scheduler {
       return await this.finishAndPublish(statsBuffer, publishStats, client, {
         callEnabled,
         writeEnabled,
+        timerOwnerEnabled,
         discoveredCount: 0,
         eventsPolledCount: 0,
         prunedCount: 0,
@@ -191,12 +217,15 @@ export class Scheduler {
         continue;
       }
 
-      // Always-do: timer+score idempotent write. Flag-gated internally.
-      await persistTimerAndScore(db, eventId, fixture, { writeEnabled });
+      // Always-do: timer+score idempotent write. Double-gated internally
+      // by writeEnabled AND timerOwnerEnabled (M2.3).
+      await persistTimerAndScore(db, eventId, fixture, { writeEnabled, timerOwnerEnabled });
 
       // Decide whether to pull events.
       const decision = shouldFetchEvents(this.state, fixture, nowMs);
       if (decision.fetch) {
+        // pollEvents writes to live_data.events_af which is api-football-owned
+        // by construction — it does NOT need the TIMER_OWNER gate.
         const result = await pollEvents(client, db, eventId, fixtureId, { writeEnabled });
         statsBuffer.recordCall(EVENTS_PATH);
         if (!result.ok) {
@@ -227,6 +256,7 @@ export class Scheduler {
     return await this.finishAndPublish(statsBuffer, publishStats, client, {
       callEnabled,
       writeEnabled,
+      timerOwnerEnabled,
       discoveredCount: liveFixtures.length,
       eventsPolledCount,
       prunedCount,

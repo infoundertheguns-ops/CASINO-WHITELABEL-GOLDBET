@@ -95,13 +95,38 @@ describe('persistTimerAndScore', () => {
     const fixture = buildFixture({ statusShort: '1H' });
     const result = await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-1', fixture, {
       writeEnabled: false,
+      timerOwnerEnabled: true,
     });
     expect(result.written).toBe(false);
     expect(db.queries.length).toBe(0);
     expect(db.query).not.toHaveBeenCalled();
   });
 
-  it('issues a single UPDATE on events_v2 with the 6 columns when writeEnabled=true', async () => {
+  it('is a no-op when writeEnabled=true but timerOwnerEnabled=false (M2 gate)', async () => {
+    const db = createMockDb();
+    const fixture = buildFixture({ statusShort: '1H' });
+    const result = await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-gated', fixture, {
+      writeEnabled: true,
+      timerOwnerEnabled: false,
+    });
+    expect(result.written).toBe(false);
+    expect(db.queries.length).toBe(0);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when timerOwnerEnabled is missing/undefined (defensive default-off)', async () => {
+    const db = createMockDb();
+    const fixture = buildFixture({ statusShort: '1H' });
+    // Intentionally omit timerOwnerEnabled to assert default-off behavior.
+    const result = await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-default', fixture, {
+      writeEnabled: true,
+    });
+    expect(result.written).toBe(false);
+    expect(db.queries.length).toBe(0);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('issues a single UPDATE on events_v2 with the 6 columns when writeEnabled=true and timerOwnerEnabled=true', async () => {
     const db = createMockDb();
     const fixture = buildFixture({
       statusShort: '1H',
@@ -115,6 +140,7 @@ describe('persistTimerAndScore', () => {
     });
     const result = await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-1', fixture, {
       writeEnabled: true,
+      timerOwnerEnabled: true,
     });
     expect(result.written).toBe(true);
     expect(db.queries.length).toBe(1);
@@ -146,6 +172,7 @@ describe('persistTimerAndScore', () => {
     });
     await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-2', fixture, {
       writeEnabled: true,
+      timerOwnerEnabled: true,
     });
     const q = db.queries[0]!;
     expect(q.params[0]).toBe(0);
@@ -166,6 +193,7 @@ describe('persistTimerAndScore', () => {
     });
     await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-3', fixture, {
       writeEnabled: true,
+      timerOwnerEnabled: true,
     });
     const q = db.queries[0]!;
     const periodScoresParam = q.params[4];
@@ -183,6 +211,7 @@ describe('persistTimerAndScore', () => {
     const fixture = buildFixture({ statusShort: '1H' });
     await persistTimerAndScore(db as unknown as PersistenceDb, 'evt-LAST', fixture, {
       writeEnabled: true,
+      timerOwnerEnabled: true,
     });
     const q = db.queries[0]!;
     expect(q.params[q.params.length - 1]).toBe('evt-LAST');

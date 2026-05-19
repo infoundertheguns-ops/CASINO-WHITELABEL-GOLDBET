@@ -48,18 +48,24 @@ function makeFixture(overrides: Partial<{
 function makeDeps(opts: {
   callEnabled?: boolean;
   writeEnabled?: boolean;
+  timerOwnerEnabled?: boolean;
   liveFixtures?: AFFixture[];
   resolverMap?: Record<number, string | null>;
   clientFetchThrows?: Error;
 } = {}) {
   const callEnabled = opts.callEnabled ?? true;
   const writeEnabled = opts.writeEnabled ?? true;
+  // Default tests to TIMER_OWNER on so legacy happy-path tests (which
+  // assert dbQuerySpy was called from persistTimerAndScore) keep passing.
+  // Explicit M2.3 gate tests pass `timerOwnerEnabled: false`.
+  const timerOwnerEnabled = opts.timerOwnerEnabled ?? true;
   const liveFixtures = opts.liveFixtures ?? [];
 
   const flagCache = {
     getFlag: vi.fn(async (key: string) => {
       if (key === 'API_FOOTBALL_CALL_ENABLED') return callEnabled;
       if (key === 'API_FOOTBALL_WRITE_ENABLED') return writeEnabled;
+      if (key === 'API_FOOTBALL_TIMER_OWNER') return timerOwnerEnabled;
       return false;
     }),
     invalidate: vi.fn(),
@@ -78,7 +84,7 @@ function makeDeps(opts: {
     lastRateLimit: () => ({ limit: 7500, remaining: 7499 }),
   } as unknown as ApiFootballClient;
 
-  const dbQuerySpy = vi.fn(async () => ({ rows: [] }));
+  const dbQuerySpy = vi.fn(async (_sql: string, _params: unknown[]) => ({ rows: [] }));
   const db = { query: dbQuerySpy } as unknown as PersistenceDb;
 
   const statsBuffer = new StatsBuffer();
@@ -116,6 +122,7 @@ describe('Scheduler.tick', () => {
     const s = new Scheduler(deps);
     const r = await s.tick(1_000);
     expect(r.callEnabled).toBe(false);
+    expect(r.timerOwnerEnabled).toBe(false);
     expect(r.eventsPolledCount).toBe(0);
     expect(r.discoveredCount).toBe(0);
     expect(deps.fetchSpy).not.toHaveBeenCalled();
@@ -131,6 +138,7 @@ describe('Scheduler.tick', () => {
 
     expect(r.callEnabled).toBe(true);
     expect(r.writeEnabled).toBe(true);
+    expect(r.timerOwnerEnabled).toBe(true);
     expect(r.discoveredCount).toBe(1);
     expect(r.eventsPolledCount).toBe(1);
 
@@ -261,6 +269,60 @@ describe('Scheduler.tick', () => {
     await s.tick(10_000);
     const stats = deps.publishSpy.mock.calls[0][0];
     expect(stats.rateLimitRemaining).toBe(7499);
+  });
+
+  // --- M2.3 TIMER_OWNER gate ------------------------------------------
+
+  it('M2.3: reads API_FOOTBALL_TIMER_OWNER flag and surfaces it in TickResult', async () => {
+    const deps = makeDeps({ liveFixtures: [], timerOwnerEnabled: false });
+    const s = new Scheduler(deps);
+
+    const r = await s.tick(10_000);
+
+    // All three flags must have been queried in this tick.
+    const queriedFlags = (deps.flagCache.getFlag as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as string,
+    );
+    expect(queriedFlags).toContain('API_FOOTBALL_CALL_ENABLED');
+    expect(queriedFlags).toContain('API_FOOTBALL_WRITE_ENABLED');
+    expect(queriedFlags).toContain('API_FOOTBALL_TIMER_OWNER');
+
+    expect(r.timerOwnerEnabled).toBe(false);
+    expect(r.writeEnabled).toBe(true);
+    expect(r.callEnabled).toBe(true);
+  });
+
+  it('M2.3: writeEnabled=true + timerOwnerEnabled=false -> persistTimerAndScore is gated off (no UPDATE on events_v2)', async () => {
+    // Score-delta triggers pollEvents (which writes to live_data.events_af —
+    // NOT gated by TIMER_OWNER) but persistTimerAndScore (timer/period/score
+    // columns) MUST be suppressed.
+    const fx = makeFixture({ id: 77, homeGoals: 1, awayGoals: 0 });
+    const deps = makeDeps({
+      liveFixtures: [fx],
+      writeEnabled: true,
+      timerOwnerEnabled: false,
+    });
+    const s = new Scheduler(deps);
+
+    await s.tick(10_000);
+
+    // The api call still fires (writeEnabled=true keeps pollers live).
+    const paths = deps.fetchSpy.mock.calls.map((c) => c[0]);
+    expect(paths).toContain('/fixtures/events?fixture=77');
+
+    // Inspect every db.query call: NONE should be the events_v2 timer/score
+    // UPDATE (which targets columns score_home/score_away/minute/period/
+    // period_scores and does NOT mention live_data).
+    const sqls = deps.dbQuerySpy.mock.calls.map((c) => c[0] as string);
+    const timerWrites = sqls.filter(
+      (sql) => /UPDATE\s+events_v2/i.test(sql) && /score_home/.test(sql) && !/live_data/i.test(sql),
+    );
+    expect(timerWrites.length).toBe(0);
+
+    // Sanity: the live_data.events_af merge from pollEvents IS present
+    // (proves writeEnabled-only pollers still ran, which is the contract).
+    const liveDataWrites = sqls.filter((sql) => /live_data/i.test(sql) && /events_af/.test(sql));
+    expect(liveDataWrites.length).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * Persistence writers for the api-football ingester (M1.11 + M1.12).
+ * Persistence writers for the api-football ingester (M1.11 + M1.12 + M2.3).
  *
  * Three flag-gated writers:
  *
@@ -7,6 +7,22 @@
  *      (score_home, score_away, minute, period, period_scores). Does NOT
  *      touch `live_data` and does NOT touch `country_fs`/`league_fs`
  *      (fs-scraper owned per spec §3.2).
+ *
+ *      M2.3 ADDS a SECOND gate on top of `writeEnabled`:
+ *      `timerOwnerEnabled` (system_config `API_FOOTBALL_TIMER_OWNER`).
+ *      Both flags MUST be true for a write to occur. Without the second
+ *      gate, enabling Phase B (writeEnabled=true) alone would create a
+ *      race condition with FS-scraper writes to the same timer/period/
+ *      score columns. The flag MUST be flipped ON only AFTER the FS
+ *      scraper has been cross-repo gated OFF for football fields owned
+ *      by api-football. Default-off (undefined treated as false) is a
+ *      defensive belt-and-braces guard for any caller that forgets to
+ *      thread the flag.
+ *
+ *      `persistStatistics` and `persistLiveDataKey` are NOT affected by
+ *      `timerOwnerEnabled` — those write to `_af`-suffixed `live_data`
+ *      sub-keys which are always api-football-owned regardless of who
+ *      owns the timer/score columns.
  *
  *   2. `persistLiveDataKey` (M1.12) — generic merger of a payload under
  *      a given `_af` sub-key of `events_v2.live_data` via the jsonb
@@ -36,6 +52,21 @@ import type { AFFixture } from './types.js';
 export interface PersistenceOpts {
   /** Value of the `API_FOOTBALL_WRITE_ENABLED` system_config flag. */
   writeEnabled: boolean;
+  /**
+   * Value of the `API_FOOTBALL_TIMER_OWNER` system_config flag (M2.3).
+   * When true, `persistTimerAndScore` is allowed to write timer/period/
+   * score columns. When false or missing, those writes are suppressed
+   * even if `writeEnabled` is true — this is the cross-repo handoff
+   * guard that prevents FS-scraper vs api-football column races.
+   *
+   * Default: `undefined` is treated as `false` (defensive default-off).
+   *
+   * NOTE: this gate ONLY affects `persistTimerAndScore`. The `_af`-key
+   * writers (`persistLiveDataKey`, `persistStatistics`) ignore this
+   * flag because they target api-football-owned sub-keys of `live_data`
+   * that never conflict with FS-scraper writes.
+   */
+  timerOwnerEnabled?: boolean;
 }
 
 export interface PersistenceDb {
@@ -109,7 +140,12 @@ function derivePeriodScores(fixture: AFFixture): {
 /**
  * Updates `events_v2` timer/score columns for `eventId` from `fixture`.
  *
- * No-op (and returns `{written:false}`) when `opts.writeEnabled === false`.
+ * Double-gated (M2.3):
+ *   - `opts.writeEnabled === false` -> no-op, returns `{written:false}`
+ *   - `opts.timerOwnerEnabled !== true` -> no-op, returns `{written:false}`
+ *     (this covers both explicit `false` and missing/undefined — the
+ *     default-off pattern guards callers that forget to thread the flag)
+ *
  * On a write, returns `{written:true}` after the SQL has executed.
  *
  * SQL contract (single statement, positional params, eventId last):
@@ -131,6 +167,11 @@ export async function persistTimerAndScore(
   opts: PersistenceOpts
 ): Promise<{ written: boolean }> {
   if (!opts.writeEnabled) {
+    return { written: false };
+  }
+  // M2.3 second gate: TIMER_OWNER must be explicitly true. Undefined
+  // (caller forgot to pass it) is treated as false — defensive default-off.
+  if (opts.timerOwnerEnabled !== true) {
     return { written: false };
   }
 
@@ -169,6 +210,10 @@ export async function persistTimerAndScore(
  * any other `_af` keys already present).
  *
  * No-op (and returns `{written:false}`) when `opts.writeEnabled === false`.
+ *
+ * NOT gated by `timerOwnerEnabled` — `_af` sub-keys are always
+ * api-football-owned and never conflict with FS-scraper writes (which
+ * target peer sub-keys like incidents/stats/matchMeta).
  *
  * SQL contract (jsonb `||` merge):
  *
