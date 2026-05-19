@@ -86,7 +86,7 @@ function makeDeps(opts: {
   const resolverMap = opts.resolverMap ?? Object.fromEntries(
     liveFixtures.map((f) => [f.fixture.id, 'uuid-' + f.fixture.id]),
   );
-  const eventIdResolver = vi.fn(async (fixtureId: number) => resolverMap[fixtureId] ?? null);
+  const eventIdResolver = vi.fn(async (fixture: AFFixture) => resolverMap[fixture.fixture.id] ?? null);
 
   const publishSpy = vi.fn(async (_stats: CycleStats) => undefined);
 
@@ -261,5 +261,121 @@ describe('Scheduler.tick', () => {
     await s.tick(10_000);
     const stats = deps.publishSpy.mock.calls[0][0];
     expect(stats.rateLimitRemaining).toBe(7499);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Production resolver (spec §3.5 resolve-at-ingest)
+// ---------------------------------------------------------------------------
+
+import { makeProductionEventIdResolver } from '../scheduler.js';
+import type { Pool } from 'pg';
+
+function makePoolMock(responses: Array<{ rows: any[] }>) {
+  let i = 0;
+  const calls: Array<{ sql: string; params: any[] }> = [];
+  const query = vi.fn(async (sql: string, params: any[]) => {
+    calls.push({ sql, params });
+    if (i >= responses.length) return { rows: [] };
+    return responses[i++];
+  });
+  return { pool: ({ query } as unknown) as Pool, query, calls };
+}
+
+describe('makeProductionEventIdResolver (resolve-at-ingest, spec §3.5)', () => {
+  it('cache hit short-circuits: returns event_id without fuzzy match or insert', async () => {
+    const { pool, query } = makePoolMock([{ rows: [{ event_id: 'uuid-cached' }] }]);
+    const resolve = makeProductionEventIdResolver(pool);
+    const fx = makeFixture({ id: 1001 });
+
+    const result = await resolve(fx);
+
+    expect(result).toBe('uuid-cached');
+    expect(query).toHaveBeenCalledTimes(1);
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toMatch(/SELECT event_id FROM external_id_mapping/);
+    expect(params).toEqual(['1001']);
+  });
+
+  it('cache miss + no candidates: returns null, no insert', async () => {
+    const { pool, query } = makePoolMock([
+      { rows: [] }, // cache lookup -> empty
+      { rows: [] }, // candidate scan -> empty
+    ]);
+    const resolve = makeProductionEventIdResolver(pool);
+    const fx = makeFixture({ id: 2002 });
+
+    const result = await resolve(fx);
+
+    expect(result).toBeNull();
+    expect(query).toHaveBeenCalledTimes(2);
+    // No INSERT was issued.
+    const sqls = query.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((q) => /INSERT INTO external_id_mapping/.test(q))).toBe(false);
+  });
+
+  it('cache miss + fuzzy match succeeds: persists mapping and returns event_id', async () => {
+    const candidate = {
+      id: 'uuid-fresh',
+      home: 'Home FC',
+      away: 'Away FC',
+      league_name: 'Premier League',
+      starts_at: '2026-05-19T18:00:00+00:00',
+    };
+    const { pool, query, calls } = makePoolMock([
+      { rows: [] },           // cache miss
+      { rows: [candidate] },  // candidates within ±2h
+      { rows: [] },           // insert ack
+    ]);
+    const resolve = makeProductionEventIdResolver(pool);
+    const fx = makeFixture({ id: 3003 });
+
+    const result = await resolve(fx);
+
+    expect(result).toBe('uuid-fresh');
+    expect(query).toHaveBeenCalledTimes(3);
+
+    // Candidate scan used a ±2h window around the fixture kickoff.
+    const candSql = calls[1].sql;
+    expect(candSql).toMatch(/SELECT id, home, away, league_name, starts_at/);
+    expect(candSql).toMatch(/sport_slug = 'football'/);
+    const [winLow, winHigh] = calls[1].params as [string, string];
+    const kickoffMs = new Date(fx.fixture.date).getTime();
+    expect(new Date(winLow).getTime()).toBe(kickoffMs - 2 * 60 * 60 * 1000);
+    expect(new Date(winHigh).getTime()).toBe(kickoffMs + 2 * 60 * 60 * 1000);
+
+    // Insert carries the resolved tuple. Confidence is whatever resolveMapping
+    // computed — assert the shape, not the exact float.
+    const insertSql = calls[2].sql;
+    expect(insertSql).toMatch(/INSERT INTO external_id_mapping/);
+    expect(insertSql).toMatch(/ON CONFLICT \(provider, external_id\)/);
+    const insertParams = calls[2].params;
+    expect(insertParams[0]).toBe('uuid-fresh');
+    expect(insertParams[1]).toBe('3003');
+    expect(typeof insertParams[2]).toBe('number');
+    expect(insertParams[2]).toBeGreaterThanOrEqual(0.5);
+    expect(typeof insertParams[3]).toBe('boolean');
+  });
+
+  it('cache miss + candidates present but all below 0.5 threshold: returns null, no insert', async () => {
+    const candidate = {
+      id: 'uuid-mismatch',
+      home: 'Totally Different Team',
+      away: 'Another Random Side',
+      league_name: 'Different Cup',
+      starts_at: '2026-05-19T18:00:00+00:00',
+    };
+    const { pool, query } = makePoolMock([
+      { rows: [] },
+      { rows: [candidate] },
+    ]);
+    const resolve = makeProductionEventIdResolver(pool);
+    const fx = makeFixture({ id: 4004 });
+
+    const result = await resolve(fx);
+
+    expect(result).toBeNull();
+    // 2 queries only — no INSERT because resolveMapping returned null.
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });

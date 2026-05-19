@@ -74,6 +74,7 @@ import { persistTimerAndScore, type PersistenceDb } from './persistence.js';
 import { pollEvents } from './enrichment.js';
 import { StatsBuffer, publishStats as defaultPublishStats, type CycleStats } from './stats-publisher.js';
 import { FlagCache, loadConfig, type ServiceConfig } from './config.js';
+import { resolveMapping, type V2EventCandidate } from './mapping.js';
 import type { AFFixture } from './types.js';
 
 const DISCOVERY_PATH = '/fixtures?live=all';
@@ -92,8 +93,10 @@ export interface SchedulerDeps {
   db: PersistenceDb;
   flagCache: FlagCache;
   statsBuffer: StatsBuffer;
-  /** Resolves a fixture.id to an events_v2 UUID, or null if no mapping exists. */
-  eventIdResolver: (fixtureId: number) => Promise<string | null>;
+  /** Resolves a fixture to an events_v2 UUID. Looks up external_id_mapping cache;
+   *  on miss, fuzzy-matches against events_v2 candidates and persists the mapping
+   *  (confidence >= 0.5) before returning. Null when no match. See spec §3.5. */
+  eventIdResolver: (fixture: AFFixture) => Promise<string | null>;
   /** Best-effort cycle stats publisher; failures swallowed by scheduler. */
   publishStats: (stats: CycleStats) => Promise<void>;
   /** Loop interval — ignored by tick(), used by run(). */
@@ -181,7 +184,7 @@ export class Scheduler {
     // 4-5. Per-fixture orchestration.
     for (const fixture of liveFixtures) {
       const fixtureId = fixture.fixture.id;
-      const eventId = await eventIdResolver(fixtureId);
+      const eventId = await eventIdResolver(fixture);
       if (!eventId) {
         // No mapping resolved — skip (M1.10 discovery loop is responsible
         // for populating external_id_mapping). Not counted as an error.
@@ -335,16 +338,29 @@ export async function main(): Promise<void> {
 }
 
 /**
- * Production event-id resolver: looks up `external_id_mapping` by
- * `(provider='api-football', external_id=fixtureId)`. Returns the mapped
- * `event_id` UUID or null if no row exists.
+ * Production event-id resolver — spec §3.5 "resolve at ingest, cache thereafter".
  *
- * The fuzzy-match flow that POPULATES the table runs in the M1.10
- * discovery cycle (separate cadence), NOT here.
+ * Step 1: cache lookup against `external_id_mapping` (confidence >= 0.5).
+ * Step 2: on miss, fuzzy-match the fixture against `events_v2` candidates
+ *         (sport_slug='football', status in (prematch|live), starts_at within
+ *         a ±2h kickoff window) via `resolveMapping` from M1.8.
+ * Step 3: when a mapping is decided (confidence >= 0.5), INSERT it so the
+ *         next tick is a cache hit. Returns the resolved event_id UUID.
+ *
+ * Returns null when no candidate clears the 0.5 threshold — the scheduler
+ * skips the fixture for this tick and re-attempts next cycle.
+ *
+ * Note: this is intentionally per-tick. The M1.10 `discovery.ts` loop
+ * pre-populates the table from `/fixtures?date=` so most live fixtures
+ * are cache hits; this resolver is the safety net for unseen fixtures
+ * (newly-started games not in the prematch discovery pass).
  */
-function makeProductionEventIdResolver(pool: Pool): (fixtureId: number) => Promise<string | null> {
-  return async (fixtureId: number) => {
-    const { rows } = await pool.query<{ event_id: string }>(
+export function makeProductionEventIdResolver(pool: Pool): (fixture: AFFixture) => Promise<string | null> {
+  return async (fixture: AFFixture) => {
+    const fixtureId = fixture.fixture.id;
+
+    // 1. Cache lookup.
+    const cached = await pool.query<{ event_id: string }>(
       `SELECT event_id FROM external_id_mapping
         WHERE provider = 'api-football'
           AND external_id = $1
@@ -352,7 +368,44 @@ function makeProductionEventIdResolver(pool: Pool): (fixtureId: number) => Promi
         LIMIT 1`,
       [String(fixtureId)],
     );
-    return rows.length > 0 ? rows[0].event_id : null;
+    if (cached.rows.length > 0) return cached.rows[0].event_id;
+
+    // 2. Miss -> fuzzy-match candidates within ±2h kickoff window.
+    const kickoffMs = new Date(fixture.fixture.date).getTime();
+    if (!Number.isFinite(kickoffMs)) return null;
+    const winLow = new Date(kickoffMs - 2 * 60 * 60 * 1000).toISOString();
+    const winHigh = new Date(kickoffMs + 2 * 60 * 60 * 1000).toISOString();
+
+    const { rows: candRows } = await pool.query<V2EventCandidate>(
+      `SELECT id, home, away, league_name, starts_at
+         FROM events_v2
+        WHERE sport_slug = 'football'
+          AND status IN ('pending', 'live')
+          AND starts_at >= $1
+          AND starts_at <= $2`,
+      [winLow, winHigh],
+    );
+    if (candRows.length === 0) return null;
+
+    const decision = resolveMapping(fixture, candRows);
+    if (decision === null) return null;
+
+    // 3. Persist for future cache hits. ON CONFLICT covers two unique keys:
+    //    PK (event_id, provider) and UNIQUE (provider, external_id). We target
+    //    the latter so re-resolving the same fixture to a different event_id
+    //    updates the row in-place instead of erroring.
+    await pool.query(
+      `INSERT INTO external_id_mapping (event_id, provider, external_id, confidence, verified, matched_at)
+       VALUES ($1, 'api-football', $2, $3, $4, NOW())
+       ON CONFLICT (provider, external_id) DO UPDATE
+         SET event_id  = EXCLUDED.event_id,
+             confidence = EXCLUDED.confidence,
+             verified   = EXCLUDED.verified,
+             matched_at = NOW()`,
+      [decision.event_id, String(fixtureId), decision.confidence, decision.verified],
+    );
+
+    return decision.event_id;
   };
 }
 
