@@ -555,10 +555,16 @@ export class FixtureState {
   }
 
   // Cleanup: remove fixtures no longer live (called after each discovery)
+  // Defensive: iterates both internal maps independently so any orphan
+  // entry in lastEventsFetchAt (invariant violation) also gets cleaned.
   pruneStale(activeFixtureIds: Set<number>) {
     for (const id of this.lastSeenScores.keys()) {
       if (!activeFixtureIds.has(id)) {
         this.lastSeenScores.delete(id);
+      }
+    }
+    for (const id of this.lastEventsFetchAt.keys()) {
+      if (!activeFixtureIds.has(id)) {
         this.lastEventsFetchAt.delete(id);
       }
     }
@@ -611,6 +617,19 @@ describe('discovery score-delta L3', () => {
   });
 });
 ```
+
+- [ ] **Step 1.5: Purity split (deviation from spec §3.4)**
+
+`shouldFetchEvents` is a PURE decision function: it does NOT mutate `FixtureState`.
+The scheduler (M1.14) is responsible for calling `state.setLastScore(id, score)` and
+`state.setEventsFetchAt(id, Date.now())` only AFTER a successful `/fixtures/events`
+fetch+persist. Rationale:
+- Conditional persist preserves retry semantics — if the fetch fails, we don't update
+  lastFetch so the next cycle re-attempts.
+- Pure decision is trivially testable via `nowMs` parameter injection (no global
+  `vi.useFakeTimers()` stubs).
+- `FetchReason` union exports include `'seed'` and `'final'` reserved for scheduler
+  emission (post-restart one-shot + Match Finished transition) — see M1.14.
 
 - [ ] **Step 2-6: Implement, test pass, commit**
 
@@ -720,6 +739,32 @@ console.log('[scheduler] api-football-ingester started');
 - [ ] **Step 2: Smoke test locally** (mocked api key)
 
 - [ ] **Step 3: Commit**
+
+- [ ] **Scheduler-owned side effects + reason emission**
+
+After a successful `/fixtures/events` fetch+persist, the scheduler MUST atomically:
+```typescript
+state.setLastScore(fixture.fixture.id, { home: goals.home ?? 0, away: goals.away ?? 0 });
+state.setEventsFetchAt(fixture.fixture.id, Date.now());
+```
+Forgetting `setLastScore` → infinite score-delta refetch loop. Forgetting
+`setEventsFetchAt` → premature staleness (card-poll never resets). Consider extracting
+a helper `state.recordEventsFetch(id, score, nowMs)` to make this atomic at the call
+site.
+
+The scheduler emits two additional `FetchReason` values beyond what `shouldFetchEvents`
+returns:
+- `'seed'` — one-shot `/fixtures/events` per fixture immediately after process restart,
+  to backfill anything missed during downtime.
+- `'final'` — one-shot `/fixtures/events` when fixture transitions to `status.short ==
+  'FT'` (Match Finished), to guarantee final settlement data.
+
+**Cold-start surge**: on process restart with N live fixtures, every fixture's first
+cycle of `shouldFetchEvents` will emit either `score-delta` (if scoreboard non-zero) or
+`card-poll` (if 0-0, because lastEventsFetchAt = 0 makes msSinceLastFetch >> TTL). That
+is N immediate `/fixtures/events` calls. Verify the M1.7 `RateLimitInfo` per-minute
+budget tolerates a burst of N (~50-200 typical worldwide live fixtures); else stagger
+the initial pass over 10-30 seconds.
 
 ---
 
