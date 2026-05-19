@@ -55,6 +55,19 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  // M2.2: read API_FOOTBALL_TIMER_OWNER flag once per push. When true AND
+  // the incoming push is football, the api-football ingester owns
+  // period/score_home/score_away — this route must skip those columns.
+  // live_data / country_fs / league_fs / status / updated_at stay
+  // fs-scraper-owned regardless of the flag.
+  const { data: timerOwnerRow } = await supabase
+    .from('system_config')
+    .select('value')
+    .eq('key', 'API_FOOTBALL_TIMER_OWNER')
+    .maybeSingle();
+  const timerOwnerEnabled =
+    timerOwnerRow?.value === true || timerOwnerRow?.value === 'true';
+
   const stats = {
     received: live.length,
     matched: 0,
@@ -88,7 +101,7 @@ export async function POST(req: NextRequest) {
     if (!fs) continue;
     directSet.add(ev.id);
     try {
-      const didUpdate = await applyAndPersist(supabase, ev, fs, sport);
+      const didUpdate = await applyAndPersist(supabase, ev, fs, sport, timerOwnerEnabled);
       stats.matched++;
       stats.matched_direct++;
       if (didUpdate) stats.updated++;
@@ -107,7 +120,7 @@ export async function POST(req: NextRequest) {
     const rawFs = live[idx];
     const fs = swapped ? swapFsLiveOrientation(rawFs) : rawFs;
     try {
-      const didUpdate = await applyAndPersist(supabase, ev, fs, sport);
+      const didUpdate = await applyAndPersist(supabase, ev, fs, sport, timerOwnerEnabled);
       stats.matched++;
       stats.matched_fuzzy++;
       if (didUpdate) stats.updated++;
@@ -140,8 +153,9 @@ async function applyAndPersist(
   ev: V2LiveEvent,
   fs: FlashscoreLive,
   sport: string,
+  timerOwnerEnabled: boolean,
 ): Promise<boolean> {
-  const { update } = computeEnrichmentUpdate({ ev, fs, sport });
+  const { update } = computeEnrichmentUpdate({ ev, fs, sport, timerOwnerEnabled });
   if (!update) return false;
   update.updated_at = new Date().toISOString();
   const { error } = await supabase.from("events_v2").update(update).eq("id", ev.id);

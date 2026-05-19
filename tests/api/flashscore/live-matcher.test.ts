@@ -117,6 +117,42 @@ describe("computeEnrichmentUpdate", () => {
     });
     expect(update?.period).toBe("Leg 4");
   });
+  it('M2.2: gates score_home/score_away when football+timerOwnerEnabled', () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: 2, scoreAway: 1, periods: [[1, 0]] },
+      sport: 'calcio',
+      timerOwnerEnabled: true,
+    });
+    // score_home/score_away/period must be omitted; live_data still flows
+    expect(update?.score_home).toBeUndefined();
+    expect(update?.score_away).toBeUndefined();
+    expect(update?.period).toBeUndefined();
+    expect(update?.live_data).toBeDefined();
+  });
+
+  it('M2.2: writes all fields when football+timerOwnerEnabled=false (default)', () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: 2, scoreAway: 1, periods: [[1, 0]] },
+      sport: 'calcio',
+      timerOwnerEnabled: false,
+    });
+    expect(update?.score_home).toBe(2);
+    expect(update?.score_away).toBe(1);
+    expect(update?.period).toBe('1T');
+  });
+
+  it('M2.2: writes all fields for non-football even when timerOwnerEnabled=true', () => {
+    const { update } = computeEnrichmentUpdate({
+      ev: baseEv,
+      fs: { ...baseFs, scoreHome: 2, scoreAway: 1, periods: [[1, 0]] },
+      sport: 'tennis',
+      timerOwnerEnabled: true,
+    });
+    expect(update?.score_home).toBe(2);
+    expect(update?.score_away).toBe(1);
+  });
 });
 
 describe("findFuzzyMatch", () => {

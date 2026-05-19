@@ -27,9 +27,17 @@ export function computeEnrichmentUpdate(args: {
   ev: V2LiveEvent;
   fs: FlashscoreLive;
   sport: string;
+  /**
+   * M2.2: when true AND sport is football (calcio), the timer-ownership
+   * fields (period, score_home, score_away) are omitted from the update.
+   * api-football ingester owns them in this mode. live_data is unaffected.
+   */
+  timerOwnerEnabled?: boolean;
 }): { update: Record<string, unknown> | null } {
-  const { ev, fs, sport } = args;
+  const { ev, fs, sport, timerOwnerEnabled = false } = args;
   const update: Record<string, unknown> = {};
+  const isFootball = sport.toLowerCase() === 'calcio';
+  const skipTimer = isFootball && timerOwnerEnabled;
 
   // period label
   let derivedPeriod = derivePeriodLabel(sport, fs.periods.length);
@@ -43,7 +51,7 @@ export function computeEnrichmentUpdate(args: {
       else if (s === "freccette" || s === "darts") derivedPeriod = `Leg ${unitIdx}`;
     }
   }
-  if (derivedPeriod && derivedPeriod !== ev.period) {
+  if (derivedPeriod && derivedPeriod !== ev.period && !skipTimer) {
     update.period = derivedPeriod;
   }
 
@@ -117,7 +125,7 @@ export function computeEnrichmentUpdate(args: {
     .includes(sport.toLowerCase());
   const upstreamLikelyWrong =
     isTennisLike && ev.score_home != null && (ev.score_home >= 15 || (ev.score_away ?? 0) >= 15);
-  if (fs.scoreHome != null && fs.scoreAway != null) {
+  if (fs.scoreHome != null && fs.scoreAway != null && !skipTimer) {
     if (ev.score_home == null || ev.score_away == null || upstreamLikelyWrong) {
       if (fs.scoreHome !== ev.score_home) update.score_home = fs.scoreHome;
       if (fs.scoreAway !== ev.score_away) update.score_away = fs.scoreAway;
