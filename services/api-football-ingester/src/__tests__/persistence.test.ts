@@ -244,3 +244,40 @@ describe('persistStatistics', () => {
     expect(q.params[q.params.length - 1]).toBe('evt-stat-LAST');
   });
 });
+
+describe('persistLiveDataKey (generic helper)', () => {
+  it('is a no-op when writeEnabled=false', async () => {
+    const db = createMockDb();
+    const { persistLiveDataKey } = await import('../persistence.js');
+    const result = await persistLiveDataKey(
+      db as unknown as PersistenceDb,
+      'evt-gen-1',
+      'lineups_af',
+      { foo: 'bar' },
+      { writeEnabled: false }
+    );
+    expect(result.written).toBe(false);
+    expect(db.queries.length).toBe(0);
+  });
+
+  it("interpolates the typed key literal (e.g. 'lineups_af') into the SQL and uses jsonb merge", async () => {
+    const db = createMockDb();
+    const { persistLiveDataKey } = await import('../persistence.js');
+    const result = await persistLiveDataKey(
+      db as unknown as PersistenceDb,
+      'evt-gen-2',
+      'lineups_af',
+      [{ team: { id: 1 }, startXI: [] }],
+      { writeEnabled: true }
+    );
+    expect(result.written).toBe(true);
+    expect(db.queries.length).toBe(1);
+    const q = db.queries[0]!;
+    expect(q.sql).toMatch(/'lineups_af'/);
+    expect(q.sql).not.toMatch(/'statistics_af'/);
+    expect(q.sql).toMatch(/COALESCE\s*\(\s*live_data\s*,\s*'\{\}'::jsonb\s*\)\s*\|\|/i);
+    expect(q.sql).toMatch(/WHERE\s+id\s*=\s*\$2/i);
+    // eventId must be the LAST positional parameter
+    expect(q.params[q.params.length - 1]).toBe('evt-gen-2');
+  });
+});

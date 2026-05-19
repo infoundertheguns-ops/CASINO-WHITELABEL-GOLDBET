@@ -1,22 +1,26 @@
 /**
- * Persistence writers for the api-football ingester (M1.11).
+ * Persistence writers for the api-football ingester (M1.11 + M1.12).
  *
- * Two narrowly-scoped writers, each flag-gated by an opt-in boolean:
+ * Three flag-gated writers:
  *
  *   1. `persistTimerAndScore` — updates `events_v2` timer/score columns
  *      (score_home, score_away, minute, period, period_scores). Does NOT
- *      touch `live_data` (separate function) and does NOT touch
- *      `country_fs`/`league_fs` (fs-scraper owned per spec §3.2).
+ *      touch `live_data` and does NOT touch `country_fs`/`league_fs`
+ *      (fs-scraper owned per spec §3.2).
  *
- *   2. `persistStatistics` — merges a `statistics_af` payload into
- *      `events_v2.live_data` via the jsonb `||` operator. Existing
- *      FS-owned keys (incidents, stats, matchMeta, fs_pregame) are
- *      preserved by the merge; only the `statistics_af` sub-key is
- *      replaced wholesale (statistics is a per-cycle snapshot).
+ *   2. `persistLiveDataKey` (M1.12) — generic merger of a payload under
+ *      a given `_af` sub-key of `events_v2.live_data` via the jsonb
+ *      `||` operator. Existing FS-owned keys (incidents, stats, matchMeta,
+ *      fs_pregame) AND sibling `_af` keys are preserved by the merge;
+ *      only the targeted sub-key is replaced wholesale.
  *
- * Both writers are no-ops when `opts.writeEnabled === false`. The flag is
- * read from `system_config.API_FOOTBALL_WRITE_ENABLED` by the caller; this
- * module is pure with respect to env/config to keep it test-friendly.
+ *   3. `persistStatistics` — thin wrapper over `persistLiveDataKey` for
+ *      backwards compatibility with M1.11 callers. New code SHOULD call
+ *      `persistLiveDataKey` directly with the desired `_af` key.
+ *
+ * All writers are no-ops when `opts.writeEnabled === false`. The flag is
+ * read from `system_config.API_FOOTBALL_WRITE_ENABLED` by the caller;
+ * this module is pure with respect to env/config to keep it test-friendly.
  *
  * Design notes:
  *   - The `PersistenceDb` interface is deliberately minimal (one
@@ -24,8 +28,8 @@
  *     scheduler (M1.14) will wire a real `pg.Pool` whose `.query` matches.
  *   - `derivePeriod` is exported so the period-mapping table is testable
  *     in isolation.
- *   - No `Date.now()` or `process.env` reads: timestamps and flags must be
- *     supplied by the caller.
+ *   - No `Date.now()` or `process.env` reads: timestamps and flags must
+ *     be supplied by the caller.
  */
 import type { AFFixture } from './types.js';
 
@@ -37,6 +41,19 @@ export interface PersistenceOpts {
 export interface PersistenceDb {
   query<T = unknown>(sql: string, params: unknown[]): Promise<{ rows: T[] }>;
 }
+
+/**
+ * Closed set of `live_data` sub-keys owned by the api-football ingester.
+ * Keep in sync with spec §3.2 and the M1.12 poller surface.
+ */
+export type LiveDataAfKey =
+  | 'events_af'
+  | 'statistics_af'
+  | 'lineups_af'
+  | 'players_af_ht'
+  | 'players_af_ft'
+  | 'h2h_af'
+  | 'predictions_af';
 
 /**
  * Maps api-football `status.short` to our internal period code.
@@ -146,26 +163,29 @@ export async function persistTimerAndScore(
 }
 
 /**
- * Merges a `statistics_af` payload into `events_v2.live_data` for `eventId`.
+ * Generic merge of `payload` under the given `_af` sub-key of
+ * `events_v2.live_data`. Preserves all other sub-keys (FS-owned:
+ * incidents/stats/matchMeta/fs_pregame; api-football-owned siblings:
+ * any other `_af` keys already present).
  *
  * No-op (and returns `{written:false}`) when `opts.writeEnabled === false`.
  *
- * SQL contract (jsonb `||` merge, preserves all other top-level keys):
+ * SQL contract (jsonb `||` merge):
  *
  *   UPDATE events_v2
  *   SET live_data = COALESCE(live_data, '{}'::jsonb)
- *                   || jsonb_build_object('statistics_af', $1::jsonb)
+ *                   || jsonb_build_object('<key>', $1::jsonb)
  *   WHERE id = $2
  *
- * The `||` merge replaces only the `statistics_af` key; existing
- * FS-owned keys (`incidents`, `stats`, `matchMeta`, `fs_pregame`) are
- * preserved by construction. Statistics is a full per-cycle snapshot so
- * replacing the whole sub-tree is intentional.
+ * The `<key>` literal is interpolated from the typed `LiveDataAfKey` set
+ * (NOT taken from arbitrary user input) so SQL injection is structurally
+ * impossible. The payload itself flows as a positional jsonb parameter.
  */
-export async function persistStatistics(
+export async function persistLiveDataKey(
   db: PersistenceDb,
   eventId: string,
-  statisticsAf: unknown,
+  key: LiveDataAfKey,
+  payload: unknown,
   opts: PersistenceOpts
 ): Promise<{ written: boolean }> {
   if (!opts.writeEnabled) {
@@ -175,15 +195,27 @@ export async function persistStatistics(
   const sql = `
     UPDATE events_v2
     SET live_data = COALESCE(live_data, '{}'::jsonb)
-                    || jsonb_build_object('statistics_af', $1::jsonb)
+                    || jsonb_build_object('${key}', $1::jsonb)
     WHERE id = $2
   `;
 
   // Serialise the payload so pg sends it as a jsonb-castable string
   // regardless of object vs already-stringified input.
-  const payloadParam =
-    typeof statisticsAf === 'string' ? statisticsAf : JSON.stringify(statisticsAf ?? {});
+  const payloadParam = typeof payload === 'string' ? payload : JSON.stringify(payload ?? {});
 
   await db.query(sql, [payloadParam, eventId]);
   return { written: true };
+}
+
+/**
+ * Backwards-compatible thin wrapper preserved for M1.11 callers.
+ * New code SHOULD call `persistLiveDataKey` directly.
+ */
+export async function persistStatistics(
+  db: PersistenceDb,
+  eventId: string,
+  statisticsAf: unknown,
+  opts: PersistenceOpts
+): Promise<{ written: boolean }> {
+  return persistLiveDataKey(db, eventId, 'statistics_af', statisticsAf, opts);
 }
