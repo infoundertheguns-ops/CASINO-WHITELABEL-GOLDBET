@@ -42,11 +42,8 @@ function buildFixture(overrides: {
       status: {
         elapsed: overrides.elapsed ?? 30,
         long: overrides.statusLong ?? 'First Half',
-        // status.short is part of the real api-football payload but is not
-        // declared in the current AFFixture type (types.ts owned by another
-        // milestone). Cast through unknown so the test fixtures can supply it.
-        ...(overrides.statusShort !== undefined ? { short: overrides.statusShort } : {}),
-      } as AFFixture['fixture']['status'],
+        short: overrides.statusShort ?? '1H',
+      },
       venue: { id: 1, name: 'Stadio', city: 'Roma' },
     },
     league: { id: 135, name: 'Serie A', country: 'Italy' },

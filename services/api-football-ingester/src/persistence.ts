@@ -117,10 +117,7 @@ export async function persistTimerAndScore(
     return { written: false };
   }
 
-  // `status.short` is not declared in the current AFFixture type
-  // (types.ts ownership lives outside M1.11); read it structurally.
-  const statusShort =
-    (fixture.fixture.status as { short?: string }).short ?? '';
+  const statusShort = fixture.fixture.status.short;
 
   const scoreHome = fixture.goals.home ?? 0;
   const scoreAway = fixture.goals.away ?? 0;

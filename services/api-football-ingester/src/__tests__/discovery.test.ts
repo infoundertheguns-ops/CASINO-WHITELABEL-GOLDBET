@@ -12,7 +12,7 @@ function buildFixture(id: number, home: number | null, away: number | null): Pic
     fixture: {
       id,
       date: '2026-05-19T12:00:00+00:00',
-      status: { elapsed: 45, long: 'Second Half' },
+      status: { elapsed: 45, long: 'Second Half', short: '2H' },
       venue: { id: null, name: '', city: '' },
     },
     goals: { home, away },

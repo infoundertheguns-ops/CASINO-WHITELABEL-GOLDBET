@@ -23,7 +23,7 @@ function makeAFFixture(overrides: Partial<{
     fixture: {
       id: 999,
       date: overrides.date ?? '2026-05-18T19:00:00+00:00',
-      status: { elapsed: null, long: 'Not Started' },
+      status: { elapsed: null, long: 'Not Started', short: 'NS' },
       venue: { id: 1, name: 'Test', city: 'Test' },
     },
     league: {

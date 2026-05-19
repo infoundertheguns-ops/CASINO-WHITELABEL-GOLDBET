@@ -20,7 +20,7 @@ export interface AFFixture {
   fixture: {
     id: number;
     date: string;
-    status: { elapsed: number | null; long: string };
+    status: { elapsed: number | null; long: string; short: string; extra?: number | null };
     venue: { id: number | null; name: string; city: string };
   };
   league: { id: number; name: string; country: string };
