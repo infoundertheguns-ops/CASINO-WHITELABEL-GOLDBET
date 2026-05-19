@@ -4,7 +4,7 @@
  * One-tick algorithm (see spec §3.4 + plan amendments):
  *
  *   1. Read system_config flags via FlagCache:
- *        - API_FOOTBALL_CALL_ENABLED (mig 187) gates ALL outbound calls.
+ *        - API_FOOTBALL_CALL_ENABLED (mig 188) gates ALL outbound calls.
  *          When false the scheduler is dormant — no discovery, no pollers,
  *          no stats publish. This is the "kill switch" for incident response.
  *        - API_FOOTBALL_WRITE_ENABLED (mig 186) gates persistence writes.
